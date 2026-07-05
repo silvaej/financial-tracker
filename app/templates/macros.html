@@ -7,3 +7,7 @@
                background: {{ channel.color }};
                font-size: {{ (size * 0.42)|round(1) }}px">{{ initials }}</span>
 {% endmacro %}
+
+{% macro peso(amount) -%}
+  {{- '-' if amount < 0 else '' }}&#8369;{{ "{:,.2f}".format(amount|abs) }}
+{%- endmacro %}

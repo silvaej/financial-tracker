@@ -1,9 +1,13 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
 
 # --- Channels ---------------------------------------------------------------
+
+
+class ChannelInUseError(Exception):
+    """Raised when deleting a channel that is still referenced elsewhere."""
 
 
 def list_channels(db: Session) -> list[models.Channel]:
@@ -32,9 +36,29 @@ def update_channel(
 
 def delete_channel(db: Session, channel_id: int) -> None:
     channel = db.get(models.Channel, channel_id)
-    if channel is not None:
-        db.delete(channel)
-        db.commit()
+    if channel is None:
+        return
+
+    in_use = (
+        db.query(models.PayoutPeriod).filter_by(receiving_channel_id=channel_id).first()
+        or db.query(models.Expense).filter_by(channel_id=channel_id).first()
+        or db.query(models.Transfer)
+        .filter(
+            or_(
+                models.Transfer.from_channel_id == channel_id,
+                models.Transfer.to_channel_id == channel_id,
+            )
+        )
+        .first()
+    )
+    if in_use is not None:
+        raise ChannelInUseError(
+            "This channel is still used by a payout period, expense, or transfer "
+            "and can't be deleted until those are removed or reassigned."
+        )
+
+    db.delete(channel)
+    db.commit()
 
 
 # --- Payout periods ----------------------------------------------------------

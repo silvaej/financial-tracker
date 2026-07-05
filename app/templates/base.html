@@ -12,10 +12,13 @@
   <body class="font-sans text-ink">
     <div class="flex min-h-screen bg-ink">
       <nav class="rail" id="rail">
-        <div class="rail-head">
+        <div class="rail-head" id="rail-head">
           <div class="rail-brand" id="rail-brand">
-            Ledger
-            <small>Household Finance</small>
+            <div class="rail-logo">L</div>
+            <div class="rail-wordmark" id="rail-wordmark">
+              Ledger
+              <small>Household Finance</small>
+            </div>
           </div>
           <button class="shrink-0 bg-white/15 text-white rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-white/25"
                   id="collapse-toggle"
@@ -23,10 +26,23 @@
             <span id="collapse-icon">‹</span>
           </button>
         </div>
-        {% set nav_items = [('/overview', 'Overview'), ('/', 'Expenses'), ('/goals', 'Goals'), ('/credit', 'Credit'), ('/assets', 'Assets')] %}
-        {% for href, label in nav_items %}
+        {% set nav_items = [
+          ('/overview', 'Overview', 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'),
+          ('/', 'Expenses', 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z'),
+          ('/goals', 'Goals', 'M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5'),
+          ('/credit', 'Credit', 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z'),
+          ('/assets', 'Assets', 'M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z'),
+        ] %}
+        {% for href, label, icon_path in nav_items %}
           <a class="tab{{ ' tab-active' if request.url.path == href else '' }}"
              href="{{ href }}">
+            <svg class="tab-icon"
+                 viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon_path }}" />
+            </svg>
             <span class="tab-label">{{ label }}</span>
           </a>
         {% endfor %}
@@ -36,16 +52,37 @@
         {% endblock content %}
       </div>
     </div>
+    <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-ink/50">
+      <div class="card w-full max-w-sm mx-4">
+        <p id="confirm-modal-message" class="text-sm text-ink mb-4"></p>
+        <div class="flex justify-end gap-2">
+          <button type="button" id="confirm-modal-cancel" class="btn-secondary">Cancel</button>
+          <button type="button" id="confirm-modal-confirm" class="add-btn bg-rust mt-0">Delete</button>
+        </div>
+      </div>
+    </div>
+    <div id="alert-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-ink/50">
+      <div class="card w-full max-w-sm mx-4">
+        <p id="alert-modal-message" class="text-sm text-ink mb-4"></p>
+        <div class="flex justify-end">
+          <button type="button" id="alert-modal-ok" class="add-btn mt-0">OK</button>
+        </div>
+      </div>
+    </div>
     <script>
       const rail = document.getElementById("rail");
-      const brand = document.getElementById("rail-brand");
+      const railHead = document.getElementById("rail-head");
+      const wordmark = document.getElementById("rail-wordmark");
       const icon = document.getElementById("collapse-icon");
       const labels = () => document.querySelectorAll(".tab-label");
 
       function applyCollapsed(collapsed) {
         rail.classList.toggle("w-52", !collapsed);
         rail.classList.toggle("w-16", collapsed);
-        brand.style.display = collapsed ? "none" : "";
+        railHead.classList.toggle("flex-col", collapsed);
+        railHead.classList.toggle("gap-2", collapsed);
+        railHead.classList.toggle("justify-between", !collapsed);
+        wordmark.style.display = collapsed ? "none" : "";
         labels().forEach((el) => { el.style.display = collapsed ? "none" : ""; });
         icon.textContent = collapsed ? "›" : "‹";
       }
@@ -58,6 +95,85 @@
         localStorage.setItem("railCollapsed", collapsed);
         applyCollapsed(collapsed);
       });
+
+      const confirmModal = document.getElementById("confirm-modal");
+      const confirmMessage = document.getElementById("confirm-modal-message");
+      const confirmOkBtn = document.getElementById("confirm-modal-confirm");
+      const confirmCancelBtn = document.getElementById("confirm-modal-cancel");
+      let pendingConfirm = null;
+
+      function closeConfirmModal() {
+        confirmModal.classList.add("hidden");
+        confirmModal.classList.remove("flex");
+        pendingConfirm = null;
+      }
+
+      document.body.addEventListener("htmx:confirm", (evt) => {
+        if (!evt.detail.question) return;
+        evt.preventDefault();
+        confirmMessage.textContent = evt.detail.question;
+        pendingConfirm = evt.detail.issueRequest;
+        confirmModal.classList.remove("hidden");
+        confirmModal.classList.add("flex");
+      });
+
+      confirmOkBtn.addEventListener("click", () => {
+        const issueRequest = pendingConfirm;
+        closeConfirmModal();
+        if (issueRequest) issueRequest(true);
+      });
+
+      confirmCancelBtn.addEventListener("click", closeConfirmModal);
+
+      confirmModal.addEventListener("click", (evt) => {
+        if (evt.target === confirmModal) closeConfirmModal();
+      });
+
+      const alertModal = document.getElementById("alert-modal");
+      const alertMessage = document.getElementById("alert-modal-message");
+      const alertOkBtn = document.getElementById("alert-modal-ok");
+
+      function closeAlertModal() {
+        alertModal.classList.add("hidden");
+        alertModal.classList.remove("flex");
+      }
+
+      function showAlert(message) {
+        alertMessage.textContent = message;
+        alertModal.classList.remove("hidden");
+        alertModal.classList.add("flex");
+      }
+
+      alertOkBtn.addEventListener("click", closeAlertModal);
+
+      alertModal.addEventListener("click", (evt) => {
+        if (evt.target === alertModal) closeAlertModal();
+      });
+
+      document.body.addEventListener("htmx:responseError", (evt) => {
+        let message = "Something went wrong. Please try again.";
+        try {
+          const data = JSON.parse(evt.detail.xhr.responseText);
+          if (data && data.detail) message = data.detail;
+        } catch (err) {
+          /* not JSON, fall back to default message */
+        }
+        showAlert(message);
+      });
+
+      function toggleEditMode(id) {
+        document.querySelectorAll(".view-" + id).forEach((el) => el.classList.toggle("hidden"));
+        document.querySelectorAll(".edit-" + id).forEach((el) => {
+          el.classList.toggle("hidden");
+          el.classList.toggle("flex");
+        });
+      }
+
+      function cancelEdit(id, formId) {
+        const form = formId ? document.getElementById(formId) : null;
+        if (form) form.reset();
+        toggleEditMode(id);
+      }
     </script>
   </body>
 </html>

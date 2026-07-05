@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -43,5 +43,8 @@ def update_channel(
 def delete_channel(
     request: Request, channel_id: int, db: Session = Depends(get_db)
 ) -> HTMLResponse:
-    crud.delete_channel(db, channel_id)
+    try:
+        crud.delete_channel(db, channel_id)
+    except crud.ChannelInUseError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _render_page(request, db)

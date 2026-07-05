@@ -22,18 +22,31 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://finance:finance@db:5432/finance_tracker}
-    volumes:
-      - .:/code
     ports:
       - "8000:8000"
     command: >
       sh -c "tailwindcss -i app/static/css/input.css -o app/static/css/style.css && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    develop:
+      watch:
+        - path: ./app
+          action: sync
+          target: /code/app
+        - path: ./alembic
+          action: sync
+          target: /code/alembic
+        - path: ./pyproject.toml
+          action: rebuild
+        - path: ./poetry.lock
+          action: rebuild
 
   tailwind:
     build: .
-    volumes:
-      - .:/code
-    command: tailwindcss -i app/static/css/input.css -o app/static/css/style.css --watch
+    command: tailwindcss -i app/static/css/input.css -o app/static/css/style.css --watch=always
+    develop:
+      watch:
+        - path: ./app
+          action: sync
+          target: /code/app
 
 volumes:
   db_data:

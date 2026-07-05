@@ -8,12 +8,17 @@
   </div>
   <div class="section">
     <div class="section-title">Channels<span class="pill">{{ channels|length }} total</span></div>
+    <form id="add-channel-form" hx-post="/channels" hx-target="#expenses-page" hx-swap="outerHTML"></form>
     <table class="led">
+      <colgroup>
+        <col class="w-12">
+        <col>
+        <col class="w-28">
+      </colgroup>
       <thead>
         <tr>
           <th></th>
-          <th>Name</th>
-          <th>Color</th>
+          <th>Name &amp; color</th>
           <th></th>
         </tr>
       </thead>
@@ -21,53 +26,96 @@
         {% for channel in channels %}
           <tr>
             <td>{{ macros.channel_badge(channel) }}</td>
-            <td colspan="2">
-              <form hx-patch="/channels/{{ channel.id }}"
+            <td>
+              <span class="view-channel-{{ channel.id }}">{{ channel.name }}</span>
+              <form id="channel-edit-form-{{ channel.id }}"
+                    hx-patch="/channels/{{ channel.id }}"
                     hx-target="#expenses-page"
                     hx-swap="outerHTML"
-                    class="flex items-center gap-2">
+                    class="edit-channel-{{ channel.id }} hidden items-center gap-2">
                 <input class="field" type="text" name="name" value="{{ channel.name }}">
                 <input class="w-10 h-8 rounded border border-line cursor-pointer"
                        type="color"
                        name="color"
                        value="{{ channel.color }}">
-                <button class="add-btn" type="submit">Save</button>
               </form>
             </td>
             <td>
-              <button class="icon-btn"
-                      hx-delete="/channels/{{ channel.id }}"
-                      hx-target="#expenses-page"
-                      hx-swap="outerHTML"
-                      hx-confirm="Delete this channel?">Delete</button>
+              <div class="view-channel-{{ channel.id }} flex items-center gap-1">
+                <button type="button"
+                        class="icon-btn hover:bg-accent/15 hover:text-accent"
+                        onclick="toggleEditMode('channel-{{ channel.id }}')">Edit</button>
+                <button class="icon-btn"
+                        hx-delete="/channels/{{ channel.id }}"
+                        hx-target="#expenses-page"
+                        hx-swap="outerHTML"
+                        hx-confirm="Delete this channel?">Delete</button>
+              </div>
+              <div class="edit-channel-{{ channel.id }} hidden items-center gap-1">
+                <button type="submit" form="channel-edit-form-{{ channel.id }}" class="add-btn mt-0">Save</button>
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="cancelEdit('channel-{{ channel.id }}', 'channel-edit-form-{{ channel.id }}')">Cancel</button>
+              </div>
             </td>
           </tr>
+        {% else %}
+          <tr>
+            <td colspan="3" class="text-center text-ink-soft text-sm py-3">------------ No channels yet ------------</td>
+          </tr>
         {% endfor %}
+        <tr>
+          <td colspan="3">
+            <button type="button"
+                    class="add-btn w-20 justify-center"
+                    onclick="const r=document.getElementById('add-channel-row'); r.classList.toggle('hidden'); this.textContent = r.classList.contains('hidden') ? '+ Add' : 'Cancel'">+ Add</button>
+          </td>
+        </tr>
+        <tr id="add-channel-row" class="hidden">
+          <td></td>
+          <td>
+            <div class="flex items-center gap-2">
+              <input class="field"
+                     type="text"
+                     name="name"
+                     form="add-channel-form"
+                     placeholder="Channel name"
+                     required>
+              <input class="w-10 h-8 rounded border border-line cursor-pointer"
+                     type="color"
+                     name="color"
+                     form="add-channel-form"
+                     value="#8a8a8a">
+            </div>
+          </td>
+          <td>
+            <button class="add-btn" type="submit" form="add-channel-form">Add</button>
+          </td>
+        </tr>
       </tbody>
     </table>
-    <form hx-post="/channels"
-          hx-target="#expenses-page"
-          hx-swap="outerHTML"
-          class="flex gap-2 mt-3">
-      <input class="field"
-             type="text"
-             name="name"
-             placeholder="Channel name"
-             required>
-      <input class="w-10 h-8 rounded border border-line cursor-pointer"
-             type="color"
-             name="color"
-             value="#8a8a8a">
-      <button class="add-btn" type="submit">Add channel</button>
-    </form>
   </div>
-  <div class="section">
+  <div class="section{{ ' opacity-50 pointer-events-none' if not channels }}">
     <div class="section-title">Payout periods<span class="pill">{{ payout_periods|length }} total</span></div>
+    <form id="add-payout-form" hx-post="/payout-periods" hx-target="#expenses-page" hx-swap="outerHTML"></form>
+    {% for period in payout_periods %}
+      <form id="edit-payout-form-{{ period.id }}"
+            hx-patch="/payout-periods/{{ period.id }}"
+            hx-target="#expenses-page"
+            hx-swap="outerHTML"></form>
+    {% endfor %}
     <table class="led">
+      <colgroup>
+        <col class="w-24">
+        <col class="w-32">
+        <col>
+        <col class="w-28">
+      </colgroup>
       <thead>
         <tr>
           <th>Label</th>
-          <th>Income &amp; receiving channel</th>
+          <th class="text-right">Income</th>
+          <th class="text-right">Receiving channel</th>
           <th></th>
         </tr>
       </thead>
@@ -75,18 +123,30 @@
         {% for period in payout_periods %}
           <tr>
             <td>{{ period.label }}</td>
-            <td>
-              <form hx-patch="/payout-periods/{{ period.id }}"
-                    hx-target="#expenses-page"
-                    hx-swap="outerHTML"
-                    class="flex items-center gap-2 flex-wrap">
-                <span class="text-ink-soft text-sm">₱</span>
-                <input class="field field-mono w-28"
+            <td class="num">
+              <span class="view-payout-{{ period.id }}">{{ macros.peso(period.income_amount) }}</span>
+              <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
+                <span class="text-ink-soft text-sm">&#8369;</span>
+                <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
                        name="income_amount"
+                       form="edit-payout-form-{{ period.id }}"
                        value="{{ period.income_amount }}">
-                <select class="field" name="receiving_channel_id">
+              </div>
+            </td>
+            <td class="text-right">
+              <span class="view-payout-{{ period.id }}">
+                {% if period.receiving_channel %}
+                  {{ macros.channel_badge(period.receiving_channel, 15) }} {{ period.receiving_channel.name }}
+                {% else %}
+                  &mdash;
+                {% endif %}
+              </span>
+              <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
+                <select class="field"
+                        name="receiving_channel_id"
+                        form="edit-payout-form-{{ period.id }}">
                   <option value="">No channel</option>
                   {% for channel in channels %}
                     <option value="{{ channel.id }}"
@@ -94,46 +154,88 @@
                     </option>
                   {% endfor %}
                 </select>
-                <button class="add-btn" type="submit">Save</button>
-              </form>
+              </div>
             </td>
             <td>
-              <button class="icon-btn"
-                      hx-delete="/payout-periods/{{ period.id }}"
-                      hx-target="#expenses-page"
-                      hx-swap="outerHTML"
-                      hx-confirm="Delete this payout period?">Delete</button>
+              <div class="view-payout-{{ period.id }} flex items-center gap-1">
+                <button type="button"
+                        class="icon-btn hover:bg-accent/15 hover:text-accent"
+                        onclick="toggleEditMode('payout-{{ period.id }}')">Edit</button>
+                <button class="icon-btn"
+                        hx-delete="/payout-periods/{{ period.id }}"
+                        hx-target="#expenses-page"
+                        hx-swap="outerHTML"
+                        hx-confirm="Delete this payout period?">Delete</button>
+              </div>
+              <div class="edit-payout-{{ period.id }} hidden items-center gap-1">
+                <button type="submit"
+                        form="edit-payout-form-{{ period.id }}"
+                        class="add-btn mt-0">Save</button>
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="cancelEdit('payout-{{ period.id }}', 'edit-payout-form-{{ period.id }}')">Cancel</button>
+              </div>
             </td>
           </tr>
+        {% else %}
+          <tr>
+            <td colspan="4" class="text-center text-ink-soft text-sm py-3">------------ No payout periods yet ------------</td>
+          </tr>
         {% endfor %}
+        <tr>
+          <td colspan="4">
+            <button type="button"
+                    class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed"
+                    {{ "disabled" if not channels }}
+                    onclick="const r=document.getElementById('add-payout-row'); r.classList.toggle('hidden'); this.textContent = r.classList.contains('hidden') ? '+ Add' : 'Cancel'">+ Add</button>
+          </td>
+        </tr>
+        <tr id="add-payout-row" class="hidden">
+          <td>
+            <input class="field"
+                   type="text"
+                   name="label"
+                   form="add-payout-form"
+                   placeholder="e.g. 15th"
+                   required>
+          </td>
+          <td class="num">
+            <div class="flex items-center justify-end gap-1">
+              <span class="text-ink-soft text-sm">&#8369;</span>
+              <input class="field field-mono w-24"
+                     type="number"
+                     step="0.01"
+                     name="income_amount"
+                     form="add-payout-form"
+                     placeholder="Income">
+            </div>
+          </td>
+          <td class="text-right">
+            <select class="field" name="receiving_channel_id" form="add-payout-form">
+              <option value="">No channel</option>
+              {% for channel in channels %}
+                <option value="{{ channel.id }}">{{ channel.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <button class="add-btn" type="submit" form="add-payout-form">Add</button>
+          </td>
+        </tr>
       </tbody>
     </table>
-    <form hx-post="/payout-periods"
-          hx-target="#expenses-page"
-          hx-swap="outerHTML"
-          class="flex gap-2 mt-3 flex-wrap">
-      <input class="field"
-             type="text"
-             name="label"
-             placeholder="e.g. 15th"
-             required>
-      <input class="field field-mono w-28"
-             type="number"
-             step="0.01"
-             name="income_amount"
-             placeholder="Income">
-      <select class="field" name="receiving_channel_id">
-        <option value="">No channel</option>
-        {% for channel in channels %}
-          <option value="{{ channel.id }}">{{ channel.name }}</option>
-        {% endfor %}
-      </select>
-      <button class="add-btn" type="submit">Add payout period</button>
-    </form>
   </div>
-  <div class="section">
+  <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not payout_periods }}">
     <div class="section-title">Recurring expenses<span class="pill">{{ expenses|length }} items</span></div>
+    <form id="add-expense-form" hx-post="/expenses" hx-target="#expenses-page" hx-swap="outerHTML"></form>
     <table class="led">
+      <colgroup>
+        <col>
+        <col class="w-24">
+        <col class="w-32">
+        <col class="w-24">
+        <col class="w-20">
+      </colgroup>
       <thead>
         <tr>
           <th>Name</th>
@@ -149,7 +251,7 @@
             <td>{{ expense.name }}</td>
             <td>{{ expense.payout_period.label }}</td>
             <td>{{ macros.channel_badge(expense.channel, 15) }} {{ expense.channel.name }}</td>
-            <td class="num">{{ "%.2f"|format(expense.amount) }}</td>
+            <td class="num">{{ macros.peso(expense.amount) }}</td>
             <td>
               <button class="icon-btn"
                       hx-delete="/expenses/{{ expense.id }}"
@@ -158,41 +260,83 @@
                       hx-confirm="Delete this expense?">Delete</button>
             </td>
           </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="text-center text-ink-soft text-sm py-3">------------ No expenses yet ------------</td>
+          </tr>
         {% endfor %}
+        <tr>
+          <td colspan="5">
+            <button type="button"
+                    class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed"
+                    {{ "disabled" if not channels or not payout_periods }}
+                    onclick="const r=document.getElementById('add-expense-row'); r.classList.toggle('hidden'); this.textContent = r.classList.contains('hidden') ? '+ Add' : 'Cancel'">+ Add</button>
+          </td>
+        </tr>
+        <tr id="add-expense-row" class="hidden">
+          <td>
+            <input class="field"
+                   type="text"
+                   name="name"
+                   form="add-expense-form"
+                   placeholder="Expense name"
+                   required>
+          </td>
+          <td>
+            <select class="field" name="payout_period_id" form="add-expense-form" required>
+              {% for period in payout_periods %}
+                <option value="{{ period.id }}">{{ period.label }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select class="field" name="channel_id" form="add-expense-form" required>
+              {% for channel in channels %}
+                <option value="{{ channel.id }}">{{ channel.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="num">
+            <div class="flex items-center justify-end gap-1">
+              <span class="text-ink-soft text-sm">&#8369;</span>
+              <input class="field field-mono w-24"
+                     type="number"
+                     step="0.01"
+                     name="amount"
+                     form="add-expense-form"
+                     placeholder="Amount"
+                     required>
+            </div>
+          </td>
+          <td>
+            <button class="add-btn" type="submit" form="add-expense-form">Add</button>
+          </td>
+        </tr>
       </tbody>
     </table>
-    <form hx-post="/expenses"
-          hx-target="#expenses-page"
-          hx-swap="outerHTML"
-          class="flex flex-wrap gap-2 mt-3 items-center">
-      <input class="field"
-             type="text"
-             name="name"
-             placeholder="Expense name"
-             required>
-      <select class="field" name="payout_period_id" required>
-        {% for period in payout_periods %}
-          <option value="{{ period.id }}">{{ period.label }}</option>
-        {% endfor %}
-      </select>
-      <select class="field" name="channel_id" required>
-        {% for channel in channels %}
-          <option value="{{ channel.id }}">{{ channel.name }}</option>
-        {% endfor %}
-      </select>
-      <input class="field field-mono w-28"
-             type="number"
-             step="0.01"
-             name="amount"
-             placeholder="Amount"
-             required>
-      <button class="add-btn" type="submit">Add expense</button>
-    </form>
   </div>
   {% for data in payout_data %}
     <div class="section">
       <div class="section-title">{{ data.period.label }} cash flow<span class="pill">Auto</span></div>
+      <form id="add-transfer-form-{{ data.period.id }}"
+            hx-post="/transfers"
+            hx-target="#expenses-page"
+            hx-swap="outerHTML">
+        <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
+      </form>
+      {% for transfer in data.transfers %}
+        <form id="edit-transfer-form-{{ transfer.id }}"
+              hx-patch="/transfers/{{ transfer.id }}"
+              hx-target="#expenses-page"
+              hx-swap="outerHTML"></form>
+      {% endfor %}
       <table class="led">
+        <colgroup>
+          <col>
+          <col>
+          <col class="w-24">
+          <col class="w-28">
+        </colgroup>
         <thead>
           <tr>
             <th>From</th>
@@ -207,53 +351,95 @@
               <td>{{ macros.channel_badge(transfer.from_channel, 15) }} {{ transfer.from_channel.name }}</td>
               <td>{{ macros.channel_badge(transfer.to_channel, 15) }} {{ transfer.to_channel.name }}</td>
               <td class="num">
+                <span class="view-transfer-{{ transfer.id }}">{{ macros.peso(transfer.amount) }}</span>
+                <div class="edit-transfer-{{ transfer.id }} hidden items-center justify-end gap-1">
+                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <input class="field field-mono w-24"
+                         type="number"
+                         step="0.01"
+                         name="amount"
+                         form="edit-transfer-form-{{ transfer.id }}"
+                         value="{{ transfer.amount }}">
+                </div>
+              </td>
+              <td>
+                <div class="view-transfer-{{ transfer.id }} flex items-center gap-1">
+                  <button type="button"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          onclick="toggleEditMode('transfer-{{ transfer.id }}')">Edit</button>
+                  <button class="icon-btn"
+                          hx-delete="/transfers/{{ transfer.id }}"
+                          hx-target="#expenses-page"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete this transfer?">Delete</button>
+                </div>
+                <div class="edit-transfer-{{ transfer.id }} hidden items-center gap-1">
+                  <button type="submit"
+                          form="edit-transfer-form-{{ transfer.id }}"
+                          class="add-btn mt-0">Save</button>
+                  <button type="button"
+                          class="btn-secondary"
+                          onclick="cancelEdit('transfer-{{ transfer.id }}', 'edit-transfer-form-{{ transfer.id }}')">Cancel</button>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="4" class="text-center text-ink-soft text-sm py-3">------------ No transfers yet ------------</td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td colspan="4">
+              <button type="button"
+                      class="add-btn w-20 justify-center"
+                      onclick="const r=document.getElementById('add-transfer-row-{{ data.period.id }}'); r.classList.toggle('hidden'); this.textContent = r.classList.contains('hidden') ? '+ Add' : 'Cancel'">+ Add</button>
+            </td>
+          </tr>
+          <tr id="add-transfer-row-{{ data.period.id }}" class="hidden">
+            <td>
+              <select class="field"
+                      name="from_channel_id"
+                      form="add-transfer-form-{{ data.period.id }}"
+                      required>
+                {% for channel in channels %}
+                  <option value="{{ channel.id }}">{{ channel.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <select class="field"
+                      name="to_channel_id"
+                      form="add-transfer-form-{{ data.period.id }}"
+                      required>
+                {% for channel in channels %}
+                  <option value="{{ channel.id }}">{{ channel.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="num">
+              <div class="flex items-center justify-end gap-1">
+                <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
                        name="amount"
-                       value="{{ transfer.amount }}"
-                       hx-patch="/transfers/{{ transfer.id }}"
-                       hx-trigger="change"
-                       hx-target="#expenses-page"
-                       hx-swap="outerHTML">
-              </td>
-              <td>
-                <button class="icon-btn"
-                        hx-delete="/transfers/{{ transfer.id }}"
-                        hx-target="#expenses-page"
-                        hx-swap="outerHTML"
-                        hx-confirm="Delete this transfer?">Delete</button>
-              </td>
-            </tr>
-          {% endfor %}
+                       form="add-transfer-form-{{ data.period.id }}"
+                       placeholder="Amount"
+                       required>
+              </div>
+            </td>
+            <td>
+              <button class="add-btn" type="submit" form="add-transfer-form-{{ data.period.id }}">Add</button>
+            </td>
+          </tr>
         </tbody>
       </table>
-      <form hx-post="/transfers"
-            hx-target="#expenses-page"
-            hx-swap="outerHTML"
-            class="flex flex-wrap gap-2 mt-3 items-center">
-        <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
-        <select class="field" name="from_channel_id" required>
-          {% for channel in channels %}
-            <option value="{{ channel.id }}">{{ channel.name }}</option>
-          {% endfor %}
-        </select>
-        <span class="text-ink-soft">→</span>
-        <select class="field" name="to_channel_id" required>
-          {% for channel in channels %}
-            <option value="{{ channel.id }}">{{ channel.name }}</option>
-          {% endfor %}
-        </select>
-        <input class="field field-mono w-28"
-               type="number"
-               step="0.01"
-               name="amount"
-               placeholder="Amount"
-               required>
-        <button class="add-btn" type="submit">Add transfer</button>
-      </form>
       <div class="mt-4 pt-3 border-t border-dashed border-paper-dim">
         <table class="led">
+          <colgroup>
+            <col>
+            <col class="w-32">
+          </colgroup>
           <thead>
             <tr>
               <th>Channel</th>
@@ -264,7 +450,11 @@
             {% for channel, net in data.balances %}
               <tr>
                 <td>{{ macros.channel_badge(channel, 15) }} {{ channel.name }}</td>
-                <td class="num {{ 'text-rust' if net < 0 else '' }}">{{ "%.2f"|format(net) }}</td>
+                <td class="num {{ 'text-rust' if net < 0 else '' }}">{{ macros.peso(net) }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="2" class="text-center text-ink-soft text-sm py-3">------------ No channels yet ------------</td>
               </tr>
             {% endfor %}
           </tbody>

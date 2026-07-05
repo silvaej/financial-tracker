@@ -12,11 +12,19 @@ FastAPI backend rendering server-side HTML via Jinja2, progressively enhanced wi
 
 ## Commands
 
-Run everything via Docker Compose (installs deps, builds CSS, runs migrations, starts the server with reload):
+Start everything via Docker Compose (installs deps, builds CSS, runs migrations, starts the server):
 
 ```
 docker compose up --build
 ```
+
+Then, in a second terminal, run Compose's file-sync watcher so edits to `app/`/`alembic/` actually reach the containers and trigger Tailwind's rebuild / uvicorn's `--reload`:
+
+```
+docker compose watch
+```
+
+Both are needed for local dev on Windows/Mac: `web` and `tailwind` intentionally have **no bind mount** (see below), so without `watch` running, file edits never reach the containers at all. `docker compose watch` also handles rebuilding the image automatically when `pyproject.toml`/`poetry.lock` change.
 
 App is served at http://localhost:8000. Postgres is exposed on localhost:5432 (credentials in `.env` / `.env.example`).
 
@@ -75,3 +83,4 @@ Modeled after a personal "ledger" budgeting workflow (income arrives on recurrin
 - **Models vs. migrations**: `app/models.py` is the source of truth for schema; `alembic/versions/0001_initial.py` was rewritten (not layered with a new revision) to match, since this project has no deployed data yet — once there's real deployed data, switch to additive migrations instead of editing this one.
 - **Styling**: `app/static/css/input.css` defines the ledger palette/fonts via Tailwind v4's `@theme` (e.g. `--color-ink`, `--color-accent`, `--font-serif` for Fraunces, `--font-mono` for IBM Plex Mono) plus a `@layer components` block of reusable classes (`.card`, `.section`, `.pill`, `.led` table, `.field`, `.badge`, etc.) mirroring the original mockup's own hand-written CSS class names — use these existing classes in new templates rather than inlining new utility combinations or `style="..."` attributes (djlint's `H021` rule flags inline styles). `app/static/css/style.css` is the compiled, gitignored output; don't hand-edit it. `app/templates/macros.html` has a `channel_badge(channel, size)` macro (colored initials badge) — import and reuse it (`{% import "macros.html" as macros %}`) anywhere a channel is displayed rather than re-deriving initials.
 - **Dependencies**: `pyproject.toml`/`poetry.lock` are the source of truth (no `requirements.txt`). The Dockerfile runs `poetry install` with `POETRY_VIRTUALENVS_CREATE=false`, installing straight into the image's system Python rather than a venv inside the container.
+- **Local dev file sync**: `web`/`tailwind` in `docker-compose.yml` deliberately have no `.:/code` bind mount — on Windows (and often Mac) hosts, in-container watchers (Tailwind's `--watch`, uvicorn's `--reload`) don't reliably see filesystem-event notifications through a bind mount, so edits silently fail to trigger a rebuild/reload even though the file content itself would be up to date. `develop.watch` (`docker compose watch`) works around this by pushing changes into the container through the Docker engine instead, which the in-container watchers *do* see. Keep source changes under the watched paths (`app/`, `alembic/`) — anything outside those needs an image rebuild (`pyproject.toml`/`poetry.lock` already trigger one automatically via a `rebuild` watch action).
