@@ -1,0 +1,128 @@
+@import "tailwindcss";
+@source "../../templates";
+
+@theme {
+  --color-ink: #1c2b2b;
+  --color-ink-soft: #4b5d5d;
+  --color-paper: #fafafa;
+  --color-paper-dim: #ececec;
+  --color-card: #ffffff;
+  --color-line: #dcdcdc;
+  --color-accent: #2f6d4f;
+  --color-gold: #b6872f;
+  --color-gold-soft: #f1e2bc;
+  --color-rust: #a83f28;
+  --color-rust-soft: #f0dcd2;
+  --font-serif: "Fraunces", serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+@layer components {
+  .rail {
+    @apply w-52 shrink-0 bg-ink flex flex-col gap-1 py-5;
+  }
+  .rail-head {
+    @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-white/20;
+  }
+  .rail-brand {
+    @apply font-serif font-semibold text-lg text-white;
+  }
+  .rail-brand small {
+    @apply block font-sans font-normal text-[11px] text-white/70 mt-0.5 uppercase tracking-wide;
+  }
+  .tab {
+    @apply flex items-center gap-2.5 text-sm font-medium text-white/75 px-5 py-2.5 border-l-[3px] border-transparent hover:bg-white/10 hover:text-white transition-colors;
+  }
+  .tab-active {
+    @apply bg-white/15 text-white border-l-accent;
+  }
+
+  .page {
+    @apply flex-1 px-10 py-8 bg-paper overflow-y-auto;
+  }
+  .page-head {
+    @apply flex items-baseline justify-between mb-5;
+  }
+  .page-title {
+    @apply font-serif text-2xl font-semibold text-ink;
+  }
+  .page-sub {
+    @apply text-xs text-ink-soft mt-0.5;
+  }
+
+  .card {
+    @apply bg-card rounded-lg px-4 py-3.5 shadow-sm;
+  }
+  .card-label {
+    @apply text-[11px] uppercase tracking-wide text-ink-soft font-semibold mb-1.5;
+  }
+  .card-value {
+    @apply font-mono text-xl font-semibold text-ink;
+  }
+  .card-value-neg {
+    @apply text-rust;
+  }
+
+  .section {
+    @apply bg-card rounded-xl px-5 py-5 shadow-sm mb-5;
+  }
+  .section-title {
+    @apply font-serif font-semibold text-base mb-3 flex items-center justify-between;
+  }
+  .pill {
+    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/15 text-accent tracking-wide;
+  }
+  .pill-gold {
+    @apply bg-gold-soft text-gold;
+  }
+  .pill-rust {
+    @apply bg-rust-soft text-rust;
+  }
+
+  .led {
+    @apply w-full text-[13.5px] border-collapse;
+  }
+  .led th {
+    @apply text-left text-[11px] uppercase tracking-wide text-ink-soft font-semibold px-2.5 py-1.5 border-b-2 border-ink;
+  }
+  .led td {
+    @apply px-2.5 py-1.5 border-b border-paper-dim align-middle;
+  }
+  .num {
+    @apply font-mono text-right;
+  }
+
+  .icon-btn {
+    @apply inline-flex items-center p-1 rounded text-ink-soft hover:bg-rust-soft hover:text-rust cursor-pointer;
+  }
+  .add-btn {
+    @apply inline-flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:brightness-90 cursor-pointer mt-2;
+  }
+  .field {
+    @apply rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
+  }
+  .field-mono {
+    @apply font-mono text-right;
+  }
+
+  .badge {
+    @apply inline-flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0;
+  }
+
+  .bar-track {
+    @apply h-2 bg-paper-dim rounded-full overflow-hidden;
+  }
+  .bar-fill {
+    @apply h-full rounded-full bg-accent;
+  }
+
+  .warn-pill {
+    @apply inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap;
+  }
+  .warn-amber {
+    @apply bg-gold-soft text-gold;
+  }
+  .warn-red {
+    @apply bg-rust-soft text-rust;
+  }
+}

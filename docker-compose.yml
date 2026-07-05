@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-finance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finance}
+      POSTGRES_DB: ${POSTGRES_DB:-finance_tracker}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://finance:finance@db:5432/finance_tracker}
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "tailwindcss -i app/static/css/input.css -o app/static/css/style.css && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  tailwind:
+    build: .
+    volumes:
+      - .:/code
+    command: tailwindcss -i app/static/css/input.css -o app/static/css/style.css --watch
+
+volumes:
+  db_data:

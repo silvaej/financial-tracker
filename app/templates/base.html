@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Finance Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  </head>
+  <body class="font-sans text-ink">
+    <div class="flex min-h-screen bg-ink">
+      <nav class="rail" id="rail">
+        <div class="rail-head">
+          <div class="rail-brand" id="rail-brand">
+            Ledger
+            <small>Household Finance</small>
+          </div>
+          <button class="shrink-0 bg-white/15 text-white rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-white/25"
+                  id="collapse-toggle"
+                  type="button">
+            <span id="collapse-icon">‹</span>
+          </button>
+        </div>
+        {% set nav_items = [('/overview', 'Overview'), ('/', 'Expenses'), ('/goals', 'Goals'), ('/credit', 'Credit'), ('/assets', 'Assets')] %}
+        {% for href, label in nav_items %}
+          <a class="tab{{ ' tab-active' if request.url.path == href else '' }}"
+             href="{{ href }}">
+            <span class="tab-label">{{ label }}</span>
+          </a>
+        {% endfor %}
+      </nav>
+      <div class="page">
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </div>
+    <script>
+      const rail = document.getElementById("rail");
+      const brand = document.getElementById("rail-brand");
+      const icon = document.getElementById("collapse-icon");
+      const labels = () => document.querySelectorAll(".tab-label");
+
+      function applyCollapsed(collapsed) {
+        rail.classList.toggle("w-52", !collapsed);
+        rail.classList.toggle("w-16", collapsed);
+        brand.style.display = collapsed ? "none" : "";
+        labels().forEach((el) => { el.style.display = collapsed ? "none" : ""; });
+        icon.textContent = collapsed ? "›" : "‹";
+      }
+
+      const stored = localStorage.getItem("railCollapsed") === "true";
+      applyCollapsed(stored);
+
+      document.getElementById("collapse-toggle").addEventListener("click", () => {
+        const collapsed = !rail.classList.contains("w-16");
+        localStorage.setItem("railCollapsed", collapsed);
+        applyCollapsed(collapsed);
+      });
+    </script>
+  </body>
+</html>
