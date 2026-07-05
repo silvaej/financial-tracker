@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Commit messages
+
+Brief, imperative, prefixed with a type tag: `(feat) <description>`, `(fix) <description>`, `(chore) <description>`, etc. No `Co-Authored-By` trailer.
+
 ## Stack
 
 FastAPI backend rendering server-side HTML via Jinja2, progressively enhanced with HTMX (no client-side JS framework, no JSON API). PostgreSQL via SQLAlchemy 2.0 (typed `Mapped`/`mapped_column` models), Alembic for migrations. Poetry for Python dependency management. Tailwind CSS (standalone CLI, no Node/npm) for styling. Docker Compose for local dev (`db`, `web`, `tailwind` services).
