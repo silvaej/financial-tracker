@@ -4,11 +4,13 @@ from pydantic import BaseModel
 class ChannelCreate(BaseModel):
     name: str
     color: str = "#8a8a8a"
+    funding_source_channel_id: int | None = None
 
 
 class ChannelUpdate(BaseModel):
     name: str
     color: str
+    funding_source_channel_id: int | None = None
 
 
 class PayoutPeriodCreate(BaseModel):
@@ -38,3 +40,41 @@ class TransferCreate(BaseModel):
 
 class TransferUpdate(BaseModel):
     amount: float
+
+
+class AssetCreate(BaseModel):
+    name: str
+    amount: float
+
+
+class AssetUpdate(BaseModel):
+    name: str
+    amount: float
+
+
+class GoalCreate(BaseModel):
+    name: str
+    target: float
+    allocated: float = 0
+    months: int = 1
+
+
+class GoalUpdate(BaseModel):
+    name: str
+    target: float
+    allocated: float
+    months: int
+
+
+class CreditLineCreate(BaseModel):
+    name: str
+    limit: float
+    used: float = 0
+    channel_id: int | None = None
+
+
+class CreditLineUpdate(BaseModel):
+    name: str
+    limit: float
+    used: float
+    channel_id: int | None = None

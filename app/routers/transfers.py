@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -51,3 +53,19 @@ def delete_transfer(
 ) -> HTMLResponse:
     crud.delete_transfer(db, transfer_id)
     return _render_page(request, db)
+
+
+@router.post("/generate/{payout_period_id}")
+def generate_transfers(
+    request: Request, payout_period_id: int, db: Session = Depends(get_db)
+) -> HTMLResponse:
+    result = crud.generate_transfers(db, payout_period_id)
+    messages = []
+    if result["unfunded"]:
+        messages.append("No funding source configured for: " + ", ".join(result["unfunded"]))
+    if result["circular"]:
+        messages.append("Circular funding detected, skipped: " + ", ".join(result["circular"]))
+    response = _render_page(request, db)
+    if messages:
+        response.headers["HX-Trigger"] = json.dumps({"showAlert": " ".join(messages)})
+    return response

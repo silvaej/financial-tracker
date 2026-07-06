@@ -131,6 +131,12 @@
   .badge {
     @apply inline-flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0;
   }
+  .badge-md {
+    @apply w-[18px] h-[18px] text-[7.5px];
+  }
+  .badge-sm {
+    @apply w-[15px] h-[15px] text-[6.5px];
+  }
 
   .bar-track {
     @apply h-2 bg-paper-dim rounded-full overflow-hidden;

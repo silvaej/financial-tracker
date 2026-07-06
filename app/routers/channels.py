@@ -16,14 +16,26 @@ def _render_page(request: Request, db: Session) -> HTMLResponse:
     )
 
 
+def _parse_channel_id(raw: str) -> int | None:
+    return int(raw) if raw else None
+
+
 @router.post("")
 def create_channel(
     request: Request,
     name: str = Form(...),
     color: str = Form("#8a8a8a"),
+    funding_source_channel_id: str = Form(""),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    crud.create_channel(db, schemas.ChannelCreate(name=name, color=color))
+    crud.create_channel(
+        db,
+        schemas.ChannelCreate(
+            name=name,
+            color=color,
+            funding_source_channel_id=_parse_channel_id(funding_source_channel_id),
+        ),
+    )
     return _render_page(request, db)
 
 
@@ -33,9 +45,21 @@ def update_channel(
     channel_id: int,
     name: str = Form(...),
     color: str = Form(...),
+    funding_source_channel_id: str = Form(""),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    crud.update_channel(db, channel_id, schemas.ChannelUpdate(name=name, color=color))
+    try:
+        crud.update_channel(
+            db,
+            channel_id,
+            schemas.ChannelUpdate(
+                name=name,
+                color=color,
+                funding_source_channel_id=_parse_channel_id(funding_source_channel_id),
+            ),
+        )
+    except crud.InvalidFundingSourceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _render_page(request, db)
 
 

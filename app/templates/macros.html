@@ -1,13 +1,15 @@
 {% macro channel_badge(channel, size=18) %}
   {% set words = channel.name.split() %}
   {% set initials = (words[0][0] ~ (words[1][0] if words|length > 1 else "")) | upper %}
-  <span class="badge"
-        style="width: {{ size }}px;
-               height: {{ size }}px;
-               background: {{ channel.color }};
-               font-size: {{ (size * 0.42)|round(1) }}px">{{ initials }}</span>
+  <span class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }}"
+        style="background: {{ channel.color }}">{{ initials }}</span>
 {% endmacro %}
-
+{% macro empty_row(colspan, label) %}
+  <tr>
+    <td colspan="{{ colspan }}"
+        class="text-center text-ink-soft text-sm py-3">------------ No {{ label }} yet ------------</td>
+  </tr>
+{% endmacro %}
 {% macro peso(amount) -%}
   {{- '-' if amount < 0 else '' }}&#8369;{{ "{:,.2f}".format(amount|abs) }}
 {%- endmacro %}

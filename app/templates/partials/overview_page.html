@@ -1,0 +1,93 @@
+{% import "macros.html" as macros %}
+<div id="overview-page">
+  <div class="page-head">
+    <div>
+      <div class="page-title">Overview</div>
+      <div class="page-sub">Net worth and progress at a glance</div>
+    </div>
+  </div>
+  <div class="flex gap-4 mb-5">
+    <div class="card flex-1">
+      <div class="card-label">Total assets</div>
+      <div class="card-value">{{ macros.peso(total_assets) }}</div>
+    </div>
+    <div class="card flex-1">
+      <div class="card-label">Total liabilities</div>
+      <div class="card-value">{{ macros.peso(total_liabilities) }}</div>
+    </div>
+    <div class="card flex-1">
+      <div class="card-label">Net worth</div>
+      <div class="card-value {{ 'card-value-neg' if net_worth < 0 else '' }}">{{ macros.peso(net_worth) }}</div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">Goals<span class="pill">{{ goals|length }} total</span></div>
+    <table class="led">
+      <colgroup>
+        <col>
+        <col class="w-56">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Progress</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in goals %}
+          <tr>
+            <td>{{ item.goal.name }}</td>
+            <td>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ item.pct }}%"></div>
+              </div>
+              <div class="text-[11px] text-ink-soft mt-1 flex items-center gap-1.5">
+                <span>{{ item.pct|round|int }}%</span>
+                {% if item.pct >= 100 %}<span class="pill-gold">Funded</span>{% endif %}
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          {{ macros.empty_row(2, 'goals') }}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="section">
+    <div class="section-title">Credit<span class="pill">{{ credit_lines|length }} total</span></div>
+    <table class="led">
+      <colgroup>
+        <col>
+        <col class="w-56">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Utilization</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in credit_lines %}
+          <tr>
+            <td>{{ item.line.name }}</td>
+            <td>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ [item.pct, 100]|min }}%"></div>
+              </div>
+              <div class="text-[11px] text-ink-soft mt-1 flex items-center gap-1.5">
+                <span>{{ item.pct|round|int }}%</span>
+                {% if item.level == "amber" %}
+                  <span class="warn-pill warn-amber">Near limit</span>
+                {% elif item.level == "red" %}
+                  <span class="warn-pill warn-red">Over limit</span>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          {{ macros.empty_row(2, 'credit lines') }}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

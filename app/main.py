@@ -6,7 +6,16 @@ from sqlalchemy.orm import Session
 
 from app import crud
 from app.database import get_db
-from app.routers import channels, expenses, payout_periods, transfers
+from app.routers import (
+    assets,
+    channels,
+    credit,
+    expenses,
+    goals,
+    overview,
+    payout_periods,
+    transfers,
+)
 
 app = FastAPI(title="Finance Tracker")
 
@@ -17,13 +26,12 @@ app.include_router(channels.router)
 app.include_router(payout_periods.router)
 app.include_router(expenses.router)
 app.include_router(transfers.router)
+app.include_router(assets.router)
+app.include_router(goals.router)
+app.include_router(credit.router)
+app.include_router(overview.router)
 
-PLACEHOLDER_SECTIONS = {
-    "overview": "Overview",
-    "goals": "Goals",
-    "credit": "Credit",
-    "assets": "Assets",
-}
+PLACEHOLDER_SECTIONS: dict[str, str] = {}
 
 
 @app.get("/")
