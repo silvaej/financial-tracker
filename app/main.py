@@ -8,6 +8,7 @@ from app import crud
 from app.database import get_db
 from app.routers import (
     assets,
+    cashflow,
     channels,
     credit,
     expenses,
@@ -30,6 +31,7 @@ app.include_router(assets.router)
 app.include_router(goals.router)
 app.include_router(credit.router)
 app.include_router(overview.router)
+app.include_router(cashflow.router)
 
 PLACEHOLDER_SECTIONS: dict[str, str] = {}
 

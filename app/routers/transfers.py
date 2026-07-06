@@ -14,7 +14,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 def _render_page(request: Request, db: Session) -> HTMLResponse:
     return templates.TemplateResponse(
-        request, "partials/expenses_page.html", crud.expenses_page_data(db)
+        request, "partials/cashflow_page.html", crud.cashflow_page_data(db)
     )
 
 

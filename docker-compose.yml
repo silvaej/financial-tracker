@@ -26,6 +26,8 @@ services:
       - "8000:8000"
     command: >
       sh -c "tailwindcss -i app/static/css/input.css -o app/static/css/style.css && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - static_css:/code/app/static/css
     develop:
       watch:
         - path: ./app
@@ -42,6 +44,8 @@ services:
   tailwind:
     build: .
     command: tailwindcss -i app/static/css/input.css -o app/static/css/style.css --watch=always
+    volumes:
+      - static_css:/code/app/static/css
     develop:
       watch:
         - path: ./app
@@ -50,3 +54,4 @@ services:
 
 volumes:
   db_data:
+  static_css:

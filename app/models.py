@@ -66,6 +66,10 @@ class Goal(Base):
     target: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     allocated: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     months: Mapped[int] = mapped_column(default=1)
+    channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
+    round_up_to_hundred: Mapped[bool] = mapped_column(default=False)
+
+    channel: Mapped[Channel | None] = relationship()
 
 
 class CreditLine(Base):

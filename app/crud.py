@@ -1,3 +1,5 @@
+import math
+
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -211,6 +213,8 @@ def generate_transfers(db: Session, payout_period_id: int) -> dict[str, list[str
     payout_period = db.get(models.PayoutPeriod, payout_period_id)
     channels = list_channels(db)
     expenses = [e for e in list_expenses(db) if e.payout_period_id == payout_period_id]
+    goals = list_goals(db)
+    payout_period_count = len(list_payout_periods(db))
 
     children: dict[int, list[models.Channel]] = {}
     for c in channels:
@@ -219,12 +223,15 @@ def generate_transfers(db: Session, payout_period_id: int) -> dict[str, list[str
 
     def own_shortfall(channel: models.Channel) -> float:
         expense_total = sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+        goal_total = sum(
+            goal_payout_amount(g, payout_period_count) for g in goals if g.channel_id == channel.id
+        )
         income = (
             float(payout_period.income_amount)
             if payout_period is not None and payout_period.receiving_channel_id == channel.id
             else 0.0
         )
-        return max(expense_total - income, 0.0)
+        return max(expense_total + goal_total - income, 0.0)
 
     required: dict[int, float] = {}
     circular: set[int] = set()
@@ -326,6 +333,8 @@ def update_goal(db: Session, goal_id: int, data: schemas.GoalUpdate) -> models.G
         goal.target = data.target
         goal.allocated = data.allocated
         goal.months = data.months
+        goal.channel_id = data.channel_id
+        goal.round_up_to_hundred = data.round_up_to_hundred
         db.commit()
         db.refresh(goal)
     return goal
@@ -345,9 +354,28 @@ def goal_progress(goal: models.Goal) -> dict:
     return {"pct": pct, "monthly_needed": monthly_needed, "remaining": remaining}
 
 
+def goal_payout_amount(goal: models.Goal, payout_period_count: int) -> float:
+    monthly_needed = float(goal.target) / goal.months if goal.months else 0.0
+    per_payout = monthly_needed / payout_period_count if payout_period_count else monthly_needed
+    if goal.round_up_to_hundred:
+        per_payout = math.ceil(per_payout / 100) * 100
+    return per_payout
+
+
 def goals_page_data(db: Session) -> dict:
+    payout_period_count = len(list_payout_periods(db))
     goals = list_goals(db)
-    return {"goals": [{"goal": g, **goal_progress(g)} for g in goals]}
+    return {
+        "goals": [
+            {
+                "goal": g,
+                **goal_progress(g),
+                "per_payout": goal_payout_amount(g, payout_period_count),
+            }
+            for g in goals
+        ],
+        "channels": list_channels(db),
+    }
 
 
 # --- Credit lines -----------------------------------------------------------
@@ -420,11 +448,17 @@ def overview_page_data(db: Session) -> dict:
 
 
 def expenses_page_data(db: Session) -> dict:
+    return {
+        "channels": list_channels(db),
+        "payout_periods": list_payout_periods(db),
+        "expenses": list_expenses(db),
+    }
+
+
+def cashflow_page_data(db: Session) -> dict:
     payout_periods = list_payout_periods(db)
     return {
         "channels": list_channels(db),
-        "payout_periods": payout_periods,
-        "expenses": list_expenses(db),
         "payout_data": [
             {
                 "period": period,

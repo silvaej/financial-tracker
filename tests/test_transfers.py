@@ -94,7 +94,7 @@ def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClie
         },
     )
 
-    response = client.get("/")
+    response = client.get("/cashflow")
     assert response.status_code == 200
     assert "600.00" in response.text
     assert "250.00" in response.text
@@ -115,7 +115,7 @@ def test_add_transfer_row_suggests_amount_needed_to_cover_channel_expenses(
         data={"name": "B bill", "amount": "500", "payout_period_id": period_id, "channel_id": b},
     )
 
-    response = client.get("/")
+    response = client.get("/cashflow")
     assert response.status_code == 200
     match = re.search(rf'value="{b}"\s+data-needed="([\d.]+)"', response.text)
     assert match is not None
@@ -291,3 +291,34 @@ def test_generate_transfers_reports_circular_funding_without_hanging(
     assert "Channel A" in response.headers["HX-Trigger"]
     assert "Channel B" in response.headers["HX-Trigger"]
     assert not re.search(r'hx-delete="/transfers/\d+"', response.text)
+
+
+def test_generate_transfers_includes_goal_contribution_on_its_channel(
+    client: TestClient,
+) -> None:
+    """A goal parked on a channel with no expenses of its own should still pull
+    a transfer sized to its per-payout contribution when generating, exactly
+    like a pure pass-through channel would.
+    """
+    root = _create_channel(client, "Root")
+    savings = _create_channel(client, "Savings")
+    _set_funding_source(client, savings, "Savings", root)
+    period_id = _create_payout_period(client, "15th", "1000", root)
+    # Second payout period so the goal's monthly amount splits across 2.
+    _create_payout_period(client, "30th", "0", root)
+
+    client.post(
+        "/goals",
+        data={
+            "name": "Emergency Fund",
+            "target": "1000",
+            "allocated": "0",
+            "months": "1",
+            "channel_id": savings,
+        },
+    )
+
+    response = client.post(f"/transfers/generate/{period_id}")
+    assert response.status_code == 200
+    assert "HX-Trigger" not in response.headers
+    assert _transfer_amount(response.text, "Root", "Savings") == "500.00"

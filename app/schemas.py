@@ -57,6 +57,8 @@ class GoalCreate(BaseModel):
     target: float
     allocated: float = 0
     months: int = 1
+    channel_id: int | None = None
+    round_up_to_hundred: bool = False
 
 
 class GoalUpdate(BaseModel):
@@ -64,6 +66,8 @@ class GoalUpdate(BaseModel):
     target: float
     allocated: float
     months: int
+    channel_id: int | None = None
+    round_up_to_hundred: bool = False
 
 
 class CreditLineCreate(BaseModel):

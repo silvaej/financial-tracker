@@ -16,15 +16,17 @@
     <table class="led">
       <colgroup>
         <col>
+        <col class="w-36">
         <col class="w-28">
         <col class="w-28">
         <col class="w-20">
-        <col class="w-48">
+        <col class="w-56">
         <col class="w-28">
       </colgroup>
       <thead>
         <tr>
           <th>Name</th>
+          <th>Channel</th>
           <th class="text-right">Target</th>
           <th class="text-right">Allocated</th>
           <th class="text-right">Months</th>
@@ -45,6 +47,25 @@
                     class="edit-goal-{{ goal.id }} hidden items-center gap-2">
                 <input class="field" type="text" name="name" value="{{ goal.name }}">
               </form>
+            </td>
+            <td>
+              <span class="view-goal-{{ goal.id }}">
+                {% if goal.channel %}
+                  {{ macros.channel_badge(goal.channel, 15) }} {{ goal.channel.name }}
+                {% else %}
+                  &mdash;
+                {% endif %}
+              </span>
+              <div class="edit-goal-{{ goal.id }} hidden items-center gap-1">
+                <select class="field" name="channel_id" form="goal-edit-form-{{ goal.id }}">
+                  <option value="">No channel</option>
+                  {% for channel in channels %}
+                    <option value="{{ channel.id }}"
+                            {{ "selected" if goal.channel_id == channel.id else "" }}>{{ channel.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
             </td>
             <td class="num">
               <span class="view-goal-{{ goal.id }}">{{ macros.peso(goal.target) }}</span>
@@ -87,8 +108,18 @@
                 <div class="bar-fill" style="width: {{ item.pct }}%"></div>
               </div>
               <div class="text-[11px] text-ink-soft mt-1">
-                {{ item.pct|round|int }}% &middot; {{ macros.peso(item.remaining) }} left &middot; {{ macros.peso(item.monthly_needed) }}/mo
+                {{ item.pct|round|int }}% &middot; {{ macros.peso(item.remaining) }} left &middot; {{ macros.peso(item.monthly_needed) }}/mo &middot; {{ macros.peso(item.per_payout) }}/payout
               </div>
+              <div class="view-goal-{{ goal.id }} text-[11px] text-ink-soft mt-1">
+                {% if goal.round_up_to_hundred %}Rounded up to nearest &#8369;100{% endif %}
+              </div>
+              <label class="edit-goal-{{ goal.id }} hidden items-center gap-1.5 text-[11px] text-ink-soft mt-1">
+                <input type="checkbox"
+                       name="round_up_to_hundred"
+                       form="goal-edit-form-{{ goal.id }}"
+                       {{ "checked" if goal.round_up_to_hundred else "" }}>
+                Round up to nearest &#8369;100
+              </label>
             </td>
             <td>
               <div class="view-goal-{{ goal.id }} flex items-center gap-1">
@@ -112,10 +143,10 @@
             </td>
           </tr>
         {% else %}
-          {{ macros.empty_row(6, 'goals') }}
+          {{ macros.empty_row(7, 'goals') }}
         {% endfor %}
         <tr>
-          <td colspan="6">
+          <td colspan="7">
             <button type="button"
                     class="add-btn w-20 justify-center"
                     onclick="toggleAddRow('add-goal-row', this)">+ Add</button>
@@ -129,6 +160,12 @@
                    form="add-goal-form"
                    placeholder="Goal name"
                    required>
+          </td>
+          <td>
+            <select class="field" name="channel_id" form="add-goal-form">
+              <option value="">No channel</option>
+              {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
+            </select>
           </td>
           <td class="num">
             <div class="flex items-center justify-end gap-1">
@@ -162,7 +199,12 @@
                    form="add-goal-form"
                    placeholder="1">
           </td>
-          <td></td>
+          <td>
+            <label class="flex items-center gap-1.5 text-[11px] text-ink-soft">
+              <input type="checkbox" name="round_up_to_hundred" form="add-goal-form">
+              Round up to nearest &#8369;100
+            </label>
+          </td>
           <td>
             <button class="add-btn" type="submit" form="add-goal-form">Add</button>
           </td>

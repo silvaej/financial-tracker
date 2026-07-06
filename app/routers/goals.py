@@ -16,6 +16,10 @@ def _render_page(request: Request, db: Session) -> HTMLResponse:
     )
 
 
+def _parse_channel_id(raw: str) -> int | None:
+    return int(raw) if raw else None
+
+
 @router.get("")
 def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     return templates.TemplateResponse(request, "goals.html", crud.goals_page_data(db))
@@ -28,10 +32,20 @@ def create_goal(
     target: float = Form(...),
     allocated: float = Form(0),
     months: int = Form(1),
+    channel_id: str = Form(""),
+    round_up_to_hundred: bool = Form(False),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     crud.create_goal(
-        db, schemas.GoalCreate(name=name, target=target, allocated=allocated, months=months)
+        db,
+        schemas.GoalCreate(
+            name=name,
+            target=target,
+            allocated=allocated,
+            months=months,
+            channel_id=_parse_channel_id(channel_id),
+            round_up_to_hundred=round_up_to_hundred,
+        ),
     )
     return _render_page(request, db)
 
@@ -44,12 +58,21 @@ def update_goal(
     target: float = Form(...),
     allocated: float = Form(...),
     months: int = Form(...),
+    channel_id: str = Form(""),
+    round_up_to_hundred: bool = Form(False),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     crud.update_goal(
         db,
         goal_id,
-        schemas.GoalUpdate(name=name, target=target, allocated=allocated, months=months),
+        schemas.GoalUpdate(
+            name=name,
+            target=target,
+            allocated=allocated,
+            months=months,
+            channel_id=_parse_channel_id(channel_id),
+            round_up_to_hundred=round_up_to_hundred,
+        ),
     )
     return _render_page(request, db)
 
