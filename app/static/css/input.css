@@ -125,7 +125,7 @@
     @apply inline-flex items-center text-ink-soft text-xs font-semibold px-3 py-1.5 rounded-md border border-line hover:bg-paper-dim cursor-pointer;
   }
   .field {
-    @apply rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
+    @apply w-full min-w-0 rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
   }
   .field-mono {
     @apply font-mono text-right;
@@ -171,5 +171,26 @@
     flex-direction: column;
     gap: 0.5rem;
     justify-content: center !important;
+  }
+  /* Width is forced above regardless of the collapsed/expanded JS state, so
+     the toggle button has no effect on mobile — hide it rather than leave a
+     dead control. */
+  #collapse-toggle {
+    display: none !important;
+  }
+
+  /* Keep inputs at >=16px so iOS Safari doesn't auto-zoom the page on focus. */
+  .field {
+    font-size: 16px;
+  }
+
+  /* Bigger tap targets for the text/icon action buttons. */
+  .icon-btn {
+    padding: 0.5rem 0.625rem;
+  }
+  .add-btn,
+  .btn-secondary {
+    padding-block: 0.625rem;
+    padding-inline: 0.875rem;
   }
 }
