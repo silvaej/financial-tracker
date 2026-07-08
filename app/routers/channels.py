@@ -25,6 +25,7 @@ def create_channel(
     request: Request,
     name: str = Form(...),
     color: str = Form("#8a8a8a"),
+    channel_type: str = Form(""),
     funding_source_channel_id: str = Form(""),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
@@ -33,6 +34,7 @@ def create_channel(
         schemas.ChannelCreate(
             name=name,
             color=color,
+            channel_type=channel_type or None,
             funding_source_channel_id=_parse_channel_id(funding_source_channel_id),
         ),
     )
@@ -45,6 +47,7 @@ def update_channel(
     channel_id: int,
     name: str = Form(...),
     color: str = Form(...),
+    channel_type: str = Form(""),
     funding_source_channel_id: str = Form(""),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
@@ -55,6 +58,7 @@ def update_channel(
             schemas.ChannelUpdate(
                 name=name,
                 color=color,
+                channel_type=channel_type or None,
                 funding_source_channel_id=_parse_channel_id(funding_source_channel_id),
             ),
         )

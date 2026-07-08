@@ -4,6 +4,12 @@
   <span class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }}"
         style="background: {{ channel.color }}">{{ initials }}</span>
 {% endmacro %}
+{% macro channel_name(channel, max_len=18) %}
+  <span title="{{ channel.name }}">{{ channel.name|truncate(max_len, True, '…') }}</span>
+{% endmacro %}
+{% macro channel_label(channel, size=15, max_len=18) %}
+  {{ channel_badge(channel, size) }} {{ channel_name(channel, max_len) }}
+{% endmacro %}
 {% macro empty_row(colspan, label) %}
   <tr>
     <td colspan="{{ colspan }}"

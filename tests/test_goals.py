@@ -137,4 +137,5 @@ def test_goal_round_up_toggle_reflected_on_page(client: TestClient) -> None:
         },
     )
     assert response.status_code == 200
-    assert "Rounded up to nearest" in response.text
+    assert 'name="round_up_to_hundred"' in response.text
+    assert re.search(r'name="round_up_to_hundred"[^>]*checked', response.text)

@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app import crud
 from app.database import get_db
 from app.routers import (
     assets,
@@ -38,7 +37,7 @@ PLACEHOLDER_SECTIONS: dict[str, str] = {}
 
 @app.get("/")
 def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    return templates.TemplateResponse(request, "expenses.html", crud.expenses_page_data(db))
+    return overview.index(request, db)
 
 
 @app.get("/{section}")

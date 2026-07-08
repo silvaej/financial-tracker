@@ -16,6 +16,14 @@ def _render_page(request: Request, db: Session) -> HTMLResponse:
     )
 
 
+@router.get("")
+def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    template = (
+        "partials/expenses_page.html" if request.headers.get("HX-Request") else "expenses.html"
+    )
+    return templates.TemplateResponse(request, template, crud.expenses_page_data(db))
+
+
 @router.post("")
 def create_expense(
     request: Request,

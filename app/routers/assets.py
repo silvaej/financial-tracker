@@ -16,9 +16,14 @@ def _render_page(request: Request, db: Session) -> HTMLResponse:
     )
 
 
+def _parse_channel_id(raw: str) -> int | None:
+    return int(raw) if raw else None
+
+
 @router.get("")
 def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    return templates.TemplateResponse(request, "assets.html", crud.assets_page_data(db))
+    template = "partials/assets_page.html" if request.headers.get("HX-Request") else "assets.html"
+    return templates.TemplateResponse(request, template, crud.assets_page_data(db))
 
 
 @router.post("")
@@ -26,9 +31,12 @@ def create_asset(
     request: Request,
     name: str = Form(...),
     amount: float = Form(...),
+    channel_id: str = Form(""),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    crud.create_asset(db, schemas.AssetCreate(name=name, amount=amount))
+    crud.create_asset(
+        db, schemas.AssetCreate(name=name, amount=amount, channel_id=_parse_channel_id(channel_id))
+    )
     return _render_page(request, db)
 
 
@@ -38,9 +46,14 @@ def update_asset(
     asset_id: int,
     name: str = Form(...),
     amount: float = Form(...),
+    channel_id: str = Form(""),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    crud.update_asset(db, asset_id, schemas.AssetUpdate(name=name, amount=amount))
+    crud.update_asset(
+        db,
+        asset_id,
+        schemas.AssetUpdate(name=name, amount=amount, channel_id=_parse_channel_id(channel_id)),
+    )
     return _render_page(request, db)
 
 

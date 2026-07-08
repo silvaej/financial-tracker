@@ -7,6 +7,17 @@ from app import models, schemas
 
 # --- Channels ---------------------------------------------------------------
 
+CHANNEL_TYPES: tuple[str, ...] = (
+    "Traditional Bank",
+    "Digital Bank",
+    "E-Wallet",
+    "Credit Card",
+    "Time Deposit",
+    "Payment Gateway",
+    "Investment",
+    "Cash",
+)
+
 
 class ChannelInUseError(Exception):
     """Raised when deleting a channel that is still referenced elsewhere."""
@@ -22,7 +33,10 @@ def list_channels(db: Session) -> list[models.Channel]:
 
 def create_channel(db: Session, data: schemas.ChannelCreate) -> models.Channel:
     channel = models.Channel(
-        name=data.name, color=data.color, funding_source_channel_id=data.funding_source_channel_id
+        name=data.name,
+        color=data.color,
+        channel_type=data.channel_type,
+        funding_source_channel_id=data.funding_source_channel_id,
     )
     db.add(channel)
     db.commit()
@@ -39,6 +53,7 @@ def update_channel(
     if channel is not None:
         channel.name = data.name
         channel.color = data.color
+        channel.channel_type = data.channel_type
         channel.funding_source_channel_id = data.funding_source_channel_id
         db.commit()
         db.refresh(channel)
@@ -294,6 +309,7 @@ def update_asset(db: Session, asset_id: int, data: schemas.AssetUpdate) -> model
     if asset is not None:
         asset.name = data.name
         asset.amount = data.amount
+        asset.channel_id = data.channel_id
         db.commit()
         db.refresh(asset)
     return asset
@@ -308,7 +324,11 @@ def delete_asset(db: Session, asset_id: int) -> None:
 
 def assets_page_data(db: Session) -> dict:
     assets = list_assets(db)
-    return {"assets": assets, "total_assets": sum(float(a.amount) for a in assets)}
+    return {
+        "assets": assets,
+        "total_assets": sum(float(a.amount) for a in assets),
+        "channels": list_channels(db),
+    }
 
 
 # --- Goals -----------------------------------------------------------------
@@ -450,21 +470,91 @@ def overview_page_data(db: Session) -> dict:
 def expenses_page_data(db: Session) -> dict:
     return {
         "channels": list_channels(db),
+        "channel_types": CHANNEL_TYPES,
         "payout_periods": list_payout_periods(db),
         "expenses": list_expenses(db),
     }
 
 
+def _order_transfers(
+    channels: list[models.Channel], transfers: list[models.Transfer]
+) -> list[models.Transfer]:
+    """Order transfers by which should be done first: a transfer out of a
+    channel can't happen (in a real sense) until any transfer funding that
+    channel has already landed, so sort by each transfer's from_channel's
+    topological depth in the transfer graph (Kahn's algorithm), tie-broken
+    by id for stability."""
+    graph: dict[int, set[int]] = {c.id: set() for c in channels}
+    indegree: dict[int, int] = dict.fromkeys(graph, 0)
+    for t in transfers:
+        if t.to_channel_id not in graph[t.from_channel_id]:
+            graph[t.from_channel_id].add(t.to_channel_id)
+            indegree[t.to_channel_id] += 1
+
+    depth: dict[int, int] = {}
+    ready = sorted(cid for cid, d in indegree.items() if d == 0)
+    while ready:
+        cid = ready.pop(0)
+        depth[cid] = len(depth)
+        for nxt in sorted(graph[cid]):
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                ready.append(nxt)
+        ready.sort()
+    for cid in graph:
+        if cid not in depth:
+            depth[cid] = len(depth)
+
+    return sorted(transfers, key=lambda t: (depth[t.from_channel_id], t.id))
+
+
+def _peso(amount: float) -> str:
+    sign = "-" if amount < 0 else ""
+    return f"{sign}₱{abs(amount):,.2f}"
+
+
+def _transfer_note(
+    to_channel_id: int,
+    expenses: list[models.Expense],
+    goals: list[models.Goal],
+    payout_period_count: int,
+) -> str:
+    parts = [
+        f"{e.name} ({_peso(float(e.amount))})" for e in expenses if e.channel_id == to_channel_id
+    ]
+    parts += [
+        f"{g.name} goal ({_peso(goal_payout_amount(g, payout_period_count))})"
+        for g in goals
+        if g.channel_id == to_channel_id
+    ]
+    if not parts:
+        return "No expenses or goals tagged to this channel for this payout yet."
+    return "Covers: " + ", ".join(parts)
+
+
 def cashflow_page_data(db: Session) -> dict:
     payout_periods = list_payout_periods(db)
-    return {
-        "channels": list_channels(db),
-        "payout_data": [
+    channels = list_channels(db)
+    goals = list_goals(db)
+    all_expenses = list_expenses(db)
+    payout_period_count = len(payout_periods)
+    payout_data = []
+    for period in payout_periods:
+        expenses = [e for e in all_expenses if e.payout_period_id == period.id]
+        transfers = _order_transfers(channels, list_transfers(db, period.id))
+        payout_data.append(
             {
                 "period": period,
-                "transfers": list_transfers(db, period.id),
+                "transfers": [
+                    {
+                        "transfer": t,
+                        "note": _transfer_note(
+                            t.to_channel_id, expenses, goals, payout_period_count
+                        ),
+                    }
+                    for t in transfers
+                ],
                 "balances": channel_balances(db, period.id),
             }
-            for period in payout_periods
-        ],
-    }
+        )
+    return {"channels": channels, "payout_data": payout_data}

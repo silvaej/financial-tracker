@@ -22,7 +22,8 @@ def _parse_channel_id(raw: str) -> int | None:
 
 @router.get("")
 def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    return templates.TemplateResponse(request, "goals.html", crud.goals_page_data(db))
+    template = "partials/goals_page.html" if request.headers.get("HX-Request") else "goals.html"
+    return templates.TemplateResponse(request, template, crud.goals_page_data(db))
 
 
 @router.post("")
