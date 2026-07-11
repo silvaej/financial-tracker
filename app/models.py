@@ -1,14 +1,24 @@
-from sqlalchemy import ForeignKey, Numeric, String
+from sqlalchemy import ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
 
-class Channel(Base):
-    __tablename__ = "channels"
+class User(Base):
+    __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class Channel(Base):
+    __tablename__ = "channels"
+    __table_args__ = (UniqueConstraint("user_id", "name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     color: Mapped[str] = mapped_column(String(7), default="#8a8a8a")
     channel_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     funding_source_channel_id: Mapped[int | None] = mapped_column(
@@ -20,9 +30,11 @@ class Channel(Base):
 
 class PayoutPeriod(Base):
     __tablename__ = "payout_periods"
+    __table_args__ = (UniqueConstraint("user_id", "label"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    label: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    label: Mapped[str] = mapped_column(String(50), nullable=False)
     display_order: Mapped[int] = mapped_column(default=0)
     income_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     receiving_channel_id: Mapped[int | None] = mapped_column(
@@ -36,6 +48,7 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
@@ -49,6 +62,7 @@ class Transfer(Base):
     __tablename__ = "transfers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
     from_channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
     to_channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
@@ -63,6 +77,7 @@ class Goal(Base):
     __tablename__ = "goals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     target: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     allocated: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
@@ -77,6 +92,7 @@ class CreditLine(Base):
     __tablename__ = "credit_lines"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     limit: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     used: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
@@ -89,6 +105,7 @@ class Asset(Base):
     __tablename__ = "assets"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
