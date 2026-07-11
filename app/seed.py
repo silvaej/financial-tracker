@@ -121,22 +121,35 @@ def _seed_transfers(
     )
 
 
-def _seed_goals(db: Session, channels: dict[str, models.Channel], user_id: int) -> None:
+def _seed_goals(
+    db: Session,
+    channels: dict[str, models.Channel],
+    periods: dict[str, models.PayoutPeriod],
+    user_id: int,
+) -> None:
     maya = channels.get("Maya")
+    period_15 = periods.get("15th")
     if maya is None:
         return
-    crud.create_goal(
+    goal = crud.create_goal(
         db,
         schemas.GoalCreate(
             name="Emergency Fund",
             target=50000,
-            allocated=10000,
             months=6,
             channel_id=maya.id,
             round_up_to_hundred=True,
         ),
         user_id,
     )
+    if period_15 is not None:
+        crud.create_goal_contribution(
+            db,
+            schemas.GoalContributionCreate(
+                goal_id=goal.id, channel_id=maya.id, payout_period_id=period_15.id, amount=10000
+            ),
+            user_id,
+        )
 
 
 def _seed_credit_lines(db: Session, channels: dict[str, models.Channel], user_id: int) -> None:
@@ -182,7 +195,7 @@ def seed_if_empty(db: Session, user_id: int) -> None:
     if _is_empty(db, models.Transfer, user_id):
         _seed_transfers(db, channels, periods, user_id)
     if _is_empty(db, models.Goal, user_id):
-        _seed_goals(db, channels, user_id)
+        _seed_goals(db, channels, periods, user_id)
     if _is_empty(db, models.CreditLine, user_id):
         _seed_credit_lines(db, channels, user_id)
     if _is_empty(db, models.Asset, user_id):

@@ -24,6 +24,8 @@ class Channel(Base):
     funding_source_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id"), nullable=True
     )
+    canvas_x: Mapped[float | None] = mapped_column(nullable=True)
+    canvas_y: Mapped[float | None] = mapped_column(nullable=True)
 
     funding_source: Mapped["Channel | None"] = relationship(remote_side="Channel.id")
 
@@ -84,8 +86,25 @@ class Goal(Base):
     months: Mapped[int] = mapped_column(default=1)
     channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
     round_up_to_hundred: Mapped[bool] = mapped_column(default=False)
+    canvas_x: Mapped[float | None] = mapped_column(nullable=True)
+    canvas_y: Mapped[float | None] = mapped_column(nullable=True)
 
     channel: Mapped[Channel | None] = relationship()
+
+
+class GoalContribution(Base):
+    __tablename__ = "goal_contributions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id"), nullable=False)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
+    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+
+    goal: Mapped[Goal] = relationship()
+    channel: Mapped[Channel] = relationship()
+    payout_period: Mapped[PayoutPeriod] = relationship()
 
 
 class CreditLine(Base):

@@ -1,7 +1,7 @@
 import math
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -102,6 +102,17 @@ def update_channel(
     return channel
 
 
+def update_channel_position(
+    db: Session, channel_id: int, x: float, y: float, user_id: int
+) -> models.Channel | None:
+    channel = _owned(db, models.Channel, channel_id, user_id)
+    if channel is not None:
+        channel.canvas_x = x
+        channel.canvas_y = y
+        db.commit()
+    return channel
+
+
 def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
     channel = _owned(db, models.Channel, channel_id, user_id)
     if channel is None:
@@ -121,6 +132,9 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
             ),
         )
         .first()
+        or db.query(models.GoalContribution)
+        .filter_by(channel_id=channel_id, user_id=user_id)
+        .first()
         or db.query(models.Channel)
         .filter_by(funding_source_channel_id=channel_id, user_id=user_id)
         .first()
@@ -128,8 +142,8 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
     if in_use is not None:
         raise ChannelInUseError(
             "This channel is still used by a payout period, expense, transfer, "
-            "or another channel's funding source, and can't be deleted until those "
-            "are removed or reassigned."
+            "goal contribution, or another channel's funding source, and can't be "
+            "deleted until those are removed or reassigned."
         )
 
     db.delete(channel)
@@ -261,25 +275,103 @@ def delete_transfer(db: Session, transfer_id: int, user_id: int) -> None:
         db.commit()
 
 
+# --- Goal contributions -------------------------------------------------------
+
+
+def list_goal_contributions(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.GoalContribution]:
+    stmt = select(models.GoalContribution).where(
+        models.GoalContribution.payout_period_id == payout_period_id,
+        models.GoalContribution.user_id == user_id,
+    )
+    return list(db.scalars(stmt))
+
+
+def _recompute_goal_allocated(db: Session, goal_id: int, user_id: int) -> None:
+    total = (
+        db.scalar(
+            select(func.sum(models.GoalContribution.amount)).where(
+                models.GoalContribution.goal_id == goal_id,
+                models.GoalContribution.user_id == user_id,
+            )
+        )
+        or 0
+    )
+    goal = _owned(db, models.Goal, goal_id, user_id)
+    if goal is not None:
+        goal.allocated = total
+        db.commit()
+
+
+def create_goal_contribution(
+    db: Session, data: schemas.GoalContributionCreate, user_id: int
+) -> models.GoalContribution:
+    _require_owned(db, models.Goal, data.goal_id, user_id, "Goal")
+    _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
+    _require_owned(db, models.PayoutPeriod, data.payout_period_id, user_id, "Payout period")
+    contribution = models.GoalContribution(**data.model_dump(), user_id=user_id)
+    db.add(contribution)
+    db.commit()
+    db.refresh(contribution)
+    _recompute_goal_allocated(db, data.goal_id, user_id)
+    return contribution
+
+
+def update_goal_contribution(
+    db: Session, contribution_id: int, data: schemas.GoalContributionUpdate, user_id: int
+) -> models.GoalContribution | None:
+    contribution = _owned(db, models.GoalContribution, contribution_id, user_id)
+    if contribution is not None:
+        contribution.amount = data.amount
+        db.commit()
+        db.refresh(contribution)
+        _recompute_goal_allocated(db, contribution.goal_id, user_id)
+    return contribution
+
+
+def delete_goal_contribution(db: Session, contribution_id: int, user_id: int) -> None:
+    contribution = _owned(db, models.GoalContribution, contribution_id, user_id)
+    if contribution is not None:
+        goal_id = contribution.goal_id
+        db.delete(contribution)
+        db.commit()
+        _recompute_goal_allocated(db, goal_id, user_id)
+
+
 # --- Channel balances -----------------------------------------------------------
+
+
+def _carry_in_for_period(db: Session, payout_period_id: int, user_id: int) -> dict[int, float]:
+    """Each channel's ending balance from the payout period before this one (in
+    display_order), so a month's leftover cash chains forward period to period."""
+    carry: dict[int, float] = {}
+    for period in list_payout_periods(db, user_id):
+        if period.id == payout_period_id:
+            break
+        carry = {c.id: net for c, net in channel_balances(db, period.id, user_id)}
+    return carry
 
 
 def channel_balances(
     db: Session, payout_period_id: int, user_id: int
 ) -> list[tuple[models.Channel, float]]:
+    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
     payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
     channels = list_channels(db, user_id)
     expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
     transfers = list_transfers(db, payout_period_id, user_id)
+    goal_contributions = list_goal_contributions(db, payout_period_id, user_id)
 
     balances = []
     for channel in channels:
-        net = 0.0
+        net = carry_in.get(channel.id, 0.0)
         if payout_period is not None and payout_period.receiving_channel_id == channel.id:
             net += float(payout_period.income_amount)
         net += sum(float(t.amount) for t in transfers if t.to_channel_id == channel.id)
         net -= sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
         net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+        net -= sum(float(gc.amount) for gc in goal_contributions if gc.channel_id == channel.id)
         balances.append((channel, net))
     return balances
 
@@ -289,9 +381,12 @@ def generate_transfers(db: Session, payout_period_id: int, user_id: int) -> dict
     channel's configured funding source. Each channel's required inflow is its
     own expense shortfall plus whatever it must forward to every channel that
     names it as a funding source (a pure pass-through channel with no expenses
-    of its own can still need an inbound transfer this way). Returns the names
-    of channels with an unmet shortfall and no funding source ("unfunded"), and
-    channels caught in a circular funding loop ("circular")."""
+    of its own can still need an inbound transfer this way), less any balance
+    carried in from the prior payout period. Also fills in a suggested
+    GoalContribution (at goal_payout_amount) for any goal with a funding channel
+    that doesn't already have one for this period. Returns the names of channels
+    with an unmet shortfall and no funding source ("unfunded"), and channels
+    caught in a circular funding loop ("circular")."""
     for transfer in list_transfers(db, payout_period_id, user_id):
         db.delete(transfer)
 
@@ -300,6 +395,26 @@ def generate_transfers(db: Session, payout_period_id: int, user_id: int) -> dict
     expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
     goals = list_goals(db, user_id)
     payout_period_count = len(list_payout_periods(db, user_id))
+    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
+
+    contributions_by_goal = {
+        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
+    }
+    changed_goal_ids: set[int] = set()
+    for g in goals:
+        if g.channel_id is not None and g.id not in contributions_by_goal:
+            amount = goal_payout_amount(g, payout_period_count)
+            db.add(
+                models.GoalContribution(
+                    goal_id=g.id,
+                    channel_id=g.channel_id,
+                    payout_period_id=payout_period_id,
+                    amount=amount,
+                    user_id=user_id,
+                )
+            )
+            contributions_by_goal[g.id] = amount
+            changed_goal_ids.add(g.id)
 
     children: dict[int, list[models.Channel]] = {}
     for c in channels:
@@ -309,9 +424,9 @@ def generate_transfers(db: Session, payout_period_id: int, user_id: int) -> dict
     def own_shortfall(channel: models.Channel) -> float:
         expense_total = sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
         goal_total = sum(
-            goal_payout_amount(g, payout_period_count) for g in goals if g.channel_id == channel.id
+            contributions_by_goal.get(g.id, 0.0) for g in goals if g.channel_id == channel.id
         )
-        income = (
+        income = carry_in.get(channel.id, 0.0) + (
             float(payout_period.income_amount)
             if payout_period is not None and payout_period.receiving_channel_id == channel.id
             else 0.0
@@ -354,10 +469,30 @@ def generate_transfers(db: Session, payout_period_id: int, user_id: int) -> dict
             )
         )
     db.commit()
+    for goal_id in changed_goal_ids:
+        _recompute_goal_allocated(db, goal_id, user_id)
     return {
         "unfunded": unfunded,
         "circular": [c.name for c in channels if c.id in circular],
     }
+
+
+def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
+    unfunded_channels = [
+        c.name for c, net in channel_balances(db, payout_period_id, user_id) if net < 0
+    ]
+
+    goals = list_goals(db, user_id)
+    payout_period_count = len(list_payout_periods(db, user_id))
+    contributed = {
+        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
+    }
+    underfunded_goals = [
+        g.name
+        for g in goals
+        if contributed.get(g.id, 0.0) < goal_payout_amount(g, payout_period_count)
+    ]
+    return {"unfunded_channels": unfunded_channels, "underfunded_goals": underfunded_goals}
 
 
 # --- Assets ---------------------------------------------------------------
@@ -432,12 +567,22 @@ def update_goal(
     if goal is not None:
         goal.name = data.name
         goal.target = data.target
-        goal.allocated = data.allocated
         goal.months = data.months
         goal.channel_id = data.channel_id
         goal.round_up_to_hundred = data.round_up_to_hundred
         db.commit()
         db.refresh(goal)
+    return goal
+
+
+def update_goal_position(
+    db: Session, goal_id: int, x: float, y: float, user_id: int
+) -> models.Goal | None:
+    goal = _owned(db, models.Goal, goal_id, user_id)
+    if goal is not None:
+        goal.canvas_x = x
+        goal.canvas_y = y
+        db.commit()
     return goal
 
 
@@ -642,7 +787,10 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                     }
                     for t in transfers
                 ],
+                "goal_contributions": list_goal_contributions(db, period.id, user_id),
                 "balances": channel_balances(db, period.id, user_id),
+                "carry_in": _carry_in_for_period(db, period.id, user_id),
+                "warnings": cashflow_warnings(db, period.id, user_id),
             }
         )
-    return {"channels": channels, "payout_data": payout_data}
+    return {"channels": channels, "goals": goals, "payout_data": payout_data}

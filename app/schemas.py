@@ -59,7 +59,6 @@ class AssetUpdate(BaseModel):
 class GoalCreate(BaseModel):
     name: str
     target: float
-    allocated: float = 0
     months: int = 1
     channel_id: int | None = None
     round_up_to_hundred: bool = False
@@ -68,10 +67,25 @@ class GoalCreate(BaseModel):
 class GoalUpdate(BaseModel):
     name: str
     target: float
-    allocated: float
     months: int
     channel_id: int | None = None
     round_up_to_hundred: bool = False
+
+
+class GoalContributionCreate(BaseModel):
+    goal_id: int
+    channel_id: int
+    payout_period_id: int
+    amount: float
+
+
+class GoalContributionUpdate(BaseModel):
+    amount: float
+
+
+class PositionUpdate(BaseModel):
+    x: float
+    y: float
 
 
 class CreditLineCreate(BaseModel):

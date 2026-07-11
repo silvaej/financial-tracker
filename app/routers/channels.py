@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -73,6 +73,17 @@ def update_channel(
     except (crud.InvalidFundingSourceError, crud.OwnershipError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _render_page(request, db, current_user.id)
+
+
+@router.patch("/{channel_id}/position")
+def update_channel_position(
+    channel_id: int,
+    data: schemas.PositionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> Response:
+    crud.update_channel_position(db, channel_id, data.x, data.y, current_user.id)
+    return Response(status_code=204)
 
 
 @router.delete("/{channel_id}")

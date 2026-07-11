@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -36,7 +36,6 @@ def create_goal(
     request: Request,
     name: str = Form(...),
     target: float = Form(...),
-    allocated: float = Form(0),
     months: int = Form(1),
     channel_id: str = Form(""),
     round_up_to_hundred: bool = Form(False),
@@ -49,7 +48,6 @@ def create_goal(
             schemas.GoalCreate(
                 name=name,
                 target=target,
-                allocated=allocated,
                 months=months,
                 channel_id=_parse_channel_id(channel_id),
                 round_up_to_hundred=round_up_to_hundred,
@@ -67,7 +65,6 @@ def update_goal(
     goal_id: int,
     name: str = Form(...),
     target: float = Form(...),
-    allocated: float = Form(...),
     months: int = Form(...),
     channel_id: str = Form(""),
     round_up_to_hundred: bool = Form(False),
@@ -81,7 +78,6 @@ def update_goal(
             schemas.GoalUpdate(
                 name=name,
                 target=target,
-                allocated=allocated,
                 months=months,
                 channel_id=_parse_channel_id(channel_id),
                 round_up_to_hundred=round_up_to_hundred,
@@ -91,6 +87,17 @@ def update_goal(
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _render_page(request, db, current_user.id)
+
+
+@router.patch("/{goal_id}/position")
+def update_goal_position(
+    goal_id: int,
+    data: schemas.PositionUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> Response:
+    crud.update_goal_position(db, goal_id, data.x, data.y, current_user.id)
+    return Response(status_code=204)
 
 
 @router.delete("/{goal_id}")
