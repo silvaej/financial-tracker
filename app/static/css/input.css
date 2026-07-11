@@ -165,7 +165,7 @@
     @apply relative w-full min-h-[420px] bg-paper-dim/40 rounded-lg border border-line overflow-hidden touch-none;
   }
   .canvas-node {
-    @apply absolute card w-40 cursor-grab select-none z-10;
+    @apply absolute bg-card rounded-lg px-4 py-3.5 shadow-sm w-40 cursor-grab select-none z-10;
   }
   .canvas-node:active {
     @apply cursor-grabbing;
