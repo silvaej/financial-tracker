@@ -188,7 +188,7 @@ def test_generate_transfers_reports_channels_without_funding_source(
 def _transfer_amount(html: str, from_name: str, to_name: str) -> str | None:
     """Find the amount cell in a transfer row rendered as From-name / To-name / amount."""
     pattern = (
-        rf"{re.escape(from_name)}</td>\s*<td>.*?{re.escape(to_name)}</td>\s*"
+        rf"{re.escape(from_name)}.*?</td>\s*<td>.*?{re.escape(to_name)}.*?</td>\s*"
         r'<td class="num">\s*<span class="view-transfer-\d+">&#8369;([\d,]+\.\d\d)</span>'
     )
     match = re.search(pattern, html, re.DOTALL)

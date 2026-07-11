@@ -1,4 +1,4 @@
-{% import "macros.html" as macros %}
+﻿{% import "macros.html" as macros %}
 <div id="assets-page">
   <div class="page-head">
     <div>
@@ -17,101 +17,130 @@
           hx-target="#assets-page"
           hx-swap="outerHTML">
     </form>
-    <table class="led">
-      <colgroup>
-        <col>
-        <col class="w-32">
-        <col class="w-28">
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th class="text-right">Amount</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for asset in assets %}
+    <div class="table-wrap">
+      <table class="led">
+        <colgroup>
+          <col class="min-w-28">
+          <col class="w-40">
+          <col class="w-32">
+          <col class="w-28">
+        </colgroup>
+        <thead>
           <tr>
+            <th>Name</th>
+            <th>Channel</th>
+            <th class="text-right">Amount</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in assets %}
+            <tr>
+              <td>
+                <span class="view-asset-{{ asset.id }}">{{ asset.name }}</span>
+                <form id="asset-edit-form-{{ asset.id }}"
+                      hx-patch="/assets/{{ asset.id }}"
+                      hx-target="#assets-page"
+                      hx-swap="outerHTML"
+                      class="edit-asset-{{ asset.id }} hidden items-center gap-2">
+                  <input class="field" type="text" name="name" value="{{ asset.name }}">
+                </form>
+              </td>
+              <td>
+                <span class="view-asset-{{ asset.id }}">
+                  {% if asset.channel %}
+                    {{ macros.channel_label(asset.channel) }}
+                  {% else %}
+                    &mdash;
+                  {% endif %}
+                </span>
+                <div class="edit-asset-{{ asset.id }} hidden items-center gap-1">
+                  <select class="field" name="channel_id" form="asset-edit-form-{{ asset.id }}">
+                    <option value="">No channel</option>
+                    {% for channel in channels %}
+                      <option value="{{ channel.id }}"
+                              {{ "selected" if asset.channel_id == channel.id else "" }}>{{ channel.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              <td class="num">
+                <span class="view-asset-{{ asset.id }}">{{ macros.peso(asset.amount) }}</span>
+                <div class="edit-asset-{{ asset.id }} hidden items-center justify-end gap-1">
+                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <input class="field field-mono w-24"
+                         type="number"
+                         step="0.01"
+                         name="amount"
+                         form="asset-edit-form-{{ asset.id }}"
+                         value="{{ asset.amount }}">
+                </div>
+              </td>
+              <td>
+                <div class="view-asset-{{ asset.id }} flex items-center gap-1">
+                  <button type="button"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          onclick="toggleEditMode('asset-{{ asset.id }}')">Edit</button>
+                  <button class="icon-btn"
+                          hx-delete="/assets/{{ asset.id }}"
+                          hx-target="#assets-page"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete this asset?">Delete</button>
+                </div>
+                <div class="edit-asset-{{ asset.id }} hidden items-center gap-1">
+                  <button type="submit"
+                          form="asset-edit-form-{{ asset.id }}"
+                          class="add-btn mt-0">Save</button>
+                  <button type="button"
+                          class="btn-secondary"
+                          onclick="cancelEdit('asset-{{ asset.id }}', 'asset-edit-form-{{ asset.id }}')">Cancel</button>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            {{ macros.empty_row(4, 'assets') }}
+          {% endfor %}
+          <tr>
+            <td colspan="4">
+              <button type="button"
+                      class="add-btn w-20 justify-center"
+                      onclick="toggleAddRow('add-asset-row', this)">+ Add</button>
+            </td>
+          </tr>
+          <tr id="add-asset-row" class="hidden">
             <td>
-              <span class="view-asset-{{ asset.id }}">{{ asset.name }}</span>
-              <form id="asset-edit-form-{{ asset.id }}"
-                    hx-patch="/assets/{{ asset.id }}"
-                    hx-target="#assets-page"
-                    hx-swap="outerHTML"
-                    class="edit-asset-{{ asset.id }} hidden items-center gap-2">
-                <input class="field" type="text" name="name" value="{{ asset.name }}">
-              </form>
+              <input class="field"
+                     type="text"
+                     name="name"
+                     form="add-asset-form"
+                     placeholder="Asset name"
+                     required>
+            </td>
+            <td>
+              <select class="field" name="channel_id" form="add-asset-form">
+                <option value="">No channel</option>
+                {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
+              </select>
             </td>
             <td class="num">
-              <span class="view-asset-{{ asset.id }}">{{ macros.peso(asset.amount) }}</span>
-              <div class="edit-asset-{{ asset.id }} hidden items-center justify-end gap-1">
+              <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
                        name="amount"
-                       form="asset-edit-form-{{ asset.id }}"
-                       value="{{ asset.amount }}">
+                       form="add-asset-form"
+                       placeholder="Amount"
+                       required>
               </div>
             </td>
             <td>
-              <div class="view-asset-{{ asset.id }} flex items-center gap-1">
-                <button type="button"
-                        class="icon-btn hover:bg-accent/15 hover:text-accent"
-                        onclick="toggleEditMode('asset-{{ asset.id }}')">Edit</button>
-                <button class="icon-btn"
-                        hx-delete="/assets/{{ asset.id }}"
-                        hx-target="#assets-page"
-                        hx-swap="outerHTML"
-                        hx-confirm="Delete this asset?">Delete</button>
-              </div>
-              <div class="edit-asset-{{ asset.id }} hidden items-center gap-1">
-                <button type="submit"
-                        form="asset-edit-form-{{ asset.id }}"
-                        class="add-btn mt-0">Save</button>
-                <button type="button"
-                        class="btn-secondary"
-                        onclick="cancelEdit('asset-{{ asset.id }}', 'asset-edit-form-{{ asset.id }}')">Cancel</button>
-              </div>
+              <button class="add-btn" type="submit" form="add-asset-form">Add</button>
             </td>
           </tr>
-        {% else %}
-          {{ macros.empty_row(3, 'assets') }}
-        {% endfor %}
-        <tr>
-          <td colspan="3">
-            <button type="button"
-                    class="add-btn w-20 justify-center"
-                    onclick="toggleAddRow('add-asset-row', this)">+ Add</button>
-          </td>
-        </tr>
-        <tr id="add-asset-row" class="hidden">
-          <td>
-            <input class="field"
-                   type="text"
-                   name="name"
-                   form="add-asset-form"
-                   placeholder="Asset name"
-                   required>
-          </td>
-          <td class="num">
-            <div class="flex items-center justify-end gap-1">
-              <span class="text-ink-soft text-sm">&#8369;</span>
-              <input class="field field-mono w-24"
-                     type="number"
-                     step="0.01"
-                     name="amount"
-                     form="add-asset-form"
-                     placeholder="Amount"
-                     required>
-            </div>
-          </td>
-          <td>
-            <button class="add-btn" type="submit" form="add-asset-form">Add</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>

@@ -10,6 +10,7 @@ class Channel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     color: Mapped[str] = mapped_column(String(7), default="#8a8a8a")
+    channel_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     funding_source_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id"), nullable=True
     )
@@ -90,3 +91,6 @@ class Asset(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
+
+    channel: Mapped[Channel | None] = relationship()

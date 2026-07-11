@@ -12,4 +12,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("")
 def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    return templates.TemplateResponse(request, "cashflow.html", crud.cashflow_page_data(db))
+    template = (
+        "partials/cashflow_page.html" if request.headers.get("HX-Request") else "cashflow.html"
+    )
+    return templates.TemplateResponse(request, template, crud.cashflow_page_data(db))

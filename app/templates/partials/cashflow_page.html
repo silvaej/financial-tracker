@@ -1,4 +1,4 @@
-{% import "macros.html" as macros %}
+﻿{% import "macros.html" as macros %}
 <div id="cashflow-page">
   <div class="page-head">
     <div>
@@ -26,120 +26,124 @@
             hx-swap="outerHTML">
         <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
       </form>
-      {% for transfer in data.transfers %}
+      {% for item in data.transfers %}
+        {% set transfer = item.transfer %}
         <form id="edit-transfer-form-{{ transfer.id }}"
               hx-patch="/transfers/{{ transfer.id }}"
               hx-target="#cashflow-page"
               hx-swap="outerHTML">
         </form>
       {% endfor %}
-      <table class="led">
-        <colgroup>
-          <col>
-          <col>
-          <col class="w-24">
-          <col class="w-28">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>From</th>
-            <th>To</th>
-            <th class="text-right">Amount</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for transfer in data.transfers %}
+      <div class="table-wrap">
+        <table class="led">
+          <colgroup>
+            <col class="min-w-28">
+            <col class="min-w-28">
+            <col class="w-24">
+            <col class="w-28">
+          </colgroup>
+          <thead>
             <tr>
-              <td>{{ macros.channel_badge(transfer.from_channel, 15) }} {{ transfer.from_channel.name }}</td>
-              <td>{{ macros.channel_badge(transfer.to_channel, 15) }} {{ transfer.to_channel.name }}</td>
+              <th>From</th>
+              <th>To</th>
+              <th class="text-right">Amount</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in data.transfers %}
+              {% set transfer = item.transfer %}
+              <tr title="{{ item.note }}">
+                <td>{{ macros.channel_label(transfer.from_channel) }}</td>
+                <td>{{ macros.channel_label(transfer.to_channel) }}</td>
+                <td class="num">
+                  <span class="view-transfer-{{ transfer.id }}">{{ macros.peso(transfer.amount) }}</span>
+                  <div class="edit-transfer-{{ transfer.id }} hidden items-center justify-end gap-1">
+                    <span class="text-ink-soft text-sm">&#8369;</span>
+                    <input class="field field-mono w-24"
+                           type="number"
+                           step="0.01"
+                           name="amount"
+                           form="edit-transfer-form-{{ transfer.id }}"
+                           value="{{ transfer.amount }}">
+                  </div>
+                </td>
+                <td>
+                  <div class="view-transfer-{{ transfer.id }} flex items-center gap-1">
+                    <button type="button"
+                            class="icon-btn hover:bg-accent/15 hover:text-accent"
+                            onclick="toggleEditMode('transfer-{{ transfer.id }}')">Edit</button>
+                    <button class="icon-btn"
+                            hx-delete="/transfers/{{ transfer.id }}"
+                            hx-target="#cashflow-page"
+                            hx-swap="outerHTML"
+                            hx-confirm="Delete this transfer?">Delete</button>
+                  </div>
+                  <div class="edit-transfer-{{ transfer.id }} hidden items-center gap-1">
+                    <button type="submit"
+                            form="edit-transfer-form-{{ transfer.id }}"
+                            class="add-btn mt-0">Save</button>
+                    <button type="button"
+                            class="btn-secondary"
+                            onclick="cancelEdit('transfer-{{ transfer.id }}', 'edit-transfer-form-{{ transfer.id }}')">Cancel</button>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              {{ macros.empty_row(4, 'transfers') }}
+            {% endfor %}
+            <tr>
+              <td colspan="4">
+                <button type="button"
+                        class="add-btn w-20 justify-center"
+                        onclick="toggleAddRow('add-transfer-row-{{ data.period.id }}', this)">+ Add</button>
+              </td>
+            </tr>
+            <tr id="add-transfer-row-{{ data.period.id }}" class="hidden">
+              <td>
+                <select class="field"
+                        name="from_channel_id"
+                        form="add-transfer-form-{{ data.period.id }}"
+                        required>
+                  {% for channel in channels %}
+                    <option value="{{ channel.id }}">{{ channel.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select class="field"
+                        name="to_channel_id"
+                        form="add-transfer-form-{{ data.period.id }}"
+                        onchange="prefillTransferAmount(this)"
+                        required>
+                  {% for channel, net in data.balances %}
+                    <option value="{{ channel.id }}"
+                            data-needed="{{ '%.2f'|format([0, -net]|max) }}">{{ channel.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
               <td class="num">
-                <span class="view-transfer-{{ transfer.id }}">{{ macros.peso(transfer.amount) }}</span>
-                <div class="edit-transfer-{{ transfer.id }} hidden items-center justify-end gap-1">
+                <div class="flex items-center justify-end gap-1">
                   <span class="text-ink-soft text-sm">&#8369;</span>
                   <input class="field field-mono w-24"
                          type="number"
                          step="0.01"
                          name="amount"
-                         form="edit-transfer-form-{{ transfer.id }}"
-                         value="{{ transfer.amount }}">
+                         form="add-transfer-form-{{ data.period.id }}"
+                         placeholder="Amount"
+                         required>
                 </div>
               </td>
               <td>
-                <div class="view-transfer-{{ transfer.id }} flex items-center gap-1">
-                  <button type="button"
-                          class="icon-btn hover:bg-accent/15 hover:text-accent"
-                          onclick="toggleEditMode('transfer-{{ transfer.id }}')">Edit</button>
-                  <button class="icon-btn"
-                          hx-delete="/transfers/{{ transfer.id }}"
-                          hx-target="#cashflow-page"
-                          hx-swap="outerHTML"
-                          hx-confirm="Delete this transfer?">Delete</button>
-                </div>
-                <div class="edit-transfer-{{ transfer.id }} hidden items-center gap-1">
-                  <button type="submit"
-                          form="edit-transfer-form-{{ transfer.id }}"
-                          class="add-btn mt-0">Save</button>
-                  <button type="button"
-                          class="btn-secondary"
-                          onclick="cancelEdit('transfer-{{ transfer.id }}', 'edit-transfer-form-{{ transfer.id }}')">Cancel</button>
-                </div>
+                <button class="add-btn"
+                        type="submit"
+                        form="add-transfer-form-{{ data.period.id }}">Add</button>
               </td>
             </tr>
-          {% else %}
-            {{ macros.empty_row(4, 'transfers') }}
-          {% endfor %}
-          <tr>
-            <td colspan="4">
-              <button type="button"
-                      class="add-btn w-20 justify-center"
-                      onclick="toggleAddRow('add-transfer-row-{{ data.period.id }}', this)">+ Add</button>
-            </td>
-          </tr>
-          <tr id="add-transfer-row-{{ data.period.id }}" class="hidden">
-            <td>
-              <select class="field"
-                      name="from_channel_id"
-                      form="add-transfer-form-{{ data.period.id }}"
-                      required>
-                {% for channel in channels %}
-                  <option value="{{ channel.id }}">{{ channel.name }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td>
-              <select class="field"
-                      name="to_channel_id"
-                      form="add-transfer-form-{{ data.period.id }}"
-                      onchange="prefillTransferAmount(this)"
-                      required>
-                {% for channel, net in data.balances %}
-                  <option value="{{ channel.id }}"
-                          data-needed="{{ '%.2f'|format([0, -net]|max) }}">{{ channel.name }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td class="num">
-              <div class="flex items-center justify-end gap-1">
-                <span class="text-ink-soft text-sm">&#8369;</span>
-                <input class="field field-mono w-24"
-                       type="number"
-                       step="0.01"
-                       name="amount"
-                       form="add-transfer-form-{{ data.period.id }}"
-                       placeholder="Amount"
-                       required>
-              </div>
-            </td>
-            <td>
-              <button class="add-btn"
-                      type="submit"
-                      form="add-transfer-form-{{ data.period.id }}">Add</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="mt-4 pt-3 border-t border-dashed border-paper-dim">
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-4 pt-3 border-t border-dashed border-paper-dim table-wrap">
         <table class="led">
           <colgroup>
             <col>
@@ -154,7 +158,7 @@
           <tbody>
             {% for channel, net in data.balances %}
               <tr>
-                <td>{{ macros.channel_badge(channel, 15) }} {{ channel.name }}</td>
+                <td>{{ macros.channel_label(channel) }}</td>
                 <td class="num {{ 'card-value-neg' if net < 0 else '' }}">{{ macros.peso(net) }}</td>
               </tr>
             {% else %}

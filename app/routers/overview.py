@@ -12,4 +12,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("")
 def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    return templates.TemplateResponse(request, "overview.html", crud.overview_page_data(db))
+    template = (
+        "partials/overview_page.html" if request.headers.get("HX-Request") else "overview.html"
+    )
+    return templates.TemplateResponse(request, template, crud.overview_page_data(db))

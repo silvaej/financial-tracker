@@ -13,203 +13,207 @@
           hx-target="#goals-page"
           hx-swap="outerHTML">
     </form>
-    <table class="led">
-      <colgroup>
-        <col>
-        <col class="w-36">
-        <col class="w-28">
-        <col class="w-28">
-        <col class="w-20">
-        <col class="w-56">
-        <col class="w-28">
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Channel</th>
-          <th class="text-right">Target</th>
-          <th class="text-right">Allocated</th>
-          <th class="text-right">Months</th>
-          <th>Progress</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in goals %}
-          {% set goal = item.goal %}
+    <div class="table-wrap">
+      <table class="led">
+        <colgroup>
+          <col class="min-w-28">
+          <col class="w-40">
+          <col class="w-28">
+          <col class="w-28">
+          <col class="w-20">
+          <col class="w-56">
+          <col class="w-28">
+        </colgroup>
+        <thead>
           <tr>
+            <th>Name</th>
+            <th>Channel</th>
+            <th class="text-right">Target</th>
+            <th class="text-right">Allocated</th>
+            <th class="text-right">Months</th>
+            <th>Progress</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in goals %}
+            {% set goal = item.goal %}
+            <tr>
+              <td>
+                <span class="view-goal-{{ goal.id }}">{{ goal.name }}</span>
+                <form id="goal-edit-form-{{ goal.id }}"
+                      hx-patch="/goals/{{ goal.id }}"
+                      hx-target="#goals-page"
+                      hx-swap="outerHTML"
+                      class="edit-goal-{{ goal.id }} hidden items-center gap-2">
+                  <input class="field" type="text" name="name" value="{{ goal.name }}">
+                </form>
+              </td>
+              <td>
+                <span class="view-goal-{{ goal.id }}">
+                  {% if goal.channel %}
+                    {{ macros.channel_label(goal.channel) }}
+                  {% else %}
+                    &mdash;
+                  {% endif %}
+                </span>
+                <div class="edit-goal-{{ goal.id }} hidden items-center gap-1">
+                  <select class="field" name="channel_id" form="goal-edit-form-{{ goal.id }}">
+                    <option value="">No channel</option>
+                    {% for channel in channels %}
+                      <option value="{{ channel.id }}"
+                              {{ "selected" if goal.channel_id == channel.id else "" }}>{{ channel.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              <td class="num">
+                <span class="view-goal-{{ goal.id }}">{{ macros.peso(goal.target) }}</span>
+                <div class="edit-goal-{{ goal.id }} hidden items-center justify-end gap-1">
+                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <input class="field field-mono w-24"
+                         type="number"
+                         step="0.01"
+                         name="target"
+                         form="goal-edit-form-{{ goal.id }}"
+                         value="{{ goal.target }}">
+                </div>
+              </td>
+              <td class="num">
+                <span class="view-goal-{{ goal.id }}">{{ macros.peso(goal.allocated) }}</span>
+                <div class="edit-goal-{{ goal.id }} hidden items-center justify-end gap-1">
+                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <input class="field field-mono w-24"
+                         type="number"
+                         step="0.01"
+                         name="allocated"
+                         form="goal-edit-form-{{ goal.id }}"
+                         value="{{ goal.allocated }}">
+                </div>
+              </td>
+              <td class="num">
+                <span class="view-goal-{{ goal.id }}">{{ goal.months }}</span>
+                <div class="edit-goal-{{ goal.id }} hidden items-center justify-end gap-1">
+                  <input class="field field-mono w-16"
+                         type="number"
+                         step="1"
+                         min="1"
+                         name="months"
+                         form="goal-edit-form-{{ goal.id }}"
+                         value="{{ goal.months }}">
+                </div>
+              </td>
+              <td>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width: {{ item.pct }}%"></div>
+                </div>
+                <div class="text-[11px] text-ink-soft mt-1">
+                  {{ item.pct|round|int }}% &middot; {{ macros.peso(item.remaining) }} left &middot; {{ macros.peso(item.monthly_needed) }}/mo &middot; {{ macros.peso(item.per_payout) }}/payout
+                </div>
+                <label class="flex items-center gap-1.5 text-[11px] text-ink-soft mt-1">
+                  <input type="checkbox"
+                         name="round_up_to_hundred"
+                         form="goal-edit-form-{{ goal.id }}"
+                         hx-patch="/goals/{{ goal.id }}"
+                         hx-include="#goal-edit-form-{{ goal.id }}, [form='goal-edit-form-{{ goal.id }}']"
+                         hx-target="#goals-page"
+                         hx-swap="outerHTML"
+                         hx-trigger="change"
+                         {{ "checked" if goal.round_up_to_hundred else "" }}>
+                  Round up to nearest &#8369;100
+                </label>
+              </td>
+              <td>
+                <div class="view-goal-{{ goal.id }} flex items-center gap-1">
+                  <button type="button"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          onclick="toggleEditMode('goal-{{ goal.id }}')">Edit</button>
+                  <button class="icon-btn"
+                          hx-delete="/goals/{{ goal.id }}"
+                          hx-target="#goals-page"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete this goal?">Delete</button>
+                </div>
+                <div class="edit-goal-{{ goal.id }} hidden items-center gap-1">
+                  <button type="submit"
+                          form="goal-edit-form-{{ goal.id }}"
+                          class="add-btn mt-0">Save</button>
+                  <button type="button"
+                          class="btn-secondary"
+                          onclick="cancelEdit('goal-{{ goal.id }}', 'goal-edit-form-{{ goal.id }}')">Cancel</button>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            {{ macros.empty_row(7, 'goals') }}
+          {% endfor %}
+          <tr>
+            <td colspan="7">
+              <button type="button"
+                      class="add-btn w-20 justify-center"
+                      onclick="toggleAddRow('add-goal-row', this)">+ Add</button>
+            </td>
+          </tr>
+          <tr id="add-goal-row" class="hidden">
             <td>
-              <span class="view-goal-{{ goal.id }}">{{ goal.name }}</span>
-              <form id="goal-edit-form-{{ goal.id }}"
-                    hx-patch="/goals/{{ goal.id }}"
-                    hx-target="#goals-page"
-                    hx-swap="outerHTML"
-                    class="edit-goal-{{ goal.id }} hidden items-center gap-2">
-                <input class="field" type="text" name="name" value="{{ goal.name }}">
-              </form>
+              <input class="field"
+                     type="text"
+                     name="name"
+                     form="add-goal-form"
+                     placeholder="Goal name"
+                     required>
             </td>
             <td>
-              <span class="view-goal-{{ goal.id }}">
-                {% if goal.channel %}
-                  {{ macros.channel_badge(goal.channel, 15) }} {{ goal.channel.name }}
-                {% else %}
-                  &mdash;
-                {% endif %}
-              </span>
-              <div class="edit-goal-{{ goal.id }} hidden items-center gap-1">
-                <select class="field" name="channel_id" form="goal-edit-form-{{ goal.id }}">
-                  <option value="">No channel</option>
-                  {% for channel in channels %}
-                    <option value="{{ channel.id }}"
-                            {{ "selected" if goal.channel_id == channel.id else "" }}>{{ channel.name }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </div>
+              <select class="field" name="channel_id" form="add-goal-form">
+                <option value="">No channel</option>
+                {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
+              </select>
             </td>
             <td class="num">
-              <span class="view-goal-{{ goal.id }}">{{ macros.peso(goal.target) }}</span>
-              <div class="edit-goal-{{ goal.id }} hidden items-center justify-end gap-1">
+              <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
                        name="target"
-                       form="goal-edit-form-{{ goal.id }}"
-                       value="{{ goal.target }}">
+                       form="add-goal-form"
+                       placeholder="Target"
+                       required>
               </div>
             </td>
             <td class="num">
-              <span class="view-goal-{{ goal.id }}">{{ macros.peso(goal.allocated) }}</span>
-              <div class="edit-goal-{{ goal.id }} hidden items-center justify-end gap-1">
+              <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
                        name="allocated"
-                       form="goal-edit-form-{{ goal.id }}"
-                       value="{{ goal.allocated }}">
+                       form="add-goal-form"
+                       placeholder="0">
               </div>
             </td>
             <td class="num">
-              <span class="view-goal-{{ goal.id }}">{{ goal.months }}</span>
-              <div class="edit-goal-{{ goal.id }} hidden items-center justify-end gap-1">
-                <input class="field field-mono w-16"
-                       type="number"
-                       step="1"
-                       min="1"
-                       name="months"
-                       form="goal-edit-form-{{ goal.id }}"
-                       value="{{ goal.months }}">
-              </div>
+              <input class="field field-mono w-16"
+                     type="number"
+                     step="1"
+                     min="1"
+                     name="months"
+                     form="add-goal-form"
+                     placeholder="1">
             </td>
             <td>
-              <div class="bar-track">
-                <div class="bar-fill" style="width: {{ item.pct }}%"></div>
-              </div>
-              <div class="text-[11px] text-ink-soft mt-1">
-                {{ item.pct|round|int }}% &middot; {{ macros.peso(item.remaining) }} left &middot; {{ macros.peso(item.monthly_needed) }}/mo &middot; {{ macros.peso(item.per_payout) }}/payout
-              </div>
-              <div class="view-goal-{{ goal.id }} text-[11px] text-ink-soft mt-1">
-                {% if goal.round_up_to_hundred %}Rounded up to nearest &#8369;100{% endif %}
-              </div>
-              <label class="edit-goal-{{ goal.id }} hidden items-center gap-1.5 text-[11px] text-ink-soft mt-1">
-                <input type="checkbox"
-                       name="round_up_to_hundred"
-                       form="goal-edit-form-{{ goal.id }}"
-                       {{ "checked" if goal.round_up_to_hundred else "" }}>
+              <label class="flex items-center gap-1.5 text-[11px] text-ink-soft">
+                <input type="checkbox" name="round_up_to_hundred" form="add-goal-form">
                 Round up to nearest &#8369;100
               </label>
             </td>
             <td>
-              <div class="view-goal-{{ goal.id }} flex items-center gap-1">
-                <button type="button"
-                        class="icon-btn hover:bg-accent/15 hover:text-accent"
-                        onclick="toggleEditMode('goal-{{ goal.id }}')">Edit</button>
-                <button class="icon-btn"
-                        hx-delete="/goals/{{ goal.id }}"
-                        hx-target="#goals-page"
-                        hx-swap="outerHTML"
-                        hx-confirm="Delete this goal?">Delete</button>
-              </div>
-              <div class="edit-goal-{{ goal.id }} hidden items-center gap-1">
-                <button type="submit"
-                        form="goal-edit-form-{{ goal.id }}"
-                        class="add-btn mt-0">Save</button>
-                <button type="button"
-                        class="btn-secondary"
-                        onclick="cancelEdit('goal-{{ goal.id }}', 'goal-edit-form-{{ goal.id }}')">Cancel</button>
-              </div>
+              <button class="add-btn" type="submit" form="add-goal-form">Add</button>
             </td>
           </tr>
-        {% else %}
-          {{ macros.empty_row(7, 'goals') }}
-        {% endfor %}
-        <tr>
-          <td colspan="7">
-            <button type="button"
-                    class="add-btn w-20 justify-center"
-                    onclick="toggleAddRow('add-goal-row', this)">+ Add</button>
-          </td>
-        </tr>
-        <tr id="add-goal-row" class="hidden">
-          <td>
-            <input class="field"
-                   type="text"
-                   name="name"
-                   form="add-goal-form"
-                   placeholder="Goal name"
-                   required>
-          </td>
-          <td>
-            <select class="field" name="channel_id" form="add-goal-form">
-              <option value="">No channel</option>
-              {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
-            </select>
-          </td>
-          <td class="num">
-            <div class="flex items-center justify-end gap-1">
-              <span class="text-ink-soft text-sm">&#8369;</span>
-              <input class="field field-mono w-24"
-                     type="number"
-                     step="0.01"
-                     name="target"
-                     form="add-goal-form"
-                     placeholder="Target"
-                     required>
-            </div>
-          </td>
-          <td class="num">
-            <div class="flex items-center justify-end gap-1">
-              <span class="text-ink-soft text-sm">&#8369;</span>
-              <input class="field field-mono w-24"
-                     type="number"
-                     step="0.01"
-                     name="allocated"
-                     form="add-goal-form"
-                     placeholder="0">
-            </div>
-          </td>
-          <td class="num">
-            <input class="field field-mono w-16"
-                   type="number"
-                   step="1"
-                   min="1"
-                   name="months"
-                   form="add-goal-form"
-                   placeholder="1">
-          </td>
-          <td>
-            <label class="flex items-center gap-1.5 text-[11px] text-ink-soft">
-              <input type="checkbox" name="round_up_to_hundred" form="add-goal-form">
-              Round up to nearest &#8369;100
-            </label>
-          </td>
-          <td>
-            <button class="add-btn" type="submit" form="add-goal-form">Add</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
