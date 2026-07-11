@@ -8,6 +8,25 @@ env:
   POETRY_VERSION: "2.4.1"
 
 jobs:
+  version-check:
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure pyproject.toml version was bumped
+        run: |
+          git fetch origin dev --depth=1
+          base_version=$(git show origin/dev:pyproject.toml | grep -m1 '^version = ' | cut -d'"' -f2)
+          head_version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          echo "dev=$base_version, this PR=$head_version"
+          if [ "$base_version" = "$head_version" ]; then
+            echo "::error::pyproject.toml's [project].version ($head_version) wasn't bumped. Bump it following SemVer before merging into dev (see CLAUDE.md's Versioning section)."
+            exit 1
+          fi
+
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
