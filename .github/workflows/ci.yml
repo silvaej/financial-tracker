@@ -8,6 +8,24 @@ env:
   POETRY_VERSION: "2.4.1"
 
 jobs:
+  enforce-branch-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce merge source rules
+        run: |
+          base="${{ github.event.pull_request.base.ref }}"
+          head="${{ github.event.pull_request.head.ref }}"
+          echo "base=$base head=$head"
+          if [ "$base" = "main" ] && [ "$head" != "dev" ]; then
+            echo "::error::Only dev may be merged into main (got $head)."
+            exit 1
+          fi
+          if [ "$base" = "dev" ] && [ "$head" = "main" ]; then
+            echo "::error::main may not be merged directly into dev."
+            exit 1
+          fi
+
   version-check:
     if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'dev'
     runs-on: ubuntu-latest
