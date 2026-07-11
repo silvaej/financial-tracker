@@ -10,18 +10,7 @@
   </div>
   {% for data in payout_data %}
     <div class="section">
-      <div class="section-title">
-        {{ data.period.label }} cash flow
-        <span class="flex items-center gap-2">
-          <span class="pill">Auto</span>
-          <button type="button"
-                  class="btn-secondary"
-                  hx-post="/transfers/generate/{{ data.period.id }}"
-                  hx-target="#cashflow-page"
-                  hx-swap="outerHTML"
-                  hx-confirm="This deletes all existing transfers for {{ data.period.label }} and replaces them with auto-generated ones based on each channel's funding source. Continue?">Generate transfers</button>
-        </span>
-      </div>
+      <div class="section-title">{{ data.period.label }} cash flow</div>
       {% if data.warnings.unfunded_channels or data.warnings.underfunded_goals %}
         <div class="warn-banner">
           {% for name in data.warnings.unfunded_channels %}
@@ -59,7 +48,9 @@
             {% if data.carry_in.get(channel.id) %}
               <div class="text-[10px] text-ink-soft">{{ macros.peso(data.carry_in.get(channel.id) ) }} carried in</div>
             {% endif %}
-            <div class="canvas-handle" data-handle-owner="channel-{{ channel.id }}"></div>
+            <div class="canvas-handle"
+                 data-handle-owner="channel-{{ channel.id }}"
+                 title="Drag to connect to another channel or a goal"></div>
           </div>
         {% endfor %}
         {% for entry in goals %}
@@ -161,5 +152,4 @@
       {% endfor %}
     </div>
   {% endfor %}
-  <script src="{{ url_for('static', path='js/cashflow.js') }}"></script>
 </div>
