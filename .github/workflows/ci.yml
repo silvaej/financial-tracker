@@ -8,6 +8,43 @@ env:
   POETRY_VERSION: "2.4.1"
 
 jobs:
+  enforce-branch-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce merge source rules
+        run: |
+          base="${{ github.event.pull_request.base.ref }}"
+          head="${{ github.event.pull_request.head.ref }}"
+          echo "base=$base head=$head"
+          if [ "$base" = "main" ] && [ "$head" != "dev" ]; then
+            echo "::error::Only dev may be merged into main (got $head)."
+            exit 1
+          fi
+          if [ "$base" = "dev" ] && [ "$head" = "main" ]; then
+            echo "::error::main may not be merged directly into dev."
+            exit 1
+          fi
+
+  version-check:
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure pyproject.toml version was bumped
+        run: |
+          git fetch origin dev --depth=1
+          base_version=$(git show origin/dev:pyproject.toml | grep -m1 '^version = ' | cut -d'"' -f2)
+          head_version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          echo "dev=$base_version, this PR=$head_version"
+          if [ "$base_version" = "$head_version" ]; then
+            echo "::error::pyproject.toml's [project].version ($head_version) wasn't bumped. Bump it following SemVer before merging into dev (see CLAUDE.md's Versioning section)."
+            exit 1
+          fi
+
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -49,7 +86,7 @@ jobs:
           poetry export -f requirements.txt --output requirements.txt.check --without-hashes
           diff requirements.txt requirements.txt.check
 
-  migrate:
+  migrate-prod:
     needs: lint-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -70,3 +107,47 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
         run: poetry run alembic upgrade head
+
+  migrate-staging:
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" poetry-plugin-export
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --only main
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: poetry run alembic upgrade head
+
+  seed-staging:
+    needs: migrate-staging
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" poetry-plugin-export
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --only main
+
+      - name: Seed staging data
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: poetry run python -m app.seed
