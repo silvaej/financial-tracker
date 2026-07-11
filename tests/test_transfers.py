@@ -100,11 +100,12 @@ def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClie
     assert "250.00" in response.text
 
 
-def test_add_transfer_row_suggests_amount_needed_to_cover_channel_expenses(
+def test_cashflow_canvas_shows_channel_nodes_with_balances(
     client: TestClient,
 ) -> None:
-    """B has a 500 expense and no income/transfers yet, so the suggested
-    top-up for B (data-needed on its <option>) should be exactly 500.00.
+    """B has a 500 expense and no income/transfers yet, so its canvas node
+    should show a -500.00 balance; A (the receiving channel) should show
+    its untouched 1000 income.
     """
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
@@ -117,14 +118,10 @@ def test_add_transfer_row_suggests_amount_needed_to_cover_channel_expenses(
 
     response = client.get("/cashflow")
     assert response.status_code == 200
-    match = re.search(rf'value="{b}"\s+data-needed="([\d.]+)"', response.text)
-    assert match is not None
-    assert match.group(1) == "500.00"
-
-    # A is the receiving channel with untouched income, so it needs no top-up.
-    match_a = re.search(rf'value="{a}"\s+data-needed="([\d.]+)"', response.text)
-    assert match_a is not None
-    assert match_a.group(1) == "0.00"
+    assert f'data-node-id="channel-{a}"' in response.text
+    assert f'data-node-id="channel-{b}"' in response.text
+    assert "1,000.00" in response.text
+    assert "-&#8369;500.00" in response.text
 
 
 def test_generate_transfers_creates_transfer_for_funded_channel_shortfall(
@@ -185,14 +182,32 @@ def test_generate_transfers_reports_channels_without_funding_source(
     assert not re.search(r'hx-delete="/transfers/\d+"', response.text)
 
 
+def _channel_node_id(html: str, name: str) -> str:
+    """Find a channel's canvas node id by the channel name shown in its badge title."""
+    for match in re.finditer(r'data-node-id="channel-(\d+)"', html):
+        window = html[match.end() : match.end() + 600]
+        if f'title="{name}"' in window:
+            return match.group(1)
+    raise AssertionError(f"channel node for {name!r} not found")
+
+
 def _transfer_amount(html: str, from_name: str, to_name: str) -> str | None:
-    """Find the amount cell in a transfer row rendered as From-name / To-name / amount."""
-    pattern = (
-        rf"{re.escape(from_name)}.*?</td>\s*<td>.*?{re.escape(to_name)}.*?</td>\s*"
-        r'<td class="num">\s*<span class="view-transfer-\d+">&#8369;([\d,]+\.\d\d)</span>'
+    """Find a transfer's edge-label amount by its from/to channel names."""
+    from_id = _channel_node_id(html, from_name)
+    to_id = _channel_node_id(html, to_name)
+    line_match = re.search(
+        rf'data-edge-id="transfer-(\d+)"\s+data-from="channel-{from_id}"\s+'
+        rf'data-to="channel-{to_id}"',
+        html,
     )
-    match = re.search(pattern, html, re.DOTALL)
-    return match.group(1) if match else None
+    if line_match is None:
+        return None
+    edge_id = line_match.group(1)
+    label_match = re.search(
+        rf'class="canvas-edge-label"\s+data-edge-id="transfer-{edge_id}"[\s\S]*?&#8369;([\d,]+\.\d\d)',
+        html,
+    )
+    return label_match.group(1) if label_match else None
 
 
 def test_generate_transfers_rolls_up_multi_hop_chain(client: TestClient) -> None:
@@ -312,7 +327,6 @@ def test_generate_transfers_includes_goal_contribution_on_its_channel(
         data={
             "name": "Emergency Fund",
             "target": "1000",
-            "allocated": "0",
             "months": "1",
             "channel_id": savings,
         },

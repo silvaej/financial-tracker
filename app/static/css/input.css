@@ -157,6 +157,38 @@
   .warn-red {
     @apply bg-rust-soft text-rust;
   }
+  .warn-banner {
+    @apply flex flex-wrap gap-2 mb-3;
+  }
+
+  .canvas {
+    @apply relative w-full min-h-[420px] bg-paper-dim/40 rounded-lg border border-line overflow-hidden touch-none;
+  }
+  .canvas-node {
+    @apply absolute card w-40 cursor-grab select-none z-10;
+  }
+  .canvas-node:active {
+    @apply cursor-grabbing;
+  }
+  .canvas-node-goal {
+    @apply border-2 border-gold;
+  }
+  .canvas-node-warn {
+    @apply border-2 border-rust;
+  }
+  .canvas-handle {
+    @apply absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-accent cursor-crosshair z-20;
+  }
+  .canvas-edges {
+    @apply absolute inset-0 w-full h-full pointer-events-none z-0;
+  }
+  .canvas-edge-line {
+    @apply stroke-accent;
+    stroke-width: 2;
+  }
+  .canvas-edge-label {
+    @apply absolute flex items-center gap-1 bg-card rounded-full px-2 py-0.5 text-[11px] font-mono shadow-sm z-10;
+  }
 }
 
 @media (max-width: 640px) {

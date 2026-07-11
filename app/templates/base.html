@@ -219,5 +219,7 @@
         if (evt.detail.target && evt.detail.target.id === "page-content") updateActiveTab();
       });
     </script>
+    {% block extra_scripts %}
+    {% endblock extra_scripts %}
   </body>
 </html>

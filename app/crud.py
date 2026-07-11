@@ -775,6 +775,13 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     for period in payout_periods:
         expenses = [e for e in all_expenses if e.payout_period_id == period.id]
         transfers = _order_transfers(channels, list_transfers(db, period.id, user_id))
+        goal_contributions = list_goal_contributions(db, period.id, user_id)
+        balances = channel_balances(db, period.id, user_id)
+        contributed_by_goal: dict[int, float] = {}
+        for gc in goal_contributions:
+            contributed_by_goal[gc.goal_id] = contributed_by_goal.get(gc.goal_id, 0.0) + float(
+                gc.amount
+            )
         payout_data.append(
             {
                 "period": period,
@@ -787,10 +794,18 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                     }
                     for t in transfers
                 ],
-                "goal_contributions": list_goal_contributions(db, period.id, user_id),
-                "balances": channel_balances(db, period.id, user_id),
+                "goal_contributions": goal_contributions,
+                "balances": balances,
+                "balance_by_channel": {c.id: net for c, net in balances},
+                "contributed_by_goal": contributed_by_goal,
                 "carry_in": _carry_in_for_period(db, period.id, user_id),
                 "warnings": cashflow_warnings(db, period.id, user_id),
             }
         )
-    return {"channels": channels, "goals": goals, "payout_data": payout_data}
+    return {
+        "channels": channels,
+        "goals": [
+            {"goal": g, "per_payout": goal_payout_amount(g, payout_period_count)} for g in goals
+        ],
+        "payout_data": payout_data,
+    }

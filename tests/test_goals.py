@@ -66,6 +66,21 @@ def test_delete_goal(client: TestClient) -> None:
     assert "Temp Goal" not in response.text
 
 
+def test_update_goal_position(client: TestClient) -> None:
+    create = client.post("/goals", data={"name": "Trip Fund", "target": "1000", "months": "1"})
+    match = re.search(r'/goals/(\d+)"', create.text)
+    assert match is not None
+    goal_id = match.group(1)
+    client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+
+    response = client.patch(f"/goals/{goal_id}/position", json={"x": 10.0, "y": 20.0})
+    assert response.status_code == 204
+
+    page = client.get("/cashflow")
+    assert 'data-x="10.0"' in page.text
+    assert 'data-y="20.0"' in page.text
+
+
 def test_goals_empty_state(client: TestClient) -> None:
     response = client.get("/goals")
     assert response.status_code == 200

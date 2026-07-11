@@ -105,6 +105,21 @@ def test_update_channel_self_funding_source_is_rejected(client: TestClient) -> N
     assert "fund itself" in response.json()["detail"]
 
 
+def test_update_channel_position(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    client.post(
+        "/payout-periods",
+        data={"label": "15th", "income_amount": "0", "receiving_channel_id": channel_id},
+    )
+
+    response = client.patch(f"/channels/{channel_id}/position", json={"x": 123.5, "y": 45.0})
+    assert response.status_code == 204
+
+    page = client.get("/cashflow")
+    assert 'data-x="123.5"' in page.text
+    assert 'data-y="45.0"' in page.text
+
+
 def test_delete_channel_used_as_funding_source_is_rejected(client: TestClient) -> None:
     source_id = _create_channel(client, "BPI")
     target_id = _create_channel(client, "Maya Black")
