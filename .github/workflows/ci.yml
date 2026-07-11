@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  POETRY_VERSION: "2.4.1"
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" poetry-plugin-export
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: ruff check
+        run: poetry run ruff check .
+
+      - name: ruff format --check
+        run: poetry run ruff format --check .
+
+      - name: mypy
+        run: poetry run mypy app tests
+
+      - name: djlint --check
+        run: poetry run djlint app/templates --profile jinja --check
+
+      - name: pytest
+        run: poetry run pytest
+
+      - name: requirements.txt drift check
+        run: |
+          poetry export -f requirements.txt --output requirements.txt.check --without-hashes
+          diff requirements.txt requirements.txt.check
+
+  migrate:
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" poetry-plugin-export
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --only main
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: poetry run alembic upgrade head
