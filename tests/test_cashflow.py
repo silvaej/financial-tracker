@@ -15,9 +15,11 @@ def _create_payout_period(client: TestClient, label: str, income: str, channel_i
         "/payout-periods",
         data={"label": label, "income_amount": income, "receiving_channel_id": channel_id},
     )
-    match = re.search(r"/payout-periods/(\d+)", response.text)
-    assert match is not None
-    return match.group(1)
+    # Periods are listed in ascending display_order, so the just-created one
+    # (highest display_order) is the last match once more than one exists.
+    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    assert matches
+    return matches[-1]
 
 
 def test_cashflow_page_renders(client: TestClient) -> None:
@@ -38,14 +40,40 @@ def test_channel_balance_carries_over_to_next_payout_period(client: TestClient) 
     """A ends period 1 with 1000 leftover (pure income, no expenses/transfers), so
     period 2 (also receiving 500 income) should show a 1500 ending balance."""
     a = _create_channel(client, "Channel A")
-    _create_payout_period(client, "Period 1", "1000", a)
-    _create_payout_period(client, "Period 2", "500", a)
+    period_1 = _create_payout_period(client, "Period 1", "1000", a)
+    period_2 = _create_payout_period(client, "Period 2", "500", a)
+    client.post(f"/channels/{a}/placement", data={"payout_period_id": period_1, "x": "0", "y": "0"})
+    client.post(f"/channels/{a}/placement", data={"payout_period_id": period_2, "x": "0", "y": "0"})
 
     response = client.get("/cashflow")
     assert response.status_code == 200
     assert "1,000.00" in response.text
     assert "1,500.00" in response.text
     assert "carried in" in response.text
+
+
+def test_new_channel_starts_in_toolbox_not_on_canvas(client: TestClient) -> None:
+    a = _create_channel(client, "Channel A")
+    _create_payout_period(client, "15th", "1000", a)
+
+    response = client.get("/cashflow")
+    assert response.status_code == 200
+    assert 'class="toolbox-item"' in response.text
+    assert f'data-node-id="channel-{a}"' in response.text
+    assert f'data-position-url="/channels/{a}/placement"' not in response.text
+
+
+def test_placing_channel_moves_it_from_toolbox_to_canvas(client: TestClient) -> None:
+    a = _create_channel(client, "Channel A")
+    period_id = _create_payout_period(client, "15th", "1000", a)
+
+    response = client.post(
+        f"/channels/{a}/placement", data={"payout_period_id": period_id, "x": "50", "y": "60"}
+    )
+    assert response.status_code == 200
+    assert f'data-position-url="/channels/{a}/placement"' in response.text
+    assert 'data-x="50.0"' in response.text
+    assert 'data-y="60.0"' in response.text
 
 
 def test_unfunded_channel_shows_warning(client: TestClient) -> None:

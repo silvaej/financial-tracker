@@ -51,6 +51,23 @@
   let dragState = null;
 
   function onPointerDown(evt) {
+    const toolboxItem = evt.target.closest(".toolbox-item");
+    if (toolboxItem) {
+      evt.preventDefault();
+      const ghost = toolboxItem.cloneNode(true);
+      ghost.style.position = "fixed";
+      ghost.style.pointerEvents = "none";
+      ghost.style.zIndex = "9999";
+      ghost.style.left = evt.clientX + "px";
+      ghost.style.top = evt.clientY + "px";
+      ghost.style.opacity = "0.85";
+      document.body.appendChild(ghost);
+      dragState = { mode: "place", sourceItem: toolboxItem, ghost };
+      return;
+    }
+
+    if (evt.target.closest(".canvas-node-remove")) return;
+
     const canvas = evt.target.closest(".canvas");
     if (!canvas) return;
 
@@ -91,6 +108,13 @@
 
   function onPointerMove(evt) {
     if (!dragState) return;
+
+    if (dragState.mode === "place") {
+      dragState.ghost.style.left = evt.clientX + "px";
+      dragState.ghost.style.top = evt.clientY + "px";
+      return;
+    }
+
     const point = canvasPoint(dragState.canvas, evt);
 
     if (dragState.mode === "move") {
@@ -106,12 +130,26 @@
   function onPointerUp(evt) {
     if (!dragState) return;
 
-    if (dragState.mode === "move") {
+    if (dragState.mode === "place") {
+      dragState.ghost.remove();
+      const under = document.elementFromPoint(evt.clientX, evt.clientY);
+      const canvas = under ? under.closest(".canvas") : null;
+      if (canvas) {
+        const point = canvasPoint(canvas, evt);
+        const form = document.getElementById(dragState.sourceItem.dataset.placeForm);
+        if (form) {
+          form.querySelector('[data-role="place-x"]').value = Math.max(0, point.x - 70);
+          form.querySelector('[data-role="place-y"]').value = Math.max(0, point.y - 30);
+          form.requestSubmit();
+        }
+      }
+    } else if (dragState.mode === "move") {
       const node = dragState.node;
       fetch(node.dataset.positionUrl, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          payout_period_id: parseInt(dragState.canvas.dataset.payoutPeriodId, 10),
           x: parseFloat(node.dataset.x) || 0,
           y: parseFloat(node.dataset.y) || 0,
         }),

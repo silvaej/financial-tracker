@@ -102,15 +102,54 @@ def update_channel(
     return channel
 
 
-def update_channel_position(
-    db: Session, channel_id: int, x: float, y: float, user_id: int
-) -> models.Channel | None:
-    channel = _owned(db, models.Channel, channel_id, user_id)
-    if channel is not None:
-        channel.canvas_x = x
-        channel.canvas_y = y
+def list_channel_placements(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.ChannelPlacement]:
+    stmt = select(models.ChannelPlacement).where(
+        models.ChannelPlacement.payout_period_id == payout_period_id,
+        models.ChannelPlacement.user_id == user_id,
+    )
+    return list(db.scalars(stmt))
+
+
+def place_channel(
+    db: Session, payout_period_id: int, channel_id: int, x: float, y: float, user_id: int
+) -> models.ChannelPlacement:
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    _require_owned(db, models.Channel, channel_id, user_id, "Channel")
+    placement = db.scalar(
+        select(models.ChannelPlacement).where(
+            models.ChannelPlacement.payout_period_id == payout_period_id,
+            models.ChannelPlacement.channel_id == channel_id,
+            models.ChannelPlacement.user_id == user_id,
+        )
+    )
+    if placement is None:
+        placement = models.ChannelPlacement(
+            payout_period_id=payout_period_id, channel_id=channel_id, x=x, y=y, user_id=user_id
+        )
+        db.add(placement)
+    else:
+        placement.x = x
+        placement.y = y
+    db.commit()
+    db.refresh(placement)
+    return placement
+
+
+def remove_channel_placement(
+    db: Session, payout_period_id: int, channel_id: int, user_id: int
+) -> None:
+    placement = db.scalar(
+        select(models.ChannelPlacement).where(
+            models.ChannelPlacement.payout_period_id == payout_period_id,
+            models.ChannelPlacement.channel_id == channel_id,
+            models.ChannelPlacement.user_id == user_id,
+        )
+    )
+    if placement is not None:
+        db.delete(placement)
         db.commit()
-    return channel
 
 
 def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
@@ -146,6 +185,7 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
             "deleted until those are removed or reassigned."
         )
 
+    db.query(models.ChannelPlacement).filter_by(channel_id=channel_id, user_id=user_id).delete()
     db.delete(channel)
     db.commit()
 
@@ -575,20 +615,59 @@ def update_goal(
     return goal
 
 
-def update_goal_position(
-    db: Session, goal_id: int, x: float, y: float, user_id: int
-) -> models.Goal | None:
-    goal = _owned(db, models.Goal, goal_id, user_id)
-    if goal is not None:
-        goal.canvas_x = x
-        goal.canvas_y = y
+def list_goal_placements(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.GoalPlacement]:
+    stmt = select(models.GoalPlacement).where(
+        models.GoalPlacement.payout_period_id == payout_period_id,
+        models.GoalPlacement.user_id == user_id,
+    )
+    return list(db.scalars(stmt))
+
+
+def place_goal(
+    db: Session, payout_period_id: int, goal_id: int, x: float, y: float, user_id: int
+) -> models.GoalPlacement:
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    _require_owned(db, models.Goal, goal_id, user_id, "Goal")
+    placement = db.scalar(
+        select(models.GoalPlacement).where(
+            models.GoalPlacement.payout_period_id == payout_period_id,
+            models.GoalPlacement.goal_id == goal_id,
+            models.GoalPlacement.user_id == user_id,
+        )
+    )
+    if placement is None:
+        placement = models.GoalPlacement(
+            payout_period_id=payout_period_id, goal_id=goal_id, x=x, y=y, user_id=user_id
+        )
+        db.add(placement)
+    else:
+        placement.x = x
+        placement.y = y
+    db.commit()
+    db.refresh(placement)
+    return placement
+
+
+def remove_goal_placement(db: Session, payout_period_id: int, goal_id: int, user_id: int) -> None:
+    placement = db.scalar(
+        select(models.GoalPlacement).where(
+            models.GoalPlacement.payout_period_id == payout_period_id,
+            models.GoalPlacement.goal_id == goal_id,
+            models.GoalPlacement.user_id == user_id,
+        )
+    )
+    if placement is not None:
+        db.delete(placement)
         db.commit()
-    return goal
 
 
 def delete_goal(db: Session, goal_id: int, user_id: int) -> None:
     goal = _owned(db, models.Goal, goal_id, user_id)
     if goal is not None:
+        db.query(models.GoalPlacement).filter_by(goal_id=goal_id, user_id=user_id).delete()
+        db.query(models.GoalContribution).filter_by(goal_id=goal_id, user_id=user_id).delete()
         db.delete(goal)
         db.commit()
 
@@ -771,6 +850,9 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     goals = list_goals(db, user_id)
     all_expenses = list_expenses(db, user_id)
     payout_period_count = len(payout_periods)
+    goal_entries: list[dict[str, Any]] = [
+        {"goal": g, "per_payout": goal_payout_amount(g, payout_period_count)} for g in goals
+    ]
     payout_data = []
     for period in payout_periods:
         expenses = [e for e in all_expenses if e.payout_period_id == period.id]
@@ -782,6 +864,14 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
             contributed_by_goal[gc.goal_id] = contributed_by_goal.get(gc.goal_id, 0.0) + float(
                 gc.amount
             )
+
+        channel_placements = list_channel_placements(db, period.id, user_id)
+        goal_placements = list_goal_placements(db, period.id, user_id)
+        position_by_channel = {p.channel_id: (p.x, p.y) for p in channel_placements}
+        position_by_goal = {p.goal_id: (p.x, p.y) for p in goal_placements}
+        placed_channel_ids = set(position_by_channel)
+        placed_goal_ids = set(position_by_goal)
+
         payout_data.append(
             {
                 "period": period,
@@ -800,12 +890,16 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                 "contributed_by_goal": contributed_by_goal,
                 "carry_in": _carry_in_for_period(db, period.id, user_id),
                 "warnings": cashflow_warnings(db, period.id, user_id),
+                "position_by_channel": position_by_channel,
+                "position_by_goal": position_by_goal,
+                "placed_channels": [c for c in channels if c.id in placed_channel_ids],
+                "placed_goals": [e for e in goal_entries if e["goal"].id in placed_goal_ids],
+                "available_channels": [c for c in channels if c.id not in placed_channel_ids],
+                "available_goals": [e for e in goal_entries if e["goal"].id not in placed_goal_ids],
             }
         )
     return {
         "channels": channels,
-        "goals": [
-            {"goal": g, "per_payout": goal_payout_amount(g, payout_period_count)} for g in goals
-        ],
+        "goals": goal_entries,
         "payout_data": payout_data,
     }

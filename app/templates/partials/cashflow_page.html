@@ -4,7 +4,7 @@
     <div>
       <div class="page-title">Cash Flow</div>
       <div class="page-sub">
-        Drag channels and goals to arrange them. Drag from a channel's dot onto another channel or a goal to connect them.
+        Drag a channel or goal from the toolbox onto the canvas. Drag a node to move it, or drag from its dot onto another node to connect them.
       </div>
     </div>
   </div>
@@ -21,6 +21,28 @@
           {% endfor %}
         </div>
       {% endif %}
+      <div class="toolbox">
+        {% for channel in data.available_channels %}
+          <div class="toolbox-item"
+               data-node-id="channel-{{ channel.id }}"
+               data-node-kind="channel"
+               data-place-form="place-channel-form-{{ data.period.id }}-{{ channel.id }}">
+            {{ macros.channel_badge(channel) }}
+            <span class="text-xs font-semibold">{{ macros.channel_name(channel) }}</span>
+          </div>
+        {% endfor %}
+        {% for entry in data.available_goals %}
+          <div class="toolbox-item toolbox-item-goal"
+               data-node-id="goal-{{ entry.goal.id }}"
+               data-node-kind="goal"
+               data-place-form="place-goal-form-{{ data.period.id }}-{{ entry.goal.id }}">
+            <span class="text-xs font-semibold">{{ entry.goal.name }}</span>
+          </div>
+        {% endfor %}
+        {% if not data.available_channels and not data.available_goals %}
+          <span class="text-xs text-ink-soft py-1">Everything is already on the canvas.</span>
+        {% endif %}
+      </div>
       <div class="canvas" data-payout-period-id="{{ data.period.id }}">
         <svg class="canvas-edges">
           {% for item in data.transfers %}
@@ -31,13 +53,20 @@
             <line class="canvas-edge-line" data-edge-id="goal-contribution-{{ gc.id }}" data-from="channel-{{ gc.channel_id }}" data-to="goal-{{ gc.goal_id }}"></line>
           {% endfor %}
         </svg>
-        {% for channel in channels %}
+        {% for channel in data.placed_channels %}
+          {% set pos = data.position_by_channel[channel.id] %}
           <div class="canvas-node {{ 'canvas-node-warn' if channel.name in data.warnings.unfunded_channels else '' }}"
                data-node-id="channel-{{ channel.id }}"
                data-node-kind="channel"
-               data-position-url="/channels/{{ channel.id }}/position"
-               data-x="{{ channel.canvas_x if channel.canvas_x is not none else (40 + (loop.index0 % 4) * 180) }}"
-               data-y="{{ channel.canvas_y if channel.canvas_y is not none else (40 + (loop.index0 // 4) * 140) }}">
+               data-position-url="/channels/{{ channel.id }}/placement"
+               data-x="{{ pos[0] }}"
+               data-y="{{ pos[1] }}">
+            <button type="button"
+                    class="canvas-node-remove"
+                    hx-delete="/channels/{{ channel.id }}/placement?payout_period_id={{ data.period.id }}"
+                    hx-target="#cashflow-page"
+                    hx-swap="outerHTML"
+                    title="Remove from canvas">&times;</button>
             <div class="flex items-center gap-1.5">
               {{ macros.channel_badge(channel) }}
               <span class="text-sm font-semibold">{{ macros.channel_name(channel) }}</span>
@@ -53,14 +82,21 @@
                  title="Drag to connect to another channel or a goal"></div>
           </div>
         {% endfor %}
-        {% for entry in goals %}
+        {% for entry in data.placed_goals %}
           {% set goal = entry.goal %}
+          {% set pos = data.position_by_goal[goal.id] %}
           <div class="canvas-node canvas-node-goal {{ 'canvas-node-warn' if goal.name in data.warnings.underfunded_goals else '' }}"
                data-node-id="goal-{{ goal.id }}"
                data-node-kind="goal"
-               data-position-url="/goals/{{ goal.id }}/position"
-               data-x="{{ goal.canvas_x if goal.canvas_x is not none else (40 + ((channels|length + loop.index0) % 4) * 180) }}"
-               data-y="{{ goal.canvas_y if goal.canvas_y is not none else (40 + ((channels|length + loop.index0) // 4) * 140) }}">
+               data-position-url="/goals/{{ goal.id }}/placement"
+               data-x="{{ pos[0] }}"
+               data-y="{{ pos[1] }}">
+            <button type="button"
+                    class="canvas-node-remove"
+                    hx-delete="/goals/{{ goal.id }}/placement?payout_period_id={{ data.period.id }}"
+                    hx-target="#cashflow-page"
+                    hx-swap="outerHTML"
+                    title="Remove from canvas">&times;</button>
             <div class="text-sm font-semibold">{{ goal.name }}</div>
             <div class="num text-sm mt-1">
               {{ macros.peso(data.contributed_by_goal.get(goal.id, 0) ) }} / {{ macros.peso(entry.per_payout) }}
@@ -135,6 +171,26 @@
                value="0"
                data-role="new-contribution-amount">
       </form>
+      {% for channel in data.available_channels %}
+        <form id="place-channel-form-{{ data.period.id }}-{{ channel.id }}"
+              hx-post="/channels/{{ channel.id }}/placement"
+              hx-target="#cashflow-page"
+              hx-swap="outerHTML">
+          <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
+          <input type="hidden" name="x" data-role="place-x">
+          <input type="hidden" name="y" data-role="place-y">
+        </form>
+      {% endfor %}
+      {% for entry in data.available_goals %}
+        <form id="place-goal-form-{{ data.period.id }}-{{ entry.goal.id }}"
+              hx-post="/goals/{{ entry.goal.id }}/placement"
+              hx-target="#cashflow-page"
+              hx-swap="outerHTML">
+          <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
+          <input type="hidden" name="x" data-role="place-x">
+          <input type="hidden" name="y" data-role="place-y">
+        </form>
+      {% endfor %}
       {% for item in data.transfers %}
         {% set transfer = item.transfer %}
         <form id="edit-transfer-form-{{ transfer.id }}"

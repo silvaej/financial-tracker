@@ -75,15 +75,48 @@ def update_channel(
     return _render_page(request, db, current_user.id)
 
 
-@router.patch("/{channel_id}/position")
-def update_channel_position(
+@router.post("/{channel_id}/placement")
+def create_channel_placement(
+    request: Request,
     channel_id: int,
-    data: schemas.PositionUpdate,
+    payout_period_id: int = Form(...),
+    x: float = Form(...),
+    y: float = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    try:
+        crud.place_channel(db, payout_period_id, channel_id, x, y, current_user.id)
+    except crud.OwnershipError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return templates.TemplateResponse(
+        request, "partials/cashflow_page.html", crud.cashflow_page_data(db, current_user.id)
+    )
+
+
+@router.patch("/{channel_id}/placement")
+def update_channel_placement(
+    channel_id: int,
+    data: schemas.PlacementUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> Response:
-    crud.update_channel_position(db, channel_id, data.x, data.y, current_user.id)
+    crud.place_channel(db, data.payout_period_id, channel_id, data.x, data.y, current_user.id)
     return Response(status_code=204)
+
+
+@router.delete("/{channel_id}/placement")
+def delete_channel_placement(
+    request: Request,
+    channel_id: int,
+    payout_period_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.remove_channel_placement(db, payout_period_id, channel_id, current_user.id)
+    return templates.TemplateResponse(
+        request, "partials/cashflow_page.html", crud.cashflow_page_data(db, current_user.id)
+    )
 
 
 @router.delete("/{channel_id}")

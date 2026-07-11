@@ -24,8 +24,6 @@ class Channel(Base):
     funding_source_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id"), nullable=True
     )
-    canvas_x: Mapped[float | None] = mapped_column(nullable=True)
-    canvas_y: Mapped[float | None] = mapped_column(nullable=True)
 
     funding_source: Mapped["Channel | None"] = relationship(remote_side="Channel.id")
 
@@ -86,8 +84,6 @@ class Goal(Base):
     months: Mapped[int] = mapped_column(default=1)
     channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
     round_up_to_hundred: Mapped[bool] = mapped_column(default=False)
-    canvas_x: Mapped[float | None] = mapped_column(nullable=True)
-    canvas_y: Mapped[float | None] = mapped_column(nullable=True)
 
     channel: Mapped[Channel | None] = relationship()
 
@@ -105,6 +101,41 @@ class GoalContribution(Base):
     goal: Mapped[Goal] = relationship()
     channel: Mapped[Channel] = relationship()
     payout_period: Mapped[PayoutPeriod] = relationship()
+
+
+class ChannelPlacement(Base):
+    """A channel's presence + position on one specific payout period's canvas.
+
+    No row for a given (payout_period_id, channel_id) means that channel isn't
+    on that period's canvas -- it shows up in the toolbox instead."""
+
+    __tablename__ = "channel_placements"
+    __table_args__ = (UniqueConstraint("payout_period_id", "channel_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
+    x: Mapped[float] = mapped_column()
+    y: Mapped[float] = mapped_column()
+
+    channel: Mapped[Channel] = relationship()
+
+
+class GoalPlacement(Base):
+    """A goal's presence + position on one specific payout period's canvas."""
+
+    __tablename__ = "goal_placements"
+    __table_args__ = (UniqueConstraint("payout_period_id", "goal_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id"), nullable=False)
+    x: Mapped[float] = mapped_column()
+    y: Mapped[float] = mapped_column()
+
+    goal: Mapped[Goal] = relationship()
 
 
 class CreditLine(Base):

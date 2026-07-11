@@ -18,15 +18,25 @@ def _create_payout_period(client: TestClient, label: str, income: str, channel_i
         "/payout-periods",
         data={"label": label, "income_amount": income, "receiving_channel_id": channel_id},
     )
-    match = re.search(r"/payout-periods/(\d+)", response.text)
-    assert match is not None
-    return match.group(1)
+    # Periods are listed in ascending display_order, so the just-created one
+    # (highest display_order) is the last match once more than one exists.
+    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    assert matches
+    return matches[-1]
 
 
 def _set_funding_source(client: TestClient, channel_id: str, name: str, source_id: str) -> None:
     response = client.patch(
         f"/channels/{channel_id}",
         data={"name": name, "color": "#8a8a8a", "funding_source_channel_id": source_id},
+    )
+    assert response.status_code == 200
+
+
+def _place_channel(client: TestClient, period_id: str, channel_id: str) -> None:
+    response = client.post(
+        f"/channels/{channel_id}/placement",
+        data={"payout_period_id": period_id, "x": "0", "y": "0"},
     )
     assert response.status_code == 200
 
@@ -65,6 +75,8 @@ def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClie
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
     period_id = _create_payout_period(client, "15th", "1000", a)
+    _place_channel(client, period_id, a)
+    _place_channel(client, period_id, b)
 
     client.post(
         "/transfers",
@@ -110,6 +122,8 @@ def test_cashflow_canvas_shows_channel_nodes_with_balances(
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
     period_id = _create_payout_period(client, "15th", "1000", a)
+    _place_channel(client, period_id, a)
+    _place_channel(client, period_id, b)
 
     client.post(
         "/expenses",

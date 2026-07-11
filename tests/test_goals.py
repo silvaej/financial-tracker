@@ -66,19 +66,58 @@ def test_delete_goal(client: TestClient) -> None:
     assert "Temp Goal" not in response.text
 
 
-def test_update_goal_position(client: TestClient) -> None:
+def test_goal_starts_unplaced_and_can_be_placed_then_repositioned(client: TestClient) -> None:
     create = client.post("/goals", data={"name": "Trip Fund", "target": "1000", "months": "1"})
     match = re.search(r'/goals/(\d+)"', create.text)
     assert match is not None
     goal_id = match.group(1)
-    client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
+    assert period_match is not None
+    period_id = period_match.group(1)
 
-    response = client.patch(f"/goals/{goal_id}/position", json={"x": 10.0, "y": 20.0})
-    assert response.status_code == 204
+    before = client.get("/cashflow")
+    assert f'data-position-url="/goals/{goal_id}/placement"' not in before.text
+    assert "Trip Fund" in before.text
+
+    place = client.post(
+        f"/goals/{goal_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+    )
+    assert place.status_code == 200
+    assert 'data-x="10.0"' in place.text
+    assert 'data-y="20.0"' in place.text
+
+    reposition = client.patch(
+        f"/goals/{goal_id}/placement",
+        json={"payout_period_id": int(period_id), "x": 55.0, "y": 66.0},
+    )
+    assert reposition.status_code == 204
 
     page = client.get("/cashflow")
-    assert 'data-x="10.0"' in page.text
-    assert 'data-y="20.0"' in page.text
+    assert 'data-x="55.0"' in page.text
+    assert 'data-y="66.0"' in page.text
+
+
+def test_remove_goal_placement_returns_it_to_the_toolbox(client: TestClient) -> None:
+    create = client.post("/goals", data={"name": "Trip Fund", "target": "1000", "months": "1"})
+    match = re.search(r'/goals/(\d+)"', create.text)
+    assert match is not None
+    goal_id = match.group(1)
+    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
+    assert period_match is not None
+    period_id = period_match.group(1)
+
+    client.post(
+        f"/goals/{goal_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+    )
+
+    removed = client.delete(f"/goals/{goal_id}/placement?payout_period_id={period_id}")
+    assert removed.status_code == 200
+    assert f'data-position-url="/goals/{goal_id}/placement"' not in removed.text
+    assert "Trip Fund" in removed.text
 
 
 def test_goals_empty_state(client: TestClient) -> None:

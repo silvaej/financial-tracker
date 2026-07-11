@@ -161,11 +161,27 @@
     @apply flex flex-wrap gap-2 mb-3;
   }
 
+  .toolbox {
+    @apply flex flex-wrap items-center gap-2 mb-3 p-2.5 rounded-lg border border-dashed border-line bg-paper-dim/40;
+  }
+  .toolbox-item {
+    @apply flex items-center gap-1.5 bg-card rounded-full pl-1.5 pr-3 py-1 shadow-sm cursor-grab select-none;
+  }
+  .toolbox-item:active {
+    @apply cursor-grabbing;
+  }
+  .toolbox-item-goal {
+    @apply border border-gold pl-3;
+  }
+
   .canvas {
     @apply relative w-full min-h-[420px] bg-paper-dim/40 rounded-lg border border-line overflow-hidden touch-none;
   }
   .canvas-node {
     @apply absolute bg-card rounded-lg px-4 py-3.5 shadow-sm w-40 cursor-grab select-none z-10;
+  }
+  .canvas-node-remove {
+    @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-ink text-white text-[10px] leading-none cursor-pointer z-20 hover:bg-rust;
   }
   .canvas-node:active {
     @apply cursor-grabbing;

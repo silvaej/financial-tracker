@@ -105,19 +105,58 @@ def test_update_channel_self_funding_source_is_rejected(client: TestClient) -> N
     assert "fund itself" in response.json()["detail"]
 
 
-def test_update_channel_position(client: TestClient) -> None:
-    channel_id = _create_channel(client, "BPI")
-    client.post(
+def _create_payout_period(client: TestClient, channel_id: str) -> str:
+    response = client.post(
         "/payout-periods",
         data={"label": "15th", "income_amount": "0", "receiving_channel_id": channel_id},
     )
+    match = re.search(r"/payout-periods/(\d+)", response.text)
+    assert match is not None
+    return match.group(1)
 
-    response = client.patch(f"/channels/{channel_id}/position", json={"x": 123.5, "y": 45.0})
-    assert response.status_code == 204
+
+def test_channel_starts_unplaced_and_can_be_placed_then_repositioned(
+    client: TestClient,
+) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, channel_id)
+
+    # Not placed yet -> no canvas node, just a toolbox entry.
+    before = client.get("/cashflow")
+    assert f'data-position-url="/channels/{channel_id}/placement"' not in before.text
+    assert "BPI" in before.text
+
+    place = client.post(
+        f"/channels/{channel_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+    )
+    assert place.status_code == 200
+    assert 'data-x="10.0"' in place.text
+    assert 'data-y="20.0"' in place.text
+
+    reposition = client.patch(
+        f"/channels/{channel_id}/placement",
+        json={"payout_period_id": int(period_id), "x": 123.5, "y": 45.0},
+    )
+    assert reposition.status_code == 204
 
     page = client.get("/cashflow")
     assert 'data-x="123.5"' in page.text
     assert 'data-y="45.0"' in page.text
+
+
+def test_remove_channel_placement_returns_it_to_the_toolbox(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, channel_id)
+    client.post(
+        f"/channels/{channel_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+    )
+
+    removed = client.delete(f"/channels/{channel_id}/placement?payout_period_id={period_id}")
+    assert removed.status_code == 200
+    assert f'data-position-url="/channels/{channel_id}/placement"' not in removed.text
+    assert "BPI" in removed.text
 
 
 def test_delete_channel_used_as_funding_source_is_rejected(client: TestClient) -> None:

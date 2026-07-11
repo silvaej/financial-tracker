@@ -83,7 +83,8 @@ class GoalContributionUpdate(BaseModel):
     amount: float
 
 
-class PositionUpdate(BaseModel):
+class PlacementUpdate(BaseModel):
+    payout_period_id: int
     x: float
     y: float
 
