@@ -49,7 +49,7 @@ jobs:
           poetry export -f requirements.txt --output requirements.txt.check --without-hashes
           diff requirements.txt requirements.txt.check
 
-  migrate:
+  migrate-prod:
     needs: lint-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -69,4 +69,26 @@ jobs:
       - name: Run migrations
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: poetry run alembic upgrade head
+
+  migrate-staging:
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" poetry-plugin-export
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --only main
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         run: poetry run alembic upgrade head
