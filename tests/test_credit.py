@@ -13,9 +13,7 @@ def _create_channel(client: TestClient, name: str = "BPI", color: str = "#0FA968
 
 
 def test_create_credit_line_appears_on_page(client: TestClient) -> None:
-    response = client.post(
-        "/credit", data={"name": "Maya Black", "limit": "111000", "used": "0"}
-    )
+    response = client.post("/credit", data={"name": "Maya Black", "limit": "111000", "used": "0"})
     assert response.status_code == 200
     assert "Maya Black" in response.text
 

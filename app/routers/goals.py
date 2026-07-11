@@ -11,9 +11,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _render_page(request: Request, db: Session) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request, "partials/goals_page.html", crud.goals_page_data(db)
-    )
+    return templates.TemplateResponse(request, "partials/goals_page.html", crud.goals_page_data(db))
 
 
 def _parse_channel_id(raw: str) -> int | None:
