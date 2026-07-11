@@ -1,5 +1,6 @@
 {
   "buildCommand": "curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.0.0/tailwindcss-linux-x64 && chmod +x tailwindcss && ./tailwindcss -i app/static/css/input.css -o app/static/css/style.css",
+  "regions": ["sin1"],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]
