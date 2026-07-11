@@ -435,9 +435,7 @@ def delete_credit_line(db: Session, credit_line_id: int) -> None:
 
 
 def credit_utilization(credit_line: models.CreditLine) -> dict:
-    pct = (
-        (float(credit_line.used) / float(credit_line.limit) * 100) if credit_line.limit else 0.0
-    )
+    pct = (float(credit_line.used) / float(credit_line.limit) * 100) if credit_line.limit else 0.0
     level = "red" if pct >= 100 else "amber" if pct >= 80 else "ok"
     return {"pct": pct, "level": level}
 
