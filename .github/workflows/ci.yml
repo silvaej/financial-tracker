@@ -92,3 +92,25 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         run: poetry run alembic upgrade head
+
+  seed-staging:
+    needs: migrate-staging
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" poetry-plugin-export
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --only main
+
+      - name: Seed staging data
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: poetry run python -m app.seed
