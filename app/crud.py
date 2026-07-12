@@ -1,3 +1,4 @@
+import json
 import math
 from typing import Any
 
@@ -1129,6 +1130,25 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
         placed_channel_ids = set(position_by_channel)
         placed_goal_ids = set(position_by_goal)
 
+        # One read-only "Expenses" node per channel, aggregating that
+        # channel's expenses this period. Positioned client-side, directly
+        # below whatever the channel's actual rendered height turns out to
+        # be (see redrawCanvas) rather than a fixed server-guessed offset --
+        # channel node height varies with content (carry-in note, etc.), so
+        # a fixed offset can't guarantee no overlap. items_json also lets a
+        # freshly toolbox-placed channel (not yet saved, so not in
+        # expenses_by_channel's server-rendered form) get its own expense
+        # node synthesized client-side in placeNode().
+        expenses_by_channel: dict[int, dict[str, Any]] = {}
+        for expense in expenses:
+            entry = expenses_by_channel.setdefault(expense.channel_id, {"total": 0.0, "items": []})
+            entry["total"] += float(expense.amount)
+            entry["items"].append(expense)
+        for entry in expenses_by_channel.values():
+            entry["items_json"] = json.dumps(
+                [{"name": item.name, "amount": float(item.amount)} for item in entry["items"]]
+            )
+
         payout_data.append(
             {
                 "period": period,
@@ -1147,6 +1167,7 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                 "contributed_by_goal": contributed_by_goal,
                 "carry_in": _carry_in_for_period(db, period.id, user_id),
                 "warnings": cashflow_warnings(db, period.id, user_id),
+                "expenses_by_channel": expenses_by_channel,
                 "position_by_channel": position_by_channel,
                 "position_by_goal": position_by_goal,
                 "placed_channels": [c for c in channels if c.id in placed_channel_ids],

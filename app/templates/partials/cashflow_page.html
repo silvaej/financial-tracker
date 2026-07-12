@@ -23,9 +23,11 @@
       {% endif %}
       <div class="toolbox">
         {% for channel in data.available_channels %}
+          {% set exp = data.expenses_by_channel.get(channel.id) %}
           <div class="toolbox-item"
                data-node-id="channel-{{ channel.id }}"
-               data-node-kind="channel">
+               data-node-kind="channel"
+               {% if exp %}data-expenses="{{ exp.items_json }}"{% endif %}>
             {{ macros.channel_badge(channel) }}
             <span class="text-xs font-semibold">{{ macros.channel_name(channel) }}</span>
           </div>
@@ -39,7 +41,7 @@
           </div>
         {% endfor %}
         {% if not data.available_channels and not data.available_goals %}
-          <span class="text-xs text-ink-soft py-1">Everything is already on the canvas.</span>
+          <span class="toolbox-empty text-xs text-ink-soft py-1">Everything is already on the canvas.</span>
         {% endif %}
       </div>
       <div class="canvas" data-payout-period-id="{{ data.period.id }}">
@@ -55,6 +57,12 @@
             {% for gc in data.goal_contributions %}
               {% if gc.channel_id in data.position_by_channel and gc.goal_id in data.position_by_goal %}
                 <path class="canvas-edge-line" data-edge-id="goal-contribution-{{ gc.id }}" data-from="channel-{{ gc.channel_id }}" data-to="goal-{{ gc.goal_id }}">
+                </path>
+              {% endif %}
+            {% endfor %}
+            {% for channel_id, entry in data.expenses_by_channel.items() %}
+              {% if channel_id in data.position_by_channel %}
+                <path class="canvas-edge-line" data-edge-id="expense-{{ channel_id }}" data-from="channel-{{ channel_id }}" data-to="expense-{{ channel_id }}">
                 </path>
               {% endif %}
             {% endfor %}
@@ -84,6 +92,29 @@
                 </svg>
               </span>
             </div>
+          {% endfor %}
+          {% for channel_id, entry in data.expenses_by_channel.items() %}
+            {% if channel_id in data.position_by_channel %}
+              {% set channel_pos = data.position_by_channel[channel_id] %}
+              <div class="canvas-node canvas-node-expense"
+                   data-node-id="expense-{{ channel_id }}"
+                   data-node-kind="expense"
+                   data-x="{{ channel_pos[0] }}"
+                   data-y="{{ channel_pos[1] }}">
+                <div class="canvas-node-expense-card">
+                  <div class="text-sm font-semibold">Expenses</div>
+                  <div class="num text-sm mt-1 card-value-neg" data-role="node-balance">{{ macros.peso(entry.total) }}</div>
+                </div>
+                <div class="canvas-expense-detail">
+                  <div class="canvas-expense-detail-title">Breakdown</div>
+                  <ul>
+                    {% for item in entry['items'] %}
+                      <li><span>{{ item.name }}</span><span class="num">{{ macros.peso(item.amount) }}</span></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            {% endif %}
           {% endfor %}
           {% for entry in data.placed_goals %}
             {% set goal = entry.goal %}
@@ -208,10 +239,16 @@
       </div>
       <div class="canvas-save-bar" data-payout-period-id="{{ data.period.id }}">
         <span class="canvas-save-status">All changes saved</span>
-        <button type="button"
-                class="add-btn canvas-save-btn"
-                data-save-url="/cashflow/{{ data.period.id }}/save"
-                disabled>Save changes</button>
+        <div class="flex items-center gap-2">
+          <button type="button"
+                  class="btn-secondary canvas-undo-btn"
+                  data-role="undo"
+                  disabled>Undo</button>
+          <button type="button"
+                  class="add-btn canvas-save-btn"
+                  data-save-url="/cashflow/{{ data.period.id }}/save"
+                  disabled>Save changes</button>
+        </div>
       </div>
     </div>
   {% endfor %}

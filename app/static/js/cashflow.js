@@ -7,24 +7,6 @@
     return { x, y, w, h };
   }
 
-  function fanY(box, index, count) {
-    if (count <= 1) return box.y + box.h / 2;
-    const margin = Math.min(box.h * 0.35, 14);
-    const top = box.y + margin;
-    const bottom = box.y + box.h - margin;
-    const step = (bottom - top) / (count - 1);
-    return top + step * index;
-  }
-
-  function fanX(box, index, count) {
-    if (count <= 1) return box.x + box.w / 2;
-    const margin = Math.min(box.w * 0.35, 14);
-    const left = box.x + margin;
-    const right = box.x + box.w - margin;
-    const step = (right - left) / (count - 1);
-    return left + step * index;
-  }
-
   // Clamp an external point into `rect`'s bounds on both axes; if the
   // clamped point lands strictly inside (the two rects' projections
   // overlap on both axes), push it out to the nearest of the 4 edges so
@@ -48,8 +30,7 @@
     return { x, y };
   }
 
-  // Which side of `box` a boundary point landed on -- used to group edges
-  // sharing a node+side so they can be fanned apart instead of overlapping.
+  // Which side of `box` a boundary point landed on.
   function pointSide(box, p) {
     const eps = 0.5;
     if (Math.abs(p.x - box.x) <= eps) return "left";
@@ -58,57 +39,91 @@
     return "bottom";
   }
 
+  function sideMidpoint(box, side) {
+    if (side === "left") return { x: box.x, y: box.y + box.h / 2 };
+    if (side === "right") return { x: box.x + box.w, y: box.y + box.h / 2 };
+    if (side === "top") return { x: box.x + box.w / 2, y: box.y };
+    return { x: box.x + box.w / 2, y: box.y + box.h };
+  }
+
+  const EXPENSE_GAP = 16;
+
+  // Expense nodes default to sitting directly below their channel, using
+  // the channel's *actual* rendered height (which varies with content --
+  // a carry-in note, etc.) rather than a guessed fixed offset, so they can
+  // never overlap their own channel or whatever's in the row below. This
+  // also makes a freshly-dragged channel's expense node land correctly
+  // without needing a Save round-trip. Once a user manually drags an
+  // expense node, it stops auto-following so their placement sticks.
+  function repositionExpenseNodes(canvas) {
+    canvas.querySelectorAll('.canvas-node[data-node-kind="expense"]').forEach((expenseNode) => {
+      if (expenseNode.dataset.manuallyPositioned === "true") return;
+      const channelId = "channel-" + expenseNode.dataset.nodeId.split("-")[1];
+      const channelNode = canvas.querySelector('[data-node-id="' + channelId + '"]');
+      if (!channelNode) return;
+      const box = nodeBox(channelNode);
+      expenseNode.dataset.x = box.x;
+      expenseNode.dataset.y = box.y + box.h + EXPENSE_GAP;
+    });
+  }
+
   function redrawCanvas(canvas) {
+    repositionExpenseNodes(canvas);
+
     canvas.querySelectorAll(".canvas-node").forEach((node) => {
       node.style.left = (parseFloat(node.dataset.x) || 0) + "px";
       node.style.top = (parseFloat(node.dataset.y) || 0) + "px";
     });
 
-    const paths = Array.from(canvas.querySelectorAll(".canvas-edge-line"));
+    const edges = Array.from(canvas.querySelectorAll(".canvas-edge-line"))
+      .map((path) => {
+        const from = canvas.querySelector('[data-node-id="' + path.dataset.from + '"]');
+        const to = canvas.querySelector('[data-node-id="' + path.dataset.to + '"]');
+        if (!from || !to) return null;
+        const a = nodeBox(from);
+        const b = nodeBox(to);
+        const centerA = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
+        const centerB = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+        return { path, a, b, p1: nearestBoundaryPoint(a, centerB), p2: nearestBoundaryPoint(b, centerA) };
+      })
+      .filter(Boolean);
 
-    // First pass: compute the raw shortest-path endpoints for every edge.
-    const raw = [];
-    paths.forEach((path) => {
-      const from = canvas.querySelector('[data-node-id="' + path.dataset.from + '"]');
-      const to = canvas.querySelector('[data-node-id="' + path.dataset.to + '"]');
-      if (!from || !to) return;
-
-      const a = nodeBox(from);
-      const b = nodeBox(to);
-      const centerA = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
-      const centerB = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
-      const p1 = nearestBoundaryPoint(a, centerB);
-      const p2 = nearestBoundaryPoint(b, centerA);
-      raw.push({ path, a, b, p1, p2, side1: pointSide(a, p1), side2: pointSide(b, p2) });
+    // All of a node's outgoing connections meet at one point, and all of
+    // its incoming connections meet at another -- whichever side each
+    // group would naturally land on -- rather than fanning out around the
+    // node. These are tracked separately (not just one shared point for
+    // everything): a node with, say, 3 outgoing transfers/contributions
+    // pulling its shared point toward "right" would otherwise also drag a
+    // single incoming transfer onto "right" even when the sender sits to
+    // its left, drawing that line straight through the node to reach a
+    // point on its far side.
+    const sidesByNode = {};
+    function recordSide(key, box, side) {
+      const entry = (sidesByNode[key] = sidesByNode[key] || { box, counts: {}, order: [] });
+      if (!(side in entry.counts)) entry.order.push(side);
+      entry.counts[side] = (entry.counts[side] || 0) + 1;
+    }
+    edges.forEach((edge) => {
+      recordSide(edge.path.dataset.from + ":out", edge.a, pointSide(edge.a, edge.p1));
+      recordSide(edge.path.dataset.to + ":in", edge.b, pointSide(edge.b, edge.p2));
     });
 
-    // Second pass: spread endpoints that share the same node+side so they
-    // don't overlap, reusing the existing fanY (left/right) and its mirror
-    // fanX (top/bottom).
-    const groups = {};
-    raw.forEach((entry) => {
-      const key1 = entry.path.dataset.from + ":" + entry.side1;
-      const key2 = entry.path.dataset.to + ":" + entry.side2;
-      (groups[key1] = groups[key1] || []).push({ entry, which: 1 });
-      (groups[key2] = groups[key2] || []).push({ entry, which: 2 });
-    });
-
-    Object.keys(groups).forEach((key) => {
-      const members = groups[key];
-      if (members.length <= 1) return;
-      const [, side] = [key.slice(0, key.lastIndexOf(":")), key.slice(key.lastIndexOf(":") + 1)];
-      members.forEach((member, index) => {
-        const box = member.which === 1 ? member.entry.a : member.entry.b;
-        const point = member.which === 1 ? member.entry.p1 : member.entry.p2;
-        if (side === "left" || side === "right") {
-          point.y = fanY(box, index, members.length);
-        } else {
-          point.x = fanX(box, index, members.length);
-        }
+    const dominantSide = {};
+    Object.keys(sidesByNode).forEach((key) => {
+      const { counts, order } = sidesByNode[key];
+      let best = order[0];
+      order.forEach((side) => {
+        if (counts[side] > counts[best]) best = side;
       });
+      dominantSide[key] = best;
     });
 
-    raw.forEach(({ path, p1, p2 }) => {
+    edges.forEach((edge) => {
+      edge.p1 = sideMidpoint(edge.a, dominantSide[edge.path.dataset.from + ":out"]);
+      edge.p2 = sideMidpoint(edge.b, dominantSide[edge.path.dataset.to + ":in"]);
+    });
+
+    edges.forEach(({ path, p1, p2 }) => {
       path.setAttribute("d", "M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y);
 
       const label = canvas.querySelector(
@@ -121,14 +136,23 @@
     });
   }
 
+  // Expense nodes/edges are a read-only summary the server derives from
+  // each channel's expenses -- not part of the user-editable graph, so
+  // they're excluded from connectivity validation and the save/preview
+  // payload (see buildCanvasPayload).
+  function isRealEdge(line) {
+    return line.dataset.edgeId.indexOf("expense-") !== 0;
+  }
+
   function unconnectedNodes(canvas) {
     const connected = new Set();
     canvas.querySelectorAll(".canvas-edge-line").forEach((line) => {
+      if (!isRealEdge(line)) return;
       connected.add(line.dataset.from);
       connected.add(line.dataset.to);
     });
     return Array.from(canvas.querySelectorAll(".canvas-node")).filter(
-      (node) => !connected.has(node.dataset.nodeId)
+      (node) => node.dataset.nodeKind !== "expense" && !connected.has(node.dataset.nodeId)
     );
   }
 
@@ -167,6 +191,56 @@
   function markDirty(canvas) {
     canvas.dataset.dirty = "true";
     refreshCanvasValidation(canvas);
+  }
+
+  // Undo for staged (pre-Save) canvas edits: a snapshot stack per canvas,
+  // rather than hand-written inverse operations per action -- simpler and
+  // far less error-prone than reconstructing exactly what placeNode,
+  // removeNode's cascades, toolbox-item show/hide, etc. each need to undo.
+  const undoStacks = new WeakMap();
+  const UNDO_LIMIT = 25;
+
+  function undoBarFor(canvas) {
+    const bar = saveBarFor(canvas);
+    return bar ? bar.querySelector('[data-role="undo"]') : null;
+  }
+
+  function updateUndoButton(canvas) {
+    const btn = undoBarFor(canvas);
+    if (!btn) return;
+    const stack = undoStacks.get(canvas) || [];
+    btn.disabled = stack.length === 0;
+  }
+
+  function pushUndo(canvas) {
+    const inner = canvas.querySelector(".canvas-inner");
+    const section = canvas.closest(".section");
+    const toolbox = section ? section.querySelector(".toolbox") : null;
+    const stack = undoStacks.get(canvas) || [];
+    stack.push({
+      innerHTML: inner ? inner.innerHTML : "",
+      toolboxHTML: toolbox ? toolbox.innerHTML : "",
+      dirty: canvas.dataset.dirty === "true",
+    });
+    if (stack.length > UNDO_LIMIT) stack.shift();
+    undoStacks.set(canvas, stack);
+    updateUndoButton(canvas);
+  }
+
+  function undoLastChange(canvas) {
+    const stack = undoStacks.get(canvas);
+    if (!stack || !stack.length) return;
+    const snapshot = stack.pop();
+    const inner = canvas.querySelector(".canvas-inner");
+    const section = canvas.closest(".section");
+    const toolbox = section ? section.querySelector(".toolbox") : null;
+    if (inner) inner.innerHTML = snapshot.innerHTML;
+    if (toolbox) toolbox.innerHTML = snapshot.toolboxHTML;
+    canvas.dataset.dirty = snapshot.dirty ? "true" : "false";
+    redrawCanvas(canvas);
+    refreshCanvasValidation(canvas);
+    schedulePreview(canvas);
+    updateUndoButton(canvas);
   }
 
   const previewTimers = new WeakMap();
@@ -241,7 +315,18 @@
     document.querySelectorAll(".canvas").forEach((canvas) => {
       redrawCanvas(canvas);
       refreshCanvasValidation(canvas);
-      applyViewTransform(canvas);
+      updateUndoButton(canvas);
+      // First time this canvas element is seen (fresh page load, or a
+      // fresh one swapped in by Save), fit the view to whatever's placed
+      // instead of defaulting to 100%/no-pan -- a tall or wide graph can
+      // easily exceed the canvas's fixed viewport, and defaulting to a
+      // view that doesn't show all of it reads as a rendering bug (edges
+      // running off the bottom/side) rather than "pan or zoom out."
+      if (!canvasViewState.has(canvas) && canvas.querySelector(".canvas-node")) {
+        recenterCanvas(canvas);
+      } else {
+        applyViewTransform(canvas);
+      }
     });
   }
 
@@ -380,7 +465,78 @@
   const WARN_BADGE_SVG =
     '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2 1 17h18L10 2Zm0 5.5c.5 0 .9.4.9.9v4a.9.9 0 0 1-1.8 0v-4c0-.5.4-.9.9-.9Zm0 8.4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>';
 
+  // A channel dropped from the toolbox that has expenses this period needs
+  // its own "Expenses" node too -- the server only ever renders one for
+  // already-placed channels, so without this a freshly-dragged channel's
+  // expenses would only show up after a Save round-trip.
+  function createExpenseNodeForChannel(canvas, channelNode, toolboxItem) {
+    const raw = toolboxItem.dataset.expenses;
+    if (!raw) return;
+    let items;
+    try {
+      items = JSON.parse(raw);
+    } catch (err) {
+      return;
+    }
+    if (!items || !items.length) return;
+
+    const channelId = channelNode.dataset.nodeId;
+    const expenseId = "expense-" + channelId.split("-")[1];
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+
+    const node = document.createElement("div");
+    node.className = "canvas-node canvas-node-expense";
+    node.dataset.nodeId = expenseId;
+    node.dataset.nodeKind = "expense";
+    node.dataset.x = channelNode.dataset.x;
+    node.dataset.y = channelNode.dataset.y;
+
+    const card = document.createElement("div");
+    card.className = "canvas-node-expense-card";
+    const label = document.createElement("div");
+    label.className = "text-sm font-semibold";
+    label.textContent = "Expenses";
+    card.appendChild(label);
+    const balance = document.createElement("div");
+    balance.className = "num text-sm mt-1 card-value-neg";
+    balance.dataset.role = "node-balance";
+    balance.textContent = formatPeso(total);
+    card.appendChild(balance);
+    node.appendChild(card);
+
+    const detail = document.createElement("div");
+    detail.className = "canvas-expense-detail";
+    const detailTitle = document.createElement("div");
+    detailTitle.className = "canvas-expense-detail-title";
+    detailTitle.textContent = "Breakdown";
+    detail.appendChild(detailTitle);
+    const list = document.createElement("ul");
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.textContent = item.name;
+      const amount = document.createElement("span");
+      amount.className = "num";
+      amount.textContent = formatPeso(item.amount);
+      li.appendChild(name);
+      li.appendChild(amount);
+      list.appendChild(li);
+    });
+    detail.appendChild(list);
+    node.appendChild(detail);
+
+    canvas.querySelector(".canvas-inner").appendChild(node);
+
+    const edge = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    edge.setAttribute("class", "canvas-edge-line");
+    edge.dataset.edgeId = expenseId;
+    edge.dataset.from = channelId;
+    edge.dataset.to = expenseId;
+    canvas.querySelector(".canvas-edges").appendChild(edge);
+  }
+
   function placeNode(canvas, toolboxItem, x, y) {
+    pushUndo(canvas);
     const kind = toolboxItem.dataset.nodeKind;
     const node = document.createElement("div");
     node.className = "canvas-node" + (kind === "goal" ? " canvas-node-goal" : "");
@@ -389,7 +545,6 @@
     node.dataset.x = x;
     node.dataset.y = y;
     if (kind === "goal") node.dataset.perPayout = toolboxItem.dataset.perPayout || "0";
-    node.__toolboxItem = toolboxItem;
 
     if (kind === "channel") {
       const badge = toolboxItem.querySelector(".badge");
@@ -430,6 +585,8 @@
     canvas.querySelector(".canvas-inner").appendChild(node);
     toolboxItem.style.display = "none";
 
+    if (kind === "channel") createExpenseNodeForChannel(canvas, node, toolboxItem);
+
     redrawCanvas(canvas);
     markDirty(canvas);
     schedulePreview(canvas);
@@ -449,9 +606,66 @@
       });
   }
 
+  // If the toolbox already has a (hidden) pill for this node -- placed
+  // this session via placeNode, or restored by an undo snapshot -- just
+  // un-hide it rather than looking for a stashed JS reference: an undo
+  // rebuilds the toolbox from an HTML snapshot, which doesn't carry JS
+  // properties attached to the old DOM nodes, so a reference would go
+  // stale and this would otherwise build a duplicate hidden pill. Nodes
+  // that were already placed when the page loaded have no pill at all (the
+  // server never rendered one, since it was already on the canvas) -- build
+  // one from the node's own content instead of leaving it stranded until
+  // the next full-page render on Save.
+  function restoreToolboxItem(canvas, node) {
+    const section = canvas.closest(".section");
+    const toolbox = section ? section.querySelector(".toolbox") : null;
+    if (!toolbox) return;
+
+    const kind = node.dataset.nodeKind;
+    const item = document.createElement("div");
+    item.className = "toolbox-item" + (kind === "goal" ? " toolbox-item-goal" : "");
+    item.dataset.nodeId = node.dataset.nodeId;
+    item.dataset.nodeKind = kind;
+    if (kind === "goal") item.dataset.perPayout = node.dataset.perPayout || "0";
+
+    if (kind === "channel") {
+      const content = node.querySelector(".flex.items-center");
+      if (content) item.innerHTML = content.innerHTML;
+    } else {
+      const nameEl = node.querySelector(".text-sm.font-semibold");
+      const span = document.createElement("span");
+      span.className = "text-xs font-semibold";
+      span.textContent = nameEl ? nameEl.textContent.trim() : "";
+      item.appendChild(span);
+    }
+
+    const empty = toolbox.querySelector(".toolbox-empty");
+    if (empty) empty.remove();
+    toolbox.appendChild(item);
+  }
+
   function removeNode(canvas, node) {
+    pushUndo(canvas);
     cascadeRemoveEdges(canvas, node.dataset.nodeId);
-    if (node.__toolboxItem) node.__toolboxItem.style.display = "";
+    if (node.dataset.nodeKind === "channel") {
+      // A channel's Expenses node makes no sense stranded without it.
+      const expenseId = "expense-" + node.dataset.nodeId.split("-")[1];
+      const expenseNode = canvas.querySelector('[data-node-id="' + expenseId + '"]');
+      if (expenseNode) {
+        cascadeRemoveEdges(canvas, expenseId);
+        expenseNode.remove();
+      }
+    }
+    const section = canvas.closest(".section");
+    const toolbox = section ? section.querySelector(".toolbox") : null;
+    const existingItem = toolbox
+      ? toolbox.querySelector('[data-node-id="' + node.dataset.nodeId + '"]')
+      : null;
+    if (existingItem) {
+      existingItem.style.display = "";
+    } else {
+      restoreToolboxItem(canvas, node);
+    }
     node.remove();
     redrawCanvas(canvas);
     markDirty(canvas);
@@ -459,6 +673,7 @@
   }
 
   function removeEdge(canvas, edgeId) {
+    pushUndo(canvas);
     const line = canvas.querySelector('.canvas-edge-line[data-edge-id="' + edgeId + '"]');
     const label = canvas.querySelector('.canvas-edge-label[data-edge-id="' + edgeId + '"]');
     if (line) line.remove();
@@ -471,6 +686,7 @@
   let pendingEdgeCounter = 0;
 
   function createEdge(canvas, sourceNode, targetNode) {
+    pushUndo(canvas);
     const isGoal = targetNode.dataset.nodeKind === "goal";
     pendingEdgeCounter += 1;
     const edgeId = (isGoal ? "goal-contribution-" : "transfer-") + "pending" + pendingEdgeCounter;
@@ -490,7 +706,11 @@
     const view = document.createElement("span");
     view.className = "view-" + toggleKey;
     view.textContent = formatPeso(0);
-    view.addEventListener("click", () => toggleEditMode(toggleKey));
+    // An inline attribute (matching the server-rendered markup) rather than
+    // addEventListener, so this keeps working if the node is ever restored
+    // from an innerHTML snapshot (see undo), which doesn't carry JS
+    // listeners with it.
+    view.setAttribute("onclick", "toggleEditMode('" + toggleKey + "')");
     label.appendChild(view);
 
     const editWrap = document.createElement("span");
@@ -523,6 +743,7 @@
     const channelPlacements = [];
     const goalPlacements = [];
     canvas.querySelectorAll(".canvas-node").forEach((node) => {
+      if (node.dataset.nodeKind === "expense") return;
       const [kind, idStr] = node.dataset.nodeId.split("-");
       const id = parseInt(idStr, 10);
       const x = parseFloat(node.dataset.x) || 0;
@@ -537,6 +758,7 @@
     const transfers = [];
     const goalContributions = [];
     canvas.querySelectorAll(".canvas-edge-line").forEach((line) => {
+      if (!isRealEdge(line)) return;
       const fromId = parseInt(line.dataset.from.split("-")[1], 10);
       const toParts = line.dataset.to.split("-");
       const toId = parseInt(toParts[1], 10);
@@ -643,6 +865,17 @@
         return;
       }
 
+      if (node.dataset.nodeKind === "expense") {
+        // Opt out of auto-following its channel (see repositionExpenseNodes)
+        // as soon as the drag starts, not when it ends -- otherwise every
+        // redrawCanvas call during the drag would snap it straight back.
+        // Its position isn't part of the save payload either, so it's not
+        // undo-worthy.
+        node.dataset.manuallyPositioned = "true";
+      } else {
+        pushUndo(canvas);
+      }
+
       const point = canvasPoint(canvas, evt);
       dragState = {
         mode: "move",
@@ -670,8 +903,30 @@
     canvas.classList.add("canvas-panning");
   }
 
+  // Hint that a channel node's border is a drag-to-connect zone before the
+  // user actually starts dragging, by swapping in a different cursor.
+  let borderHoverNode = null;
+
+  function updateBorderHoverCursor(evt) {
+    const node = evt.target.closest(".canvas-node");
+    const nearBorder = node && node.dataset.nodeKind === "channel" && isNearNodeBorder(node, evt);
+    if (nearBorder) {
+      if (borderHoverNode !== node) {
+        if (borderHoverNode) borderHoverNode.classList.remove("canvas-node-connect-hover");
+        node.classList.add("canvas-node-connect-hover");
+        borderHoverNode = node;
+      }
+    } else if (borderHoverNode) {
+      borderHoverNode.classList.remove("canvas-node-connect-hover");
+      borderHoverNode = null;
+    }
+  }
+
   function onPointerMove(evt) {
-    if (!dragState) return;
+    if (!dragState) {
+      updateBorderHoverCursor(evt);
+      return;
+    }
 
     if (dragState.mode === "place") {
       dragState.ghost.style.left = evt.clientX + "px";
@@ -697,7 +952,8 @@
       dragState.ghost.setAttribute("x2", point.x);
       dragState.ghost.setAttribute("y2", point.y);
 
-      const hover = nodeAtPoint(dragState.canvas, evt.clientX, evt.clientY, dragState.sourceNode);
+      let hover = nodeAtPoint(dragState.canvas, evt.clientX, evt.clientY, dragState.sourceNode);
+      if (hover && hover.dataset.nodeKind === "expense") hover = null;
       if (hover !== dragState.hoverNode) {
         if (dragState.hoverNode) dragState.hoverNode.classList.remove("canvas-node-drop-target");
         if (hover) hover.classList.add("canvas-node-drop-target");
@@ -718,7 +974,10 @@
         placeNode(canvas, dragState.sourceItem, Math.max(0, point.x - 70), Math.max(0, point.y - 30));
       }
     } else if (dragState.mode === "move") {
-      markDirty(dragState.canvas);
+      // Expense nodes are a read-only derived summary -- their position
+      // isn't part of the save payload, so dragging one shouldn't flip the
+      // canvas into an "unsaved changes" state.
+      if (dragState.node.dataset.nodeKind !== "expense") markDirty(dragState.canvas);
     } else if (dragState.mode === "pan") {
       dragState.canvas.classList.remove("canvas-panning");
     } else if (dragState.mode === "connect") {
@@ -730,7 +989,7 @@
         evt.clientY,
         dragState.sourceNode
       );
-      if (targetNode) {
+      if (targetNode && targetNode.dataset.nodeKind !== "expense") {
         createEdge(dragState.canvas, dragState.sourceNode, targetNode);
       }
     }
@@ -766,6 +1025,14 @@
         const bar = saveBtn.closest(".canvas-save-bar");
         const canvas = bar ? bar.closest(".section").querySelector(".canvas") : null;
         if (canvas && bar && !saveBtn.disabled) saveCanvas(canvas, bar);
+        return;
+      }
+
+      const undoBtn = evt.target.closest('[data-role="undo"]');
+      if (undoBtn) {
+        const bar = undoBtn.closest(".canvas-save-bar");
+        const canvas = bar ? bar.closest(".section").querySelector(".canvas") : null;
+        if (canvas && !undoBtn.disabled) undoLastChange(canvas);
         return;
       }
 
@@ -838,12 +1105,17 @@
       const label = input.closest(".canvas-edge-label");
       const canvas = input.closest(".canvas");
       if (!label || !canvas) return;
-      const amount = parseFloat(input.value) || 0;
       const key = toggleKeyForEdge(label.dataset.edgeId);
+      const editWrap = label.querySelector(".edit-" + key);
+      // Enter's keydown handler and the blur-triggered "change" event can
+      // both fire for one commit -- the second call is a no-op rather than
+      // a second undo step, detected by the edit box already being closed.
+      if (editWrap && editWrap.classList.contains("hidden")) return;
+      pushUndo(canvas);
+      const amount = parseFloat(input.value) || 0;
       const view = label.querySelector(".view-" + key);
       if (view) view.textContent = formatPeso(amount);
-      const editWrap = label.querySelector(".edit-" + key);
-      if (editWrap && !editWrap.classList.contains("hidden")) toggleEditMode(key);
+      if (editWrap) toggleEditMode(key);
       markDirty(canvas);
       schedulePreview(canvas);
     }
