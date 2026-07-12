@@ -107,6 +107,7 @@ def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int) -> mo
         name=data.name,
         color=data.color,
         channel_type=data.channel_type,
+        badge_label=data.badge_label,
         user_id=user_id,
     )
     db.add(channel)

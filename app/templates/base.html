@@ -200,20 +200,51 @@
       function toggleAddRow(rowId, buttonEl) {
         const row = document.getElementById(rowId);
         row.classList.toggle("hidden");
+        const visible = !row.classList.contains("hidden");
+        // Rows outside a <table> (e.g. add-channel-row) need "flex" toggled
+        // alongside "hidden" -- a bare <tr> restores its table-row display
+        // on its own, but a <div> would otherwise default to block.
+        if (row.tagName !== "TR") row.classList.toggle("flex", visible);
         buttonEl.textContent = row.classList.contains("hidden") ? "+ Add" : "Cancel";
-        if (!row.classList.contains("hidden")) {
+        if (visible) {
           const toSelect = row.querySelector('select[name="to_channel_id"]');
           if (toSelect) prefillTransferAmount(toSelect);
         }
       }
 
-      function applyChannelPreset(name, color, channelType, chipEl) {
-        const row = chipEl.closest("#add-channel-row");
-        row.querySelectorAll(".preset-chip").forEach((c) => c.classList.remove("preset-chip-selected"));
-        chipEl.classList.add("preset-chip-selected");
+      function closeAllPresetPopovers() {
+        document.querySelectorAll(".preset-popover").forEach((p) => p.classList.add("hidden"));
+        document
+          .querySelectorAll(".preset-trigger")
+          .forEach((t) => t.classList.remove("preset-trigger-open"));
+      }
+
+      function togglePresetPopover(buttonEl) {
+        const popover = buttonEl.nextElementSibling;
+        const wasHidden = popover.classList.contains("hidden");
+        closeAllPresetPopovers();
+        if (wasHidden) {
+          popover.classList.remove("hidden");
+          buttonEl.classList.add("preset-trigger-open");
+        }
+      }
+
+      document.addEventListener("click", (evt) => {
+        if (evt.target.closest(".preset-popover-wrap")) return;
+        closeAllPresetPopovers();
+      });
+
+      document.addEventListener("keydown", (evt) => {
+        if (evt.key === "Escape") closeAllPresetPopovers();
+      });
+
+      function applyChannelPreset(name, color, channelType, badgeLabel, itemEl) {
+        const row = itemEl.closest("#add-channel-row");
         row.querySelector('[name="name"]').value = name;
         row.querySelector('[name="color"]').value = color;
         row.querySelector('[name="channel_type"]').value = channelType;
+        row.querySelector('[name="badge_label"]').value = badgeLabel;
+        closeAllPresetPopovers();
       }
 
       function prefillTransferAmount(selectEl) {

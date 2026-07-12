@@ -5,6 +5,7 @@ class ChannelCreate(BaseModel):
     name: str
     color: str = "#8a8a8a"
     channel_type: str | None = None
+    badge_label: str | None = None
 
 
 class ChannelUpdate(BaseModel):

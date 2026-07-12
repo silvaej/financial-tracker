@@ -106,58 +106,75 @@
           {% else %}
             {{ macros.empty_row(4, 'channels') }}
           {% endfor %}
-          <tr>
-            <td colspan="4">
-              <button type="button"
-                      class="add-btn w-20 justify-center"
-                      onclick="toggleAddRow('add-channel-row', this)">+ Add</button>
-            </td>
-          </tr>
-          <tr id="add-channel-row" class="hidden">
-            <td colspan="4">
-              <div class="preset-picker">
-                {% for group, presets in channel_preset_groups.items() %}
-                  <div class="preset-group-label">{{ group }}</div>
-                  <div class="preset-grid">
-                    {% for preset in presets %}
-                      <button type="button"
-                              class="preset-chip"
-                              onclick="applyChannelPreset('{{ preset.name }}', '{{ preset.color }}', '{{ preset.type }}', this)">
-                        <span class="badge badge-sm" style="background: {{ preset.color }}">{{ preset.short }}</span>
-                        {{ preset.name }}
-                      </button>
-                    {% endfor %}
-                  </div>
-                {% endfor %}
-              </div>
-              <div class="flex items-center gap-2 flex-wrap mt-3">
-                <input class="field"
-                       type="text"
-                       name="name"
-                       form="add-channel-form"
-                       placeholder="Channel name"
-                       required>
-                <input class="w-10 h-8 rounded border border-line cursor-pointer"
-                       type="color"
-                       name="color"
-                       form="add-channel-form"
-                       value="#8a8a8a">
-                <select class="field" name="channel_type" form="add-channel-form">
-                  <option value="">No type</option>
-                  {% for ct in channel_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
-                </select>
-                <input class="field text-xs"
-                       type="file"
-                       name="logo"
-                       form="add-channel-form"
-                       accept="image/png,image/jpeg,image/webp,image/gif"
-                       title="Optional custom logo image (overrides the preset badge)">
-                <button class="add-btn" type="submit" form="add-channel-form">Add</button>
-              </div>
-            </td>
-          </tr>
         </tbody>
       </table>
+    </div>
+    <button type="button"
+            class="add-btn w-20 justify-center"
+            onclick="toggleAddRow('add-channel-row', this)">+ Add</button>
+    <div id="add-channel-row" class="hidden items-center gap-2 flex-wrap mt-3">
+      <div class="preset-popover-wrap">
+        <button type="button"
+                class="preset-trigger"
+                onclick="togglePresetPopover(this)">
+          <svg viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+          </svg>
+          Presets
+          <svg class="preset-trigger-chev"
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="3">
+            <path d="M6 9l6 6 6-6"></path>
+          </svg>
+        </button>
+        <div class="preset-popover hidden">
+          {% for group, presets in channel_preset_groups.items() %}
+            <div class="preset-group-label">{{ group }}</div>
+            <div class="preset-grid">
+              {% for preset in presets %}
+                <button type="button"
+                        class="preset-tile"
+                        onclick="applyChannelPreset('{{ preset.name }}', '{{ preset.color }}', '{{ preset.type }}', '{{ preset.short }}', this)">
+                  <span class="badge badge-lg" style="background: {{ preset.color }}">{{ preset.short }}</span>
+                  <span class="preset-tile-name">{{ preset.name }}</span>
+                </button>
+              {% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <input class="field flex-1 min-w-[140px]"
+             type="text"
+             name="name"
+             form="add-channel-form"
+             placeholder="Channel name"
+             oninput="this.form.elements.badge_label.value = ''"
+             required>
+      <input class="w-10 h-8 rounded border border-line cursor-pointer"
+             type="color"
+             name="color"
+             form="add-channel-form"
+             value="#8a8a8a">
+      <select class="field w-40" name="channel_type" form="add-channel-form">
+        <option value="">No type</option>
+        {% for ct in channel_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
+      </select>
+      <input class="field w-48 text-xs"
+             type="file"
+             name="logo"
+             form="add-channel-form"
+             accept="image/png,image/jpeg,image/webp,image/gif"
+             title="Optional custom logo image (overrides the preset badge)">
+      <input type="hidden" name="badge_label" form="add-channel-form">
+      <button class="add-btn" type="submit" form="add-channel-form">Add</button>
     </div>
   </div>
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels }}">

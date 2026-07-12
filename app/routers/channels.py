@@ -41,6 +41,7 @@ async def create_channel(
     name: str = Form(...),
     color: str = Form("#8a8a8a"),
     channel_type: str = Form(""),
+    badge_label: str = Form(""),
     logo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
@@ -49,7 +50,12 @@ async def create_channel(
     try:
         channel = crud.create_channel(
             db,
-            schemas.ChannelCreate(name=name, color=color, channel_type=channel_type or None),
+            schemas.ChannelCreate(
+                name=name,
+                color=color,
+                channel_type=channel_type or None,
+                badge_label=badge_label[:4] or None,
+            ),
             current_user.id,
         )
     except crud.OwnershipError as exc:
