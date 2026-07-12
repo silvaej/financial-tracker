@@ -207,6 +207,15 @@
         }
       }
 
+      function applyChannelPreset(name, color, channelType, chipEl) {
+        const row = chipEl.closest("#add-channel-row");
+        row.querySelectorAll(".preset-chip").forEach((c) => c.classList.remove("preset-chip-selected"));
+        chipEl.classList.add("preset-chip-selected");
+        row.querySelector('[name="name"]').value = name;
+        row.querySelector('[name="color"]').value = color;
+        row.querySelector('[name="channel_type"]').value = channelType;
+      }
+
       function prefillTransferAmount(selectEl) {
         const opt = selectEl.selectedOptions[0];
         if (!opt || !opt.dataset.needed) return;

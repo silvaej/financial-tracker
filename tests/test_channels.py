@@ -104,6 +104,67 @@ def test_channel_starts_unplaced_and_can_be_placed_then_repositioned(
     assert 'data-y="45.0"' in page.text
 
 
+def test_channel_presets_render_on_expenses_page(client: TestClient) -> None:
+    response = client.get("/expenses")
+    assert response.status_code == 200
+    assert "GCash" in response.text
+    assert "BDO" in response.text
+    assert "applyChannelPreset(" in response.text
+
+
+def _png_bytes() -> bytes:
+    # Smallest valid 1x1 transparent PNG.
+    return bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+        "0000000a49444154789c6360000002000100ffff03000006000557bfabd4000000"
+        "0049454e44ae426082"
+    )
+
+
+def test_upload_channel_logo_is_served_and_replaces_badge_initials(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Custom Wallet")
+
+    upload = client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "Custom Wallet", "color": "#8a8a8a"},
+        files={"logo": ("logo.png", _png_bytes(), "image/png")},
+    )
+    assert upload.status_code == 200
+    assert f'src="/channels/{channel_id}/logo"' in upload.text
+
+    logo = client.get(f"/channels/{channel_id}/logo")
+    assert logo.status_code == 200
+    assert logo.headers["content-type"] == "image/png"
+    assert logo.content == _png_bytes()
+
+
+def test_upload_channel_logo_rejects_non_image_files(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Custom Wallet")
+
+    upload = client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "Custom Wallet", "color": "#8a8a8a"},
+        files={"logo": ("evil.txt", b"not an image", "text/plain")},
+    )
+    assert upload.status_code == 400
+
+
+def test_remove_channel_logo_falls_back_to_initials(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Custom Wallet")
+    client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "Custom Wallet", "color": "#8a8a8a"},
+        files={"logo": ("logo.png", _png_bytes(), "image/png")},
+    )
+
+    removed = client.delete(f"/channels/{channel_id}/logo")
+    assert removed.status_code == 200
+    assert f'src="/channels/{channel_id}/logo"' not in removed.text
+
+    logo = client.get(f"/channels/{channel_id}/logo")
+    assert logo.status_code == 404
+
+
 def test_remove_channel_placement_returns_it_to_the_toolbox(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     period_id = _create_payout_period(client, channel_id)

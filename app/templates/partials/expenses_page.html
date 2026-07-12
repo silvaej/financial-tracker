@@ -11,7 +11,8 @@
     <form id="add-channel-form"
           hx-post="/channels"
           hx-target="#expenses-page"
-          hx-swap="outerHTML">
+          hx-swap="outerHTML"
+          hx-encoding="multipart/form-data">
     </form>
     <div class="table-wrap">
       <table class="led">
@@ -39,12 +40,25 @@
                       hx-patch="/channels/{{ channel.id }}"
                       hx-target="#expenses-page"
                       hx-swap="outerHTML"
-                      class="edit-channel-{{ channel.id }} hidden items-center gap-2">
+                      hx-encoding="multipart/form-data"
+                      class="edit-channel-{{ channel.id }} hidden items-center gap-2 flex-wrap">
                   <input class="field" type="text" name="name" value="{{ channel.name }}">
                   <input class="w-10 h-8 rounded border border-line cursor-pointer"
                          type="color"
                          name="color"
                          value="{{ channel.color }}">
+                  <input class="field text-xs"
+                         type="file"
+                         name="logo"
+                         accept="image/png,image/jpeg,image/webp,image/gif">
+                  {% if channel.logo_data %}
+                    <button type="button"
+                            class="icon-btn hover:bg-rust-soft hover:text-rust"
+                            hx-delete="/channels/{{ channel.id }}/logo"
+                            hx-target="#expenses-page"
+                            hx-swap="outerHTML"
+                            hx-confirm="Remove this channel's uploaded logo?">Remove logo</button>
+                  {% endif %}
                 </form>
               </td>
               <td>
@@ -100,9 +114,23 @@
             </td>
           </tr>
           <tr id="add-channel-row" class="hidden">
-            <td></td>
-            <td>
-              <div class="flex items-center gap-2">
+            <td colspan="4">
+              <div class="preset-picker">
+                {% for group, presets in channel_preset_groups.items() %}
+                  <div class="preset-group-label">{{ group }}</div>
+                  <div class="preset-grid">
+                    {% for preset in presets %}
+                      <button type="button"
+                              class="preset-chip"
+                              onclick="applyChannelPreset('{{ preset.name }}', '{{ preset.color }}', '{{ preset.type }}', this)">
+                        <span class="badge badge-sm" style="background: {{ preset.color }}">{{ preset.short }}</span>
+                        {{ preset.name }}
+                      </button>
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+              </div>
+              <div class="flex items-center gap-2 flex-wrap mt-3">
                 <input class="field"
                        type="text"
                        name="name"
@@ -114,16 +142,18 @@
                        name="color"
                        form="add-channel-form"
                        value="#8a8a8a">
+                <select class="field" name="channel_type" form="add-channel-form">
+                  <option value="">No type</option>
+                  {% for ct in channel_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
+                </select>
+                <input class="field text-xs"
+                       type="file"
+                       name="logo"
+                       form="add-channel-form"
+                       accept="image/png,image/jpeg,image/webp,image/gif"
+                       title="Optional custom logo image (overrides the preset badge)">
+                <button class="add-btn" type="submit" form="add-channel-form">Add</button>
               </div>
-            </td>
-            <td>
-              <select class="field" name="channel_type" form="add-channel-form">
-                <option value="">No type</option>
-                {% for ct in channel_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
-              </select>
-            </td>
-            <td>
-              <button class="add-btn" type="submit" form="add-channel-form">Add</button>
             </td>
           </tr>
         </tbody>
@@ -337,9 +367,7 @@
             </td>
             <td>
               <select class="field" name="channel_id" form="add-expense-form" required>
-                {% for channel in channels %}
-                  <option value="{{ channel.id }}">{{ channel.name }}</option>
-                {% endfor %}
+                {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
               </select>
             </td>
             <td class="num">

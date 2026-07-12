@@ -141,6 +141,22 @@
     @apply w-[15px] h-[15px] text-[6.5px];
   }
 
+  .preset-picker {
+    @apply pb-3 mb-1 border-b border-line;
+  }
+  .preset-group-label {
+    @apply text-[10.5px] uppercase tracking-wide text-ink-soft font-semibold mt-2.5 mb-1.5 first:mt-0;
+  }
+  .preset-grid {
+    @apply flex flex-wrap gap-1.5;
+  }
+  .preset-chip {
+    @apply inline-flex items-center gap-1.5 bg-paper-dim border border-transparent rounded-full pl-1 pr-2.5 py-1 text-xs font-medium text-ink cursor-pointer hover:border-accent transition-colors;
+  }
+  .preset-chip-selected {
+    @apply border-accent bg-accent/10;
+  }
+
   .bar-track {
     @apply h-2 bg-paper-dim rounded-full overflow-hidden;
   }
