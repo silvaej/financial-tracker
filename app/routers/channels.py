@@ -17,29 +17,19 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
     )
 
 
-def _parse_channel_id(raw: str) -> int | None:
-    return int(raw) if raw else None
-
-
 @router.post("")
 def create_channel(
     request: Request,
     name: str = Form(...),
     color: str = Form("#8a8a8a"),
     channel_type: str = Form(""),
-    funding_source_channel_id: str = Form(""),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     try:
         crud.create_channel(
             db,
-            schemas.ChannelCreate(
-                name=name,
-                color=color,
-                channel_type=channel_type or None,
-                funding_source_channel_id=_parse_channel_id(funding_source_channel_id),
-            ),
+            schemas.ChannelCreate(name=name, color=color, channel_type=channel_type or None),
             current_user.id,
         )
     except crud.OwnershipError as exc:
@@ -54,24 +44,15 @@ def update_channel(
     name: str = Form(...),
     color: str = Form(...),
     channel_type: str = Form(""),
-    funding_source_channel_id: str = Form(""),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
-    try:
-        crud.update_channel(
-            db,
-            channel_id,
-            schemas.ChannelUpdate(
-                name=name,
-                color=color,
-                channel_type=channel_type or None,
-                funding_source_channel_id=_parse_channel_id(funding_source_channel_id),
-            ),
-            current_user.id,
-        )
-    except (crud.InvalidFundingSourceError, crud.OwnershipError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    crud.update_channel(
+        db,
+        channel_id,
+        schemas.ChannelUpdate(name=name, color=color, channel_type=channel_type or None),
+        current_user.id,
+    )
     return _render_page(request, db, current_user.id)
 
 

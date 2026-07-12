@@ -3,7 +3,7 @@ from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
 
-from app import crud, schemas
+from app import crud
 from app.auth import get_current_user, hash_password
 from app.main import app
 from tests.conftest import TestingSessionLocal
@@ -89,26 +89,3 @@ def test_cross_user_data_isolation(real_client: TestClient) -> None:
 
     expenses_page = real_client.get("/expenses")
     assert "Alice Bank" not in expenses_page.text
-
-
-def test_create_channel_requires_owned_funding_source(real_client: TestClient) -> None:
-    alice_id = _create_user("alice@example.com", "alice-pass")
-    _create_user("bob@example.com", "bob-pass")
-
-    db = TestingSessionLocal()
-    try:
-        alice_channel = crud.create_channel(db, schemas.ChannelCreate(name="Alice Bank"), alice_id)
-        alice_channel_id = alice_channel.id
-    finally:
-        db.close()
-
-    real_client.post("/login", data={"email": "bob@example.com", "password": "bob-pass"})
-    response = real_client.post(
-        "/channels",
-        data={
-            "name": "Bob's Wallet",
-            "color": "#8a8a8a",
-            "funding_source_channel_id": str(alice_channel_id),
-        },
-    )
-    assert response.status_code == 404

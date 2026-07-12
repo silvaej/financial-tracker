@@ -5,14 +5,12 @@ class ChannelCreate(BaseModel):
     name: str
     color: str = "#8a8a8a"
     channel_type: str | None = None
-    funding_source_channel_id: int | None = None
 
 
 class ChannelUpdate(BaseModel):
     name: str
     color: str
     channel_type: str | None = None
-    funding_source_channel_id: int | None = None
 
 
 class PayoutPeriodCreate(BaseModel):

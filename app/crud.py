@@ -25,10 +25,6 @@ class ChannelInUseError(Exception):
     """Raised when deleting a channel that is still referenced elsewhere."""
 
 
-class InvalidFundingSourceError(Exception):
-    """Raised when a channel's funding source would create a self-reference."""
-
-
 class OwnershipError(Exception):
     """Raised when a referenced row doesn't belong to the acting user."""
 
@@ -72,12 +68,10 @@ def list_channels(db: Session, user_id: int) -> list[models.Channel]:
 
 
 def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int) -> models.Channel:
-    _require_owned(db, models.Channel, data.funding_source_channel_id, user_id, "Funding source")
     channel = models.Channel(
         name=data.name,
         color=data.color,
         channel_type=data.channel_type,
-        funding_source_channel_id=data.funding_source_channel_id,
         user_id=user_id,
     )
     db.add(channel)
@@ -89,15 +83,11 @@ def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int) -> mo
 def update_channel(
     db: Session, channel_id: int, data: schemas.ChannelUpdate, user_id: int
 ) -> models.Channel | None:
-    if data.funding_source_channel_id == channel_id:
-        raise InvalidFundingSourceError("A channel can't fund itself.")
-    _require_owned(db, models.Channel, data.funding_source_channel_id, user_id, "Funding source")
     channel = _owned(db, models.Channel, channel_id, user_id)
     if channel is not None:
         channel.name = data.name
         channel.color = data.color
         channel.channel_type = data.channel_type
-        channel.funding_source_channel_id = data.funding_source_channel_id
         db.commit()
         db.refresh(channel)
     return channel
@@ -175,15 +165,12 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
         or db.query(models.GoalContribution)
         .filter_by(channel_id=channel_id, user_id=user_id)
         .first()
-        or db.query(models.Channel)
-        .filter_by(funding_source_channel_id=channel_id, user_id=user_id)
-        .first()
     )
     if in_use is not None:
         raise ChannelInUseError(
             "This channel is still used by a payout period, expense, transfer, "
-            "goal contribution, or another channel's funding source, and can't be "
-            "deleted until those are removed or reassigned."
+            "or goal contribution, and can't be deleted until those are removed "
+            "or reassigned."
         )
 
     db.query(models.ChannelPlacement).filter_by(channel_id=channel_id, user_id=user_id).delete()
@@ -672,107 +659,6 @@ def channel_balances(
         net -= sum(float(gc.amount) for gc in goal_contributions if gc.channel_id == channel.id)
         balances.append((channel, net))
     return balances
-
-
-def generate_transfers(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
-    """Delete all transfers for this payout period and regenerate them from each
-    channel's configured funding source. Each channel's required inflow is its
-    own expense shortfall plus whatever it must forward to every channel that
-    names it as a funding source (a pure pass-through channel with no expenses
-    of its own can still need an inbound transfer this way), less any balance
-    carried in from the prior payout period. Also fills in a suggested
-    GoalContribution (at goal_payout_amount) for any goal with a funding channel
-    that doesn't already have one for this period. Returns the names of channels
-    with an unmet shortfall and no funding source ("unfunded"), and channels
-    caught in a circular funding loop ("circular")."""
-    for transfer in list_transfers(db, payout_period_id, user_id):
-        db.delete(transfer)
-
-    payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
-    channels = list_channels(db, user_id)
-    expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
-    goals = list_goals(db, user_id)
-    payout_period_count = len(list_payout_periods(db, user_id))
-    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
-
-    contributions_by_goal = {
-        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
-    }
-    changed_goal_ids: set[int] = set()
-    for g in goals:
-        if g.channel_id is not None and g.id not in contributions_by_goal:
-            amount = goal_payout_amount(g, payout_period_count)
-            db.add(
-                models.GoalContribution(
-                    goal_id=g.id,
-                    channel_id=g.channel_id,
-                    payout_period_id=payout_period_id,
-                    amount=amount,
-                    user_id=user_id,
-                )
-            )
-            contributions_by_goal[g.id] = amount
-            changed_goal_ids.add(g.id)
-
-    children: dict[int, list[models.Channel]] = {}
-    for c in channels:
-        if c.funding_source_channel_id is not None:
-            children.setdefault(c.funding_source_channel_id, []).append(c)
-
-    def own_shortfall(channel: models.Channel) -> float:
-        expense_total = sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
-        goal_total = sum(
-            contributions_by_goal.get(g.id, 0.0) for g in goals if g.channel_id == channel.id
-        )
-        income = carry_in.get(channel.id, 0.0) + (
-            float(payout_period.income_amount)
-            if payout_period is not None and payout_period.receiving_channel_id == channel.id
-            else 0.0
-        )
-        return max(expense_total + goal_total - income, 0.0)
-
-    required: dict[int, float] = {}
-    circular: set[int] = set()
-
-    def required_inflow(channel: models.Channel, visiting: set[int]) -> float:
-        if channel.id in required:
-            return required[channel.id]
-        if channel.id in visiting:
-            circular.update(visiting)
-            return 0.0
-        visiting.add(channel.id)
-        total = own_shortfall(channel) + sum(
-            required_inflow(child, visiting) for child in children.get(channel.id, [])
-        )
-        visiting.discard(channel.id)
-        required[channel.id] = total
-        return total
-
-    unfunded = []
-    for channel in channels:
-        if own_shortfall(channel) > 0 and channel.funding_source_channel_id is None:
-            unfunded.append(channel.name)
-        if channel.funding_source_channel_id is None:
-            continue
-        amount = required_inflow(channel, set())
-        if amount <= 0 or channel.id in circular:
-            continue
-        db.add(
-            models.Transfer(
-                payout_period_id=payout_period_id,
-                from_channel_id=channel.funding_source_channel_id,
-                to_channel_id=channel.id,
-                amount=amount,
-                user_id=user_id,
-            )
-        )
-    db.commit()
-    for goal_id in changed_goal_ids:
-        _recompute_goal_allocated(db, goal_id, user_id)
-    return {
-        "unfunded": unfunded,
-        "circular": [c.name for c in channels if c.id in circular],
-    }
 
 
 def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:

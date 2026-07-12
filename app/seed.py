@@ -50,27 +50,14 @@ def _seed_channels(db: Session, user_id: int) -> None:
         db, schemas.ChannelCreate(name="Cash Wallet", channel_type="Cash", color="#7c8a63"), user_id
     )
 
-    # Credit cards reference their funding source, so they're created after
-    # the wallets they draw from exist.
-    channels = _channels_by_name(db, user_id)
     crud.create_channel(
         db,
-        schemas.ChannelCreate(
-            name="BPI Credit Card",
-            channel_type="Credit Card",
-            color="#a83f28",
-            funding_source_channel_id=channels["GCash"].id,
-        ),
+        schemas.ChannelCreate(name="BPI Credit Card", channel_type="Credit Card", color="#a83f28"),
         user_id,
     )
     crud.create_channel(
         db,
-        schemas.ChannelCreate(
-            name="RCBC Credit Card",
-            channel_type="Credit Card",
-            color="#c2410c",
-            funding_source_channel_id=channels["Maya"].id,
-        ),
+        schemas.ChannelCreate(name="RCBC Credit Card", channel_type="Credit Card", color="#c2410c"),
         user_id,
     )
 

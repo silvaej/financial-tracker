@@ -21,11 +21,6 @@ class Channel(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     color: Mapped[str] = mapped_column(String(7), default="#8a8a8a")
     channel_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    funding_source_channel_id: Mapped[int | None] = mapped_column(
-        ForeignKey("channels.id"), nullable=True
-    )
-
-    funding_source: Mapped["Channel | None"] = relationship(remote_side="Channel.id")
 
 
 class PayoutPeriod(Base):

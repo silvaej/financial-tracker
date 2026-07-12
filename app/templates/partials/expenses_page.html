@@ -19,7 +19,6 @@
           <col class="w-12">
           <col class="min-w-28">
           <col class="w-36">
-          <col class="w-40">
           <col class="w-28">
         </colgroup>
         <thead>
@@ -27,7 +26,6 @@
             <th></th>
             <th>Name &amp; color</th>
             <th>Type</th>
-            <th>Funds from</th>
             <th></th>
           </tr>
         </thead>
@@ -71,27 +69,6 @@
                 </div>
               </td>
               <td>
-                <span class="view-channel-{{ channel.id }}">
-                  {% if channel.funding_source %}
-                    {{ macros.channel_label(channel.funding_source) }}
-                  {% else %}
-                    &mdash;
-                  {% endif %}
-                </span>
-                <div class="edit-channel-{{ channel.id }} hidden items-center gap-1">
-                  <select class="field"
-                          name="funding_source_channel_id"
-                          form="channel-edit-form-{{ channel.id }}">
-                    <option value="">No funding source</option>
-                    {% for c in channels if c.id != channel.id %}
-                      <option value="{{ c.id }}"
-                              {{ "selected" if channel.funding_source_channel_id == c.id else "" }}>{{ c.name }}
-                      </option>
-                    {% endfor %}
-                  </select>
-                </div>
-              </td>
-              <td>
                 <div class="view-channel-{{ channel.id }} flex items-center gap-1">
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
@@ -113,10 +90,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(5, 'channels') }}
+            {{ macros.empty_row(4, 'channels') }}
           {% endfor %}
           <tr>
-            <td colspan="5">
+            <td colspan="4">
               <button type="button"
                       class="add-btn w-20 justify-center"
                       onclick="toggleAddRow('add-channel-row', this)">+ Add</button>
@@ -143,16 +120,6 @@
               <select class="field" name="channel_type" form="add-channel-form">
                 <option value="">No type</option>
                 {% for ct in channel_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
-              </select>
-            </td>
-            <td>
-              <select class="field"
-                      name="funding_source_channel_id"
-                      form="add-channel-form">
-                <option value="">No funding source</option>
-                {% for channel in channels %}
-                  <option value="{{ channel.id }}">{{ channel.name }}</option>
-                {% endfor %}
               </select>
             </td>
             <td>
