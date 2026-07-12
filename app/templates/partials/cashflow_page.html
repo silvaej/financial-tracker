@@ -4,7 +4,7 @@
     <div>
       <div class="page-title">Cash Flow</div>
       <div class="page-sub">
-        Drag a channel or goal from the toolbox onto the canvas. Drag a node to move it, or drag from its dot onto another node to connect them.
+        Drag a channel or goal from the toolbox onto the canvas. Drag a node's center to move it, or drag from a channel's edge onto another node to connect them. Nothing is saved until you press Save &mdash; every placed node needs at least one connection first.
       </div>
     </div>
   </div>
@@ -25,8 +25,7 @@
         {% for channel in data.available_channels %}
           <div class="toolbox-item"
                data-node-id="channel-{{ channel.id }}"
-               data-node-kind="channel"
-               data-place-form="place-channel-form-{{ data.period.id }}-{{ channel.id }}">
+               data-node-kind="channel">
             {{ macros.channel_badge(channel) }}
             <span class="text-xs font-semibold">{{ macros.channel_name(channel) }}</span>
           </div>
@@ -35,7 +34,7 @@
           <div class="toolbox-item toolbox-item-goal"
                data-node-id="goal-{{ entry.goal.id }}"
                data-node-kind="goal"
-               data-place-form="place-goal-form-{{ data.period.id }}-{{ entry.goal.id }}">
+               data-per-payout="{{ entry.per_payout }}">
             <span class="text-xs font-semibold">{{ entry.goal.name }}</span>
           </div>
         {% endfor %}
@@ -44,168 +43,176 @@
         {% endif %}
       </div>
       <div class="canvas" data-payout-period-id="{{ data.period.id }}">
-        <svg class="canvas-edges">
+        <div class="canvas-inner">
+          <svg class="canvas-edges">
+            {% for item in data.transfers %}
+              {% set transfer = item.transfer %}
+              {% if transfer.from_channel_id in data.position_by_channel and transfer.to_channel_id in data.position_by_channel %}
+                <path class="canvas-edge-line" data-edge-id="transfer-{{ transfer.id }}" data-from="channel-{{ transfer.from_channel_id }}" data-to="channel-{{ transfer.to_channel_id }}">
+                </path>
+              {% endif %}
+            {% endfor %}
+            {% for gc in data.goal_contributions %}
+              {% if gc.channel_id in data.position_by_channel and gc.goal_id in data.position_by_goal %}
+                <path class="canvas-edge-line" data-edge-id="goal-contribution-{{ gc.id }}" data-from="channel-{{ gc.channel_id }}" data-to="goal-{{ gc.goal_id }}">
+                </path>
+              {% endif %}
+            {% endfor %}
+          </svg>
+          {% for channel in data.placed_channels %}
+            {% set pos = data.position_by_channel[channel.id] %}
+            <div class="canvas-node {{ 'canvas-node-warn' if channel.name in data.warnings.unfunded_channels else '' }}"
+                 data-node-id="channel-{{ channel.id }}"
+                 data-node-kind="channel"
+                 data-position-url="/channels/{{ channel.id }}/placement"
+                 data-x="{{ pos[0] }}"
+                 data-y="{{ pos[1] }}"
+                 style="--rail: {{ channel.color }}">
+              <button type="button" class="canvas-node-remove" title="Remove from canvas">&times;</button>
+              <div class="flex items-center gap-1.5">
+                {{ macros.channel_badge(channel) }}
+                <span class="text-sm font-semibold">{{ macros.channel_name(channel) }}</span>
+              </div>
+              <div class="num text-sm mt-1 {{ 'card-value-neg' if data.balance_by_channel.get(channel.id, 0) < 0 else '' }}"
+                   data-role="node-balance">{{ macros.peso(data.balance_by_channel.get(channel.id, 0) ) }}</div>
+              {% if data.carry_in.get(channel.id) %}
+                <div class="text-[10px] text-ink-soft">{{ macros.peso(data.carry_in.get(channel.id) ) }} carried in</div>
+              {% endif %}
+              <span class="canvas-node-warn-badge">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 2 1 17h18L10 2Zm0 5.5c.5 0 .9.4.9.9v4a.9.9 0 0 1-1.8 0v-4c0-.5.4-.9.9-.9Zm0 8.4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
+                </svg>
+              </span>
+            </div>
+          {% endfor %}
+          {% for entry in data.placed_goals %}
+            {% set goal = entry.goal %}
+            {% set pos = data.position_by_goal[goal.id] %}
+            {% set contributed = data.contributed_by_goal.get(goal.id, 0) %}
+            {% set pct = ((100 * contributed / entry.per_payout) if entry.per_payout else 100) | round(1) %}
+            {% set pct = [pct, 100] | min %}
+            {% set pct = [pct, 0] | max %}
+            <div class="canvas-node canvas-node-goal {{ 'canvas-node-warn' if goal.name in data.warnings.underfunded_goals else '' }}"
+                 data-node-id="goal-{{ goal.id }}"
+                 data-node-kind="goal"
+                 data-position-url="/goals/{{ goal.id }}/placement"
+                 data-per-payout="{{ entry.per_payout }}"
+                 data-x="{{ pos[0] }}"
+                 data-y="{{ pos[1] }}">
+              <button type="button" class="canvas-node-remove" title="Remove from canvas">&times;</button>
+              <div class="text-sm font-semibold">{{ goal.name }}</div>
+              <div class="num text-sm mt-1" data-role="node-balance">
+                {{ macros.peso(contributed) }} / {{ macros.peso(entry.per_payout) }}
+              </div>
+              <div class="canvas-node-progress bar-track">
+                <div class="bar-fill"
+                     data-role="node-progress-fill"
+                     style="width: {{ pct }}%"></div>
+              </div>
+              <span class="canvas-node-warn-badge">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 2 1 17h18L10 2Zm0 5.5c.5 0 .9.4.9.9v4a.9.9 0 0 1-1.8 0v-4c0-.5.4-.9.9-.9Zm0 8.4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
+                </svg>
+              </span>
+            </div>
+          {% endfor %}
           {% for item in data.transfers %}
             {% set transfer = item.transfer %}
-            <line class="canvas-edge-line" data-edge-id="transfer-{{ transfer.id }}" data-from="channel-{{ transfer.from_channel_id }}" data-to="channel-{{ transfer.to_channel_id }}"></line>
+            {% if transfer.from_channel_id in data.position_by_channel and transfer.to_channel_id in data.position_by_channel %}
+              <div class="canvas-edge-label"
+                   data-edge-id="transfer-{{ transfer.id }}"
+                   title="{{ item.note }}">
+                <span class="view-transfer-{{ transfer.id }}"
+                      onclick="toggleEditMode('transfer-{{ transfer.id }}')">{{ macros.peso(transfer.amount) }}</span>
+                <span class="edit-transfer-{{ transfer.id }} hidden">
+                  <input class="field field-mono w-20"
+                         type="number"
+                         step="0.01"
+                         value="{{ transfer.amount }}"
+                         data-role="edge-amount">
+                </span>
+                <button type="button"
+                        class="icon-btn"
+                        data-role="edge-remove"
+                        title="Remove connection">&times;</button>
+              </div>
+            {% endif %}
           {% endfor %}
           {% for gc in data.goal_contributions %}
-            <line class="canvas-edge-line" data-edge-id="goal-contribution-{{ gc.id }}" data-from="channel-{{ gc.channel_id }}" data-to="goal-{{ gc.goal_id }}"></line>
-          {% endfor %}
-        </svg>
-        {% for channel in data.placed_channels %}
-          {% set pos = data.position_by_channel[channel.id] %}
-          <div class="canvas-node {{ 'canvas-node-warn' if channel.name in data.warnings.unfunded_channels else '' }}"
-               data-node-id="channel-{{ channel.id }}"
-               data-node-kind="channel"
-               data-position-url="/channels/{{ channel.id }}/placement"
-               data-x="{{ pos[0] }}"
-               data-y="{{ pos[1] }}">
-            <button type="button"
-                    class="canvas-node-remove"
-                    hx-delete="/channels/{{ channel.id }}/placement?payout_period_id={{ data.period.id }}"
-                    hx-target="#cashflow-page"
-                    hx-swap="outerHTML"
-                    title="Remove from canvas">&times;</button>
-            <div class="flex items-center gap-1.5">
-              {{ macros.channel_badge(channel) }}
-              <span class="text-sm font-semibold">{{ macros.channel_name(channel) }}</span>
-            </div>
-            <div class="num text-sm mt-1 {{ 'card-value-neg' if data.balance_by_channel.get(channel.id, 0) < 0 else '' }}">
-              {{ macros.peso(data.balance_by_channel.get(channel.id, 0) ) }}
-            </div>
-            {% if data.carry_in.get(channel.id) %}
-              <div class="text-[10px] text-ink-soft">{{ macros.peso(data.carry_in.get(channel.id) ) }} carried in</div>
+            {% if gc.channel_id in data.position_by_channel and gc.goal_id in data.position_by_goal %}
+              <div class="canvas-edge-label"
+                   data-edge-id="goal-contribution-{{ gc.id }}">
+                <span class="view-gc-{{ gc.id }}"
+                      onclick="toggleEditMode('gc-{{ gc.id }}')">{{ macros.peso(gc.amount) }}</span>
+                <span class="edit-gc-{{ gc.id }} hidden">
+                  <input class="field field-mono w-20"
+                         type="number"
+                         step="0.01"
+                         value="{{ gc.amount }}"
+                         data-role="edge-amount">
+                </span>
+                <button type="button"
+                        class="icon-btn"
+                        data-role="edge-remove"
+                        title="Remove connection">&times;</button>
+              </div>
             {% endif %}
-            <div class="canvas-handle"
-                 data-handle-owner="channel-{{ channel.id }}"
-                 title="Drag to connect to another channel or a goal"></div>
-          </div>
-        {% endfor %}
-        {% for entry in data.placed_goals %}
-          {% set goal = entry.goal %}
-          {% set pos = data.position_by_goal[goal.id] %}
-          <div class="canvas-node canvas-node-goal {{ 'canvas-node-warn' if goal.name in data.warnings.underfunded_goals else '' }}"
-               data-node-id="goal-{{ goal.id }}"
-               data-node-kind="goal"
-               data-position-url="/goals/{{ goal.id }}/placement"
-               data-x="{{ pos[0] }}"
-               data-y="{{ pos[1] }}">
-            <button type="button"
-                    class="canvas-node-remove"
-                    hx-delete="/goals/{{ goal.id }}/placement?payout_period_id={{ data.period.id }}"
-                    hx-target="#cashflow-page"
-                    hx-swap="outerHTML"
-                    title="Remove from canvas">&times;</button>
-            <div class="text-sm font-semibold">{{ goal.name }}</div>
-            <div class="num text-sm mt-1">
-              {{ macros.peso(data.contributed_by_goal.get(goal.id, 0) ) }} / {{ macros.peso(entry.per_payout) }}
-            </div>
-          </div>
-        {% endfor %}
-        {% for item in data.transfers %}
-          {% set transfer = item.transfer %}
-          <div class="canvas-edge-label"
-               data-edge-id="transfer-{{ transfer.id }}"
-               title="{{ item.note }}">
-            <span class="view-transfer-{{ transfer.id }}"
-                  onclick="toggleEditMode('transfer-{{ transfer.id }}')">{{ macros.peso(transfer.amount) }}</span>
-            <span class="edit-transfer-{{ transfer.id }} hidden">
-              <input class="field field-mono w-20"
-                     type="number"
-                     step="0.01"
-                     name="amount"
-                     form="edit-transfer-form-{{ transfer.id }}"
-                     value="{{ transfer.amount }}"
-                     onchange="this.form.requestSubmit()">
-            </span>
-            <button type="button"
-                    class="icon-btn"
-                    hx-delete="/transfers/{{ transfer.id }}"
-                    hx-target="#cashflow-page"
-                    hx-swap="outerHTML"
-                    hx-confirm="Delete this transfer?">&times;</button>
-          </div>
-        {% endfor %}
-        {% for gc in data.goal_contributions %}
-          <div class="canvas-edge-label"
-               data-edge-id="goal-contribution-{{ gc.id }}">
-            <span class="view-gc-{{ gc.id }}"
-                  onclick="toggleEditMode('gc-{{ gc.id }}')">{{ macros.peso(gc.amount) }}</span>
-            <span class="edit-gc-{{ gc.id }} hidden">
-              <input class="field field-mono w-20"
-                     type="number"
-                     step="0.01"
-                     name="amount"
-                     form="edit-goal-contribution-form-{{ gc.id }}"
-                     value="{{ gc.amount }}"
-                     onchange="this.form.requestSubmit()">
-            </span>
-            <button type="button"
-                    class="icon-btn"
-                    hx-delete="/goal-contributions/{{ gc.id }}"
-                    hx-target="#cashflow-page"
-                    hx-swap="outerHTML"
-                    hx-confirm="Delete this contribution?">&times;</button>
-          </div>
-        {% endfor %}
+          {% endfor %}
+        </div>
+        <button type="button"
+                class="canvas-recenter-btn"
+                data-role="recenter"
+                title="Center the canvas"
+                aria-label="Center the canvas">
+          <svg viewBox="0 0 20 20"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.7"
+               stroke-linecap="round">
+            <circle cx="10" cy="10" r="2.1" fill="currentColor" stroke="none"></circle>
+            <path d="M10 2.5v3M10 14.5v3M17.5 10h-3M5.5 10h-3"></path>
+          </svg>
+        </button>
+        <div class="canvas-zoom-control">
+          <button type="button"
+                  class="canvas-zoom-btn"
+                  data-role="zoom-out"
+                  title="Zoom out"
+                  aria-label="Zoom out">
+            <svg viewBox="0 0 20 20"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.8"
+                 stroke-linecap="round">
+              <path d="M6 10h8"></path>
+            </svg>
+          </button>
+          <button type="button"
+                  class="canvas-zoom-level"
+                  data-role="zoom-reset"
+                  title="Reset to 100%">100%</button>
+          <button type="button"
+                  class="canvas-zoom-btn"
+                  data-role="zoom-in"
+                  title="Zoom in"
+                  aria-label="Zoom in">
+            <svg viewBox="0 0 20 20"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.8"
+                 stroke-linecap="round">
+              <path d="M10 6v8M6 10h8"></path>
+            </svg>
+          </button>
+        </div>
       </div>
-      <form id="add-transfer-form-{{ data.period.id }}"
-            hx-post="/transfers"
-            hx-target="#cashflow-page"
-            hx-swap="outerHTML">
-        <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
-        <input type="hidden" name="from_channel_id" data-role="new-transfer-from">
-        <input type="hidden" name="to_channel_id" data-role="new-transfer-to">
-        <input type="hidden" name="amount" value="0" data-role="new-transfer-amount">
-      </form>
-      <form id="add-goal-contribution-form-{{ data.period.id }}"
-            hx-post="/goal-contributions"
-            hx-target="#cashflow-page"
-            hx-swap="outerHTML">
-        <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
-        <input type="hidden" name="channel_id" data-role="new-contribution-channel">
-        <input type="hidden" name="goal_id" data-role="new-contribution-goal">
-        <input type="hidden"
-               name="amount"
-               value="0"
-               data-role="new-contribution-amount">
-      </form>
-      {% for channel in data.available_channels %}
-        <form id="place-channel-form-{{ data.period.id }}-{{ channel.id }}"
-              hx-post="/channels/{{ channel.id }}/placement"
-              hx-target="#cashflow-page"
-              hx-swap="outerHTML">
-          <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
-          <input type="hidden" name="x" data-role="place-x">
-          <input type="hidden" name="y" data-role="place-y">
-        </form>
-      {% endfor %}
-      {% for entry in data.available_goals %}
-        <form id="place-goal-form-{{ data.period.id }}-{{ entry.goal.id }}"
-              hx-post="/goals/{{ entry.goal.id }}/placement"
-              hx-target="#cashflow-page"
-              hx-swap="outerHTML">
-          <input type="hidden" name="payout_period_id" value="{{ data.period.id }}">
-          <input type="hidden" name="x" data-role="place-x">
-          <input type="hidden" name="y" data-role="place-y">
-        </form>
-      {% endfor %}
-      {% for item in data.transfers %}
-        {% set transfer = item.transfer %}
-        <form id="edit-transfer-form-{{ transfer.id }}"
-              hx-patch="/transfers/{{ transfer.id }}"
-              hx-target="#cashflow-page"
-              hx-swap="outerHTML">
-        </form>
-      {% endfor %}
-      {% for gc in data.goal_contributions %}
-        <form id="edit-goal-contribution-form-{{ gc.id }}"
-              hx-patch="/goal-contributions/{{ gc.id }}"
-              hx-target="#cashflow-page"
-              hx-swap="outerHTML">
-        </form>
-      {% endfor %}
+      <div class="canvas-save-bar" data-payout-period-id="{{ data.period.id }}">
+        <span class="canvas-save-status">All changes saved</span>
+        <button type="button"
+                class="add-btn canvas-save-btn"
+                data-save-url="/cashflow/{{ data.period.id }}/save"
+                disabled>Save changes</button>
+      </div>
     </div>
   {% endfor %}
 </div>

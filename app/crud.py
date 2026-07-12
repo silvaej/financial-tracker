@@ -379,6 +379,263 @@ def delete_goal_contribution(db: Session, contribution_id: int, user_id: int) ->
         _recompute_goal_allocated(db, goal_id, user_id)
 
 
+_LAYOUT_COLUMN_WIDTH = 320.0
+_LAYOUT_ROW_HEIGHT = 180.0
+_LAYOUT_MARGIN = 36.0
+
+
+def _layered_canvas_positions(
+    channel_ids: list[int],
+    goal_ids: list[int],
+    transfers: list[schemas.CanvasTransferIn],
+    goal_contributions: list[schemas.CanvasGoalContributionIn],
+) -> tuple[dict[int, tuple[float, float]], dict[int, tuple[float, float]]]:
+    """Arrange placed nodes into neat left-to-right columns by money-flow depth:
+    channels with no incoming transfer start at column 0, and each node sits one
+    column past its furthest predecessor, with goals trailing their funding
+    channel. Any cycle (a transfer loop between channels) is broken by treating
+    the second-visited node as depth 0 for that path, rather than recursing
+    forever. Within each column, nodes are ordered by a barycenter heuristic
+    (average position of their connected neighbors in the adjacent column) so
+    edges routed straight across columns don't needlessly cross one another --
+    exact crossing-free layout isn't always possible, but this avoids the
+    avoidable cases."""
+    NodeKey = tuple[str, int]
+    nodes: set[NodeKey] = {("channel", c) for c in channel_ids} | {("goal", g) for g in goal_ids}
+
+    incoming: dict[NodeKey, list[NodeKey]] = {node: [] for node in nodes}
+    outgoing: dict[NodeKey, list[NodeKey]] = {node: [] for node in nodes}
+    for transfer in transfers:
+        src, dst = ("channel", transfer.from_channel_id), ("channel", transfer.to_channel_id)
+        if src in incoming and dst in incoming:
+            incoming[dst].append(src)
+            outgoing[src].append(dst)
+    for contribution in goal_contributions:
+        src, dst = ("channel", contribution.channel_id), ("goal", contribution.goal_id)
+        if src in incoming and dst in incoming:
+            incoming[dst].append(src)
+            outgoing[src].append(dst)
+
+    depth: dict[NodeKey, int] = {}
+
+    def resolve(node: NodeKey, path: frozenset[NodeKey]) -> int:
+        if node in depth:
+            return depth[node]
+        if node in path:
+            return 0
+        preds = incoming[node]
+        result = 0 if not preds else 1 + max(resolve(p, path | {node}) for p in preds)
+        depth[node] = result
+        return result
+
+    for node in sorted(nodes):
+        resolve(node, frozenset())
+
+    columns: dict[int, list[NodeKey]] = {}
+    for node, col in depth.items():
+        columns.setdefault(col, []).append(node)
+    for col in columns:
+        columns[col].sort()
+
+    def barycenter(
+        node: NodeKey,
+        linked_nodes: list[NodeKey],
+        ref_index: dict[NodeKey, int],
+        fallback: dict[NodeKey, int],
+    ) -> float:
+        linked = [n for n in linked_nodes if n in ref_index]
+        if not linked:
+            return float(fallback[node])
+        return sum(ref_index[n] for n in linked) / len(linked)
+
+    def reorder_pass(
+        col_order: list[int], neighbors: dict[NodeKey, list[NodeKey]], reference_offset: int
+    ) -> None:
+        for col in col_order:
+            ref_col = col + reference_offset
+            if ref_col not in columns:
+                continue
+            ref_index = {node: i for i, node in enumerate(columns[ref_col])}
+            fallback = {node: i for i, node in enumerate(columns[col])}
+            columns[col] = sorted(
+                columns[col],
+                key=lambda n: (barycenter(n, neighbors[n], ref_index, fallback), n),
+            )
+
+    ascending = sorted(columns)
+    for _ in range(2):
+        reorder_pass(ascending, incoming, -1)
+        reorder_pass(list(reversed(ascending)), outgoing, 1)
+
+    channel_positions: dict[int, tuple[float, float]] = {}
+    goal_positions: dict[int, tuple[float, float]] = {}
+    for col in sorted(columns):
+        x = _LAYOUT_MARGIN + col * _LAYOUT_COLUMN_WIDTH
+        for row, (kind, node_id) in enumerate(columns[col]):
+            y = _LAYOUT_MARGIN + row * _LAYOUT_ROW_HEIGHT
+            if kind == "channel":
+                channel_positions[node_id] = (x, y)
+            else:
+                goal_positions[node_id] = (x, y)
+    return channel_positions, goal_positions
+
+
+def save_canvas(
+    db: Session, payout_period_id: int, data: schemas.CanvasSaveIn, user_id: int
+) -> str | None:
+    """Replace a payout period's placements/transfers/goal contributions to match
+    a client's staged canvas edits, in one transaction. Returns an error message
+    (making no changes) if any placed node has no connection, else None."""
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    for channel_placement in data.channel_placements:
+        _require_owned(db, models.Channel, channel_placement.channel_id, user_id, "Channel")
+    for goal_placement in data.goal_placements:
+        _require_owned(db, models.Goal, goal_placement.goal_id, user_id, "Goal")
+    for transfer in data.transfers:
+        _require_owned(db, models.Channel, transfer.from_channel_id, user_id, "From channel")
+        _require_owned(db, models.Channel, transfer.to_channel_id, user_id, "To channel")
+    for contribution in data.goal_contributions:
+        _require_owned(db, models.Channel, contribution.channel_id, user_id, "Channel")
+        _require_owned(db, models.Goal, contribution.goal_id, user_id, "Goal")
+
+    placed_channel_ids = {p.channel_id for p in data.channel_placements}
+    placed_goal_ids = {p.goal_id for p in data.goal_placements}
+    connected_channel_ids = (
+        {t.from_channel_id for t in data.transfers}
+        | {t.to_channel_id for t in data.transfers}
+        | {c.channel_id for c in data.goal_contributions}
+    )
+    connected_goal_ids = {c.goal_id for c in data.goal_contributions}
+
+    if (placed_channel_ids - connected_channel_ids) or (placed_goal_ids - connected_goal_ids):
+        return "Every node on the canvas needs at least one connection before saving."
+
+    affected_goal_ids = {
+        c.goal_id for c in list_goal_contributions(db, payout_period_id, user_id)
+    } | connected_goal_ids
+
+    channel_positions, goal_positions = _layered_canvas_positions(
+        sorted(placed_channel_ids), sorted(placed_goal_ids), data.transfers, data.goal_contributions
+    )
+
+    db.query(models.ChannelPlacement).filter_by(
+        payout_period_id=payout_period_id, user_id=user_id
+    ).delete()
+    db.query(models.GoalPlacement).filter_by(
+        payout_period_id=payout_period_id, user_id=user_id
+    ).delete()
+    db.query(models.Transfer).filter_by(payout_period_id=payout_period_id, user_id=user_id).delete()
+    db.query(models.GoalContribution).filter_by(
+        payout_period_id=payout_period_id, user_id=user_id
+    ).delete()
+
+    for channel_placement in data.channel_placements:
+        x, y = channel_positions[channel_placement.channel_id]
+        db.add(
+            models.ChannelPlacement(
+                payout_period_id=payout_period_id,
+                channel_id=channel_placement.channel_id,
+                x=x,
+                y=y,
+                user_id=user_id,
+            )
+        )
+    for goal_placement in data.goal_placements:
+        x, y = goal_positions[goal_placement.goal_id]
+        db.add(
+            models.GoalPlacement(
+                payout_period_id=payout_period_id,
+                goal_id=goal_placement.goal_id,
+                x=x,
+                y=y,
+                user_id=user_id,
+            )
+        )
+    for transfer in data.transfers:
+        db.add(
+            models.Transfer(
+                payout_period_id=payout_period_id,
+                from_channel_id=transfer.from_channel_id,
+                to_channel_id=transfer.to_channel_id,
+                amount=transfer.amount,
+                user_id=user_id,
+            )
+        )
+    for contribution in data.goal_contributions:
+        db.add(
+            models.GoalContribution(
+                payout_period_id=payout_period_id,
+                channel_id=contribution.channel_id,
+                goal_id=contribution.goal_id,
+                amount=contribution.amount,
+                user_id=user_id,
+            )
+        )
+    db.commit()
+
+    for goal_id in affected_goal_ids:
+        _recompute_goal_allocated(db, goal_id, user_id)
+
+    return None
+
+
+def preview_canvas(
+    db: Session, payout_period_id: int, data: schemas.CanvasSaveIn, user_id: int
+) -> schemas.CanvasPreviewOut:
+    """Compute channel balances and goal-contribution totals as if `data`'s
+    transfers/goal contributions were this period's saved state, without
+    writing anything to the database. Everything else that feeds a balance --
+    expenses, this period's income, and carry-in from prior (already saved)
+    periods -- is real, persisted data, since none of that is affected by
+    edits still staged on this period's canvas."""
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    for transfer in data.transfers:
+        _require_owned(db, models.Channel, transfer.from_channel_id, user_id, "From channel")
+        _require_owned(db, models.Channel, transfer.to_channel_id, user_id, "To channel")
+    for contribution in data.goal_contributions:
+        _require_owned(db, models.Channel, contribution.channel_id, user_id, "Channel")
+        _require_owned(db, models.Goal, contribution.goal_id, user_id, "Goal")
+
+    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
+    payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
+    channels = list_channels(db, user_id)
+    expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
+
+    channel_balances_out: dict[int, float] = {}
+    for channel in channels:
+        net = carry_in.get(channel.id, 0.0)
+        if payout_period is not None and payout_period.receiving_channel_id == channel.id:
+            net += float(payout_period.income_amount)
+        net += sum(t.amount for t in data.transfers if t.to_channel_id == channel.id)
+        net -= sum(t.amount for t in data.transfers if t.from_channel_id == channel.id)
+        net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+        net -= sum(c.amount for c in data.goal_contributions if c.channel_id == channel.id)
+        channel_balances_out[channel.id] = net
+
+    goal_contributed: dict[int, float] = {}
+    for contribution in data.goal_contributions:
+        goal_contributed[contribution.goal_id] = (
+            goal_contributed.get(contribution.goal_id, 0.0) + contribution.amount
+        )
+
+    payout_period_count = len(list_payout_periods(db, user_id))
+    underfunded_goal_ids = [
+        goal.id
+        for goal in list_goals(db, user_id)
+        if goal_contributed.get(goal.id, 0.0) < goal_payout_amount(goal, payout_period_count)
+    ]
+    unfunded_channel_ids = [
+        channel_id for channel_id, net in channel_balances_out.items() if net < 0
+    ]
+
+    return schemas.CanvasPreviewOut(
+        channel_balances=channel_balances_out,
+        goal_contributed=goal_contributed,
+        unfunded_channel_ids=unfunded_channel_ids,
+        underfunded_goal_ids=underfunded_goal_ids,
+    )
+
+
 # --- Channel balances -----------------------------------------------------------
 
 

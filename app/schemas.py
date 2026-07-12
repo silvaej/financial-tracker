@@ -89,6 +89,44 @@ class PlacementUpdate(BaseModel):
     y: float
 
 
+class CanvasChannelPlacementIn(BaseModel):
+    channel_id: int
+    x: float
+    y: float
+
+
+class CanvasGoalPlacementIn(BaseModel):
+    goal_id: int
+    x: float
+    y: float
+
+
+class CanvasTransferIn(BaseModel):
+    from_channel_id: int
+    to_channel_id: int
+    amount: float
+
+
+class CanvasGoalContributionIn(BaseModel):
+    channel_id: int
+    goal_id: int
+    amount: float
+
+
+class CanvasSaveIn(BaseModel):
+    channel_placements: list[CanvasChannelPlacementIn] = []
+    goal_placements: list[CanvasGoalPlacementIn] = []
+    transfers: list[CanvasTransferIn] = []
+    goal_contributions: list[CanvasGoalContributionIn] = []
+
+
+class CanvasPreviewOut(BaseModel):
+    channel_balances: dict[int, float]
+    goal_contributed: dict[int, float]
+    unfunded_channel_ids: list[int]
+    underfunded_goal_ids: list[int]
+
+
 class CreditLineCreate(BaseModel):
     name: str
     limit: float

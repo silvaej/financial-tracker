@@ -31,6 +31,22 @@ def _create_goal(client: TestClient, name: str, target: str) -> str:
     return match.group(1)
 
 
+def _place_channel(client: TestClient, period_id: str, channel_id: str) -> None:
+    response = client.post(
+        f"/channels/{channel_id}/placement",
+        data={"payout_period_id": period_id, "x": "0", "y": "0"},
+    )
+    assert response.status_code == 200
+
+
+def _place_goal(client: TestClient, period_id: str, goal_id: str) -> None:
+    response = client.post(
+        f"/goals/{goal_id}/placement",
+        data={"payout_period_id": period_id, "x": "200", "y": "0"},
+    )
+    assert response.status_code == 200
+
+
 def test_create_goal_contribution_updates_goal_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
     period_id = _create_payout_period(client, "15th")
@@ -55,6 +71,8 @@ def test_update_goal_contribution_recomputes_allocated(client: TestClient) -> No
     channel_id = _create_channel(client, "Savings")
     period_id = _create_payout_period(client, "15th")
     goal_id = _create_goal(client, "Emergency Fund", "1000")
+    _place_channel(client, period_id, channel_id)
+    _place_goal(client, period_id, goal_id)
 
     create = client.post(
         "/goal-contributions",
@@ -79,6 +97,8 @@ def test_delete_goal_contribution_recomputes_allocated(client: TestClient) -> No
     channel_id = _create_channel(client, "Savings")
     period_id = _create_payout_period(client, "15th")
     goal_id = _create_goal(client, "Emergency Fund", "1000")
+    _place_channel(client, period_id, channel_id)
+    _place_goal(client, period_id, goal_id)
 
     create = client.post(
         "/goal-contributions",

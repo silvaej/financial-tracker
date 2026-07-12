@@ -179,10 +179,16 @@
 
       function toggleEditMode(id) {
         document.querySelectorAll(".view-" + id).forEach((el) => el.classList.toggle("hidden"));
+        let opened = false;
         document.querySelectorAll(".edit-" + id).forEach((el) => {
           el.classList.toggle("hidden");
           el.classList.toggle("flex");
+          if (!el.classList.contains("hidden")) opened = true;
         });
+        if (opened) {
+          const field = document.querySelector(".edit-" + id + " input, .edit-" + id + " select, .edit-" + id + " textarea");
+          if (field) field.focus();
+        }
       }
 
       function cancelEdit(id, formId) {
@@ -219,7 +225,7 @@
         if (evt.detail.target && evt.detail.target.id === "page-content") updateActiveTab();
       });
     </script>
-    <script src="{{ url_for('static', path='js/cashflow.js') }}?v=2"></script>
+    <script src="{{ url_for('static', path='js/cashflow.js') }}?v=7"></script>
     {% block extra_scripts %}
     {% endblock extra_scripts %}
   </body>

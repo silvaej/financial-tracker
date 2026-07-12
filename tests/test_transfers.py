@@ -45,6 +45,8 @@ def test_create_update_delete_transfer(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
     period_id = _create_payout_period(client, "15th", "1000", a)
+    _place_channel(client, period_id, a)
+    _place_channel(client, period_id, b)
 
     create = client.post(
         "/transfers",
@@ -56,7 +58,7 @@ def test_create_update_delete_transfer(client: TestClient) -> None:
         },
     )
     assert create.status_code == 200
-    match = re.search(r"/transfers/(\d+)", create.text)
+    match = re.search(r'data-edge-id="transfer-(\d+)"', create.text)
     assert match is not None
     transfer_id = match.group(1)
 
@@ -145,6 +147,8 @@ def test_generate_transfers_creates_transfer_for_funded_channel_shortfall(
     b = _create_channel(client, "Channel B")
     _set_funding_source(client, b, "Channel B", a)
     period_id = _create_payout_period(client, "15th", "1000", a)
+    _place_channel(client, period_id, a)
+    _place_channel(client, period_id, b)
 
     client.post(
         "/expenses",
@@ -164,6 +168,8 @@ def test_generate_transfers_replaces_existing_transfers_not_duplicates(
     b = _create_channel(client, "Channel B")
     _set_funding_source(client, b, "Channel B", a)
     period_id = _create_payout_period(client, "15th", "1000", a)
+    _place_channel(client, period_id, a)
+    _place_channel(client, period_id, b)
 
     client.post(
         "/expenses",
@@ -175,7 +181,7 @@ def test_generate_transfers_replaces_existing_transfers_not_duplicates(
     assert first.status_code == 200
     assert second.status_code == 200
     # Only one transfer row should exist, not two stacked from repeated generation.
-    assert len(re.findall(r'hx-delete="/transfers/\d+"', second.text)) == 1
+    assert len(re.findall(r'canvas-edge-label"\s+data-edge-id="transfer-\d+"', second.text)) == 1
 
 
 def test_generate_transfers_reports_channels_without_funding_source(
@@ -193,7 +199,7 @@ def test_generate_transfers_reports_channels_without_funding_source(
     response = client.post(f"/transfers/generate/{period_id}")
     assert response.status_code == 200
     assert "Channel B" in response.headers["HX-Trigger"]
-    assert not re.search(r'hx-delete="/transfers/\d+"', response.text)
+    assert not re.search(r'canvas-edge-label"\s+data-edge-id="transfer-\d+"', response.text)
 
 
 def _channel_node_id(html: str, name: str) -> str:
@@ -237,6 +243,10 @@ def test_generate_transfers_rolls_up_multi_hop_chain(client: TestClient) -> None
     _set_funding_source(client, leaf_a, "LeafA", mid)
     _set_funding_source(client, leaf_b, "LeafB", mid)
     period_id = _create_payout_period(client, "15th", "1000", root)
+    _place_channel(client, period_id, root)
+    _place_channel(client, period_id, mid)
+    _place_channel(client, period_id, leaf_a)
+    _place_channel(client, period_id, leaf_b)
 
     client.post(
         "/expenses",
@@ -279,6 +289,9 @@ def test_generate_transfers_funds_pure_pass_through_channel(client: TestClient) 
     _set_funding_source(client, passthrough, "Passthrough", root)
     _set_funding_source(client, leaf, "Leaf", passthrough)
     period_id = _create_payout_period(client, "15th", "1000", root)
+    _place_channel(client, period_id, root)
+    _place_channel(client, period_id, passthrough)
+    _place_channel(client, period_id, leaf)
 
     client.post(
         "/expenses",
@@ -319,7 +332,7 @@ def test_generate_transfers_reports_circular_funding_without_hanging(
     assert "Circular funding" in response.headers["HX-Trigger"]
     assert "Channel A" in response.headers["HX-Trigger"]
     assert "Channel B" in response.headers["HX-Trigger"]
-    assert not re.search(r'hx-delete="/transfers/\d+"', response.text)
+    assert not re.search(r'canvas-edge-label"\s+data-edge-id="transfer-\d+"', response.text)
 
 
 def test_generate_transfers_includes_goal_contribution_on_its_channel(
@@ -335,6 +348,8 @@ def test_generate_transfers_includes_goal_contribution_on_its_channel(
     period_id = _create_payout_period(client, "15th", "1000", root)
     # Second payout period so the goal's monthly amount splits across 2.
     _create_payout_period(client, "30th", "0", root)
+    _place_channel(client, period_id, root)
+    _place_channel(client, period_id, savings)
 
     client.post(
         "/goals",

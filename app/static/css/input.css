@@ -175,25 +175,85 @@
   }
 
   .canvas {
-    @apply relative w-full min-h-[420px] bg-paper-dim/40 rounded-lg border border-line overflow-hidden touch-none;
+    @apply relative w-full min-h-[520px] rounded-lg border border-line overflow-hidden touch-none;
+    background-color: var(--color-paper-dim);
+    background-image:
+      linear-gradient(rgba(28, 43, 43, 0.055) 1px, transparent 1px),
+      linear-gradient(
+        90deg,
+        transparent 63px,
+        rgba(168, 63, 40, 0.14) 63px,
+        rgba(168, 63, 40, 0.14) 64px,
+        transparent 64px
+      );
+    background-size:
+      100% 27px,
+      100% 100%;
+    cursor: grab;
+  }
+  .canvas.canvas-panning {
+    cursor: grabbing;
+  }
+  .canvas-inner {
+    @apply absolute inset-0;
+    transform-origin: 0 0;
   }
   .canvas-node {
     @apply absolute bg-card rounded-lg px-4 py-3.5 shadow-sm w-40 cursor-grab select-none z-10;
+    border-left: 4px solid var(--rail, var(--color-accent));
   }
   .canvas-node-remove {
     @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-ink text-white text-[10px] leading-none cursor-pointer z-20 hover:bg-rust;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease;
+  }
+  .canvas-node:hover .canvas-node-remove,
+  .canvas-node-remove:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @media (hover: none) {
+    .canvas-node-remove {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
   .canvas-node:active {
     @apply cursor-grabbing;
   }
   .canvas-node-goal {
-    @apply border-2 border-gold;
+    border-left-style: dashed;
+    border-left-color: var(--color-gold);
   }
   .canvas-node-warn {
-    @apply border-2 border-rust;
+    box-shadow: 0 0 0 4px var(--color-rust-soft);
   }
-  .canvas-handle {
-    @apply absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-accent border-2 border-white shadow cursor-crosshair z-20 hover:scale-110 transition-transform;
+  .canvas-node-warn-badge {
+    @apply absolute -left-1.5 -top-1.5 w-4 h-4 items-center justify-center rounded-full bg-rust text-white z-20;
+    display: none;
+  }
+  .canvas-node-warn .canvas-node-warn-badge {
+    display: flex;
+  }
+  .canvas-node-warn-badge svg {
+    @apply w-2.5 h-2.5;
+  }
+  .canvas-node-drop-target {
+    @apply ring-2 ring-accent ring-offset-2 ring-offset-paper-dim;
+  }
+  .canvas-node-unconnected {
+    outline: 2px dashed var(--color-rust);
+    outline-offset: 2px;
+  }
+  .canvas-node-balance-pending {
+    @apply text-[11px] italic text-ink-soft;
+  }
+  .canvas-node-progress {
+    @apply mt-1.5;
+  }
+  .canvas-node-progress .bar-track {
+    @apply h-1;
   }
   .canvas-edges {
     @apply absolute inset-0 w-full h-full pointer-events-none z-0;
@@ -201,9 +261,63 @@
   .canvas-edge-line {
     @apply stroke-accent;
     stroke-width: 2;
+    stroke-dasharray: 1 6;
+    stroke-linecap: round;
+    animation: canvas-edge-flow 0.7s linear infinite;
+  }
+  @keyframes canvas-edge-flow {
+    to {
+      stroke-dashoffset: -14;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .canvas-edge-line {
+      animation: none;
+    }
+  }
+  .canvas-edge-line[data-edge-id^="goal-contribution-"] {
+    @apply stroke-gold;
   }
   .canvas-edge-label {
-    @apply absolute flex items-center gap-1 bg-card rounded-full px-2 py-0.5 text-[11px] font-mono shadow-sm z-10;
+    @apply absolute flex items-center gap-0.5 bg-card/80 rounded-full px-1.5 py-px text-[9.5px] font-mono shadow-sm z-10 opacity-80 hover:opacity-100 hover:bg-card transition-opacity;
+    transform: translate(-50%, -50%);
+  }
+  .canvas-edge-label .icon-btn {
+    @apply p-0.5;
+  }
+  .canvas-edge-label .field {
+    @apply w-14 py-0 text-[10px];
+  }
+  .canvas-save-bar {
+    @apply flex items-center justify-between gap-3 mt-3;
+  }
+  .canvas-save-status {
+    @apply text-xs text-ink-soft;
+  }
+  .canvas-save-status-dirty {
+    @apply text-gold font-semibold;
+  }
+  .add-btn:disabled {
+    @apply opacity-40 cursor-not-allowed hover:brightness-100;
+  }
+
+  .canvas-zoom-control {
+    @apply absolute right-3 bottom-3 z-20 flex items-center bg-card border border-line rounded-lg shadow-sm overflow-hidden;
+  }
+  .canvas-zoom-btn {
+    @apply flex items-center justify-center w-7 h-7 text-ink-soft hover:bg-paper-dim hover:text-ink cursor-pointer;
+  }
+  .canvas-zoom-btn svg {
+    @apply w-3 h-3;
+  }
+  .canvas-zoom-level {
+    @apply flex items-center justify-center w-11 h-7 text-[11px] font-mono font-semibold text-ink-soft border-l border-r border-line hover:bg-paper-dim hover:text-ink cursor-pointer select-none;
+  }
+  .canvas-recenter-btn {
+    @apply absolute left-3 bottom-3 z-20 flex items-center justify-center w-7 h-7 bg-card border border-line rounded-lg shadow-sm text-ink-soft hover:text-accent hover:border-accent cursor-pointer;
+  }
+  .canvas-recenter-btn svg {
+    @apply w-3.5 h-3.5;
   }
 }
 
