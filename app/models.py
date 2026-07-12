@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import ForeignKey, LargeBinary, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,6 +21,9 @@ class Channel(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     color: Mapped[str] = mapped_column(String(7), default="#8a8a8a")
     channel_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    badge_label: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    logo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    logo_mimetype: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
 class PayoutPeriod(Base):

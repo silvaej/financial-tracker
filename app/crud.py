@@ -20,6 +20,41 @@ CHANNEL_TYPES: tuple[str, ...] = (
     "Cash",
 )
 
+# Quick-add presets for channels common in the Philippines. These are brand
+# colors + initials rendered through the existing badge component, not actual
+# logo artwork -- real logos are trademarked and can't be bundled here. A
+# user can still upload their own image as a channel's logo.
+_BANK = "Traditional Bank"
+_DBANK = "Digital Bank"
+_EWALLET = "E-Wallet"
+
+
+def _preset(group: str, name: str, short: str, color: str, ptype: str) -> dict[str, str]:
+    return {"group": group, "name": name, "short": short, "color": color, "type": ptype}
+
+
+CHANNEL_PRESETS: tuple[dict[str, str], ...] = (
+    _preset("Banks", "BDO", "BDO", "#003DA5", _BANK),
+    _preset("Banks", "BPI", "BPI", "#C8102E", _BANK),
+    _preset("Banks", "Metrobank", "MB", "#001B5E", _BANK),
+    _preset("Banks", "Landbank", "LB", "#00693E", _BANK),
+    _preset("Banks", "PNB", "PNB", "#7A1E1E", _BANK),
+    _preset("Banks", "China Bank", "CB", "#004990", _BANK),
+    _preset("Banks", "RCBC", "RCBC", "#0033A0", _BANK),
+    _preset("Banks", "Security Bank", "SB", "#F47920", _BANK),
+    _preset("Banks", "EastWest", "EW", "#ED1C24", _BANK),
+    _preset("Banks", "UnionBank", "UB", "#F7941E", _BANK),
+    _preset("Banks", "PSBank", "PS", "#FDB913", _BANK),
+    _preset("Digital banks & e-wallets", "GCash", "GC", "#007DFE", _EWALLET),
+    _preset("Digital banks & e-wallets", "Maya", "M", "#00D66F", _DBANK),
+    _preset("Digital banks & e-wallets", "GrabPay", "GP", "#00B14F", _EWALLET),
+    _preset("Digital banks & e-wallets", "ShopeePay", "SP", "#EE4D2D", _EWALLET),
+    _preset("Digital banks & e-wallets", "Coins.ph", "CO", "#1E5AA8", _EWALLET),
+    _preset("Digital banks & e-wallets", "SeaBank", "SB", "#EE7A0C", _DBANK),
+    _preset("Digital banks & e-wallets", "Tonik", "TN", "#7A2EBE", _DBANK),
+    _preset("Digital banks & e-wallets", "CIMB Bank PH", "CIMB", "#E4002B", _DBANK),
+)
+
 
 class ChannelInUseError(Exception):
     """Raised when deleting a channel that is still referenced elsewhere."""
@@ -72,6 +107,7 @@ def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int) -> mo
         name=data.name,
         color=data.color,
         channel_type=data.channel_type,
+        badge_label=data.badge_label,
         user_id=user_id,
     )
     db.add(channel)
@@ -90,6 +126,30 @@ def update_channel(
         channel.channel_type = data.channel_type
         db.commit()
         db.refresh(channel)
+    return channel
+
+
+def get_channel_logo(db: Session, channel_id: int, user_id: int) -> models.Channel | None:
+    return _owned(db, models.Channel, channel_id, user_id)
+
+
+def set_channel_logo(
+    db: Session, channel_id: int, data: bytes, mimetype: str, user_id: int
+) -> models.Channel | None:
+    channel = _owned(db, models.Channel, channel_id, user_id)
+    if channel is not None:
+        channel.logo_data = data
+        channel.logo_mimetype = mimetype
+        db.commit()
+    return channel
+
+
+def clear_channel_logo(db: Session, channel_id: int, user_id: int) -> models.Channel | None:
+    channel = _owned(db, models.Channel, channel_id, user_id)
+    if channel is not None:
+        channel.logo_data = None
+        channel.logo_mimetype = None
+        db.commit()
     return channel
 
 
@@ -923,10 +983,18 @@ def overview_page_data(db: Session, user_id: int) -> dict:
     }
 
 
+def channel_presets_by_group() -> dict[str, list[dict[str, str]]]:
+    groups: dict[str, list[dict[str, str]]] = {}
+    for preset in CHANNEL_PRESETS:
+        groups.setdefault(preset["group"], []).append(preset)
+    return groups
+
+
 def expenses_page_data(db: Session, user_id: int) -> dict:
     return {
         "channels": list_channels(db, user_id),
         "channel_types": CHANNEL_TYPES,
+        "channel_preset_groups": channel_presets_by_group(),
         "payout_periods": list_payout_periods(db, user_id),
         "expenses": list_expenses(db, user_id),
     }

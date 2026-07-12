@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -10,6 +10,9 @@ from app.database import get_db
 router = APIRouter(prefix="/channels", tags=["channels"])
 templates = Jinja2Templates(directory="app/templates")
 
+ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+MAX_LOGO_BYTES = 300 * 1024
+
 
 def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
     return templates.TemplateResponse(
@@ -17,43 +20,99 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
     )
 
 
+async def _read_logo(logo: UploadFile | None) -> tuple[bytes, str] | None:
+    if logo is None or not logo.filename:
+        return None
+    if logo.content_type not in ALLOWED_LOGO_TYPES:
+        raise HTTPException(
+            status_code=400, detail="Logo must be a PNG, JPEG, WEBP, or GIF image."
+        )
+    data = await logo.read()
+    if not data:
+        return None
+    if len(data) > MAX_LOGO_BYTES:
+        raise HTTPException(status_code=400, detail="Logo image must be under 300KB.")
+    return data, logo.content_type
+
+
 @router.post("")
-def create_channel(
+async def create_channel(
     request: Request,
     name: str = Form(...),
     color: str = Form("#8a8a8a"),
     channel_type: str = Form(""),
+    badge_label: str = Form(""),
+    logo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
+    logo_payload = await _read_logo(logo)
     try:
-        crud.create_channel(
+        channel = crud.create_channel(
             db,
-            schemas.ChannelCreate(name=name, color=color, channel_type=channel_type or None),
+            schemas.ChannelCreate(
+                name=name,
+                color=color,
+                channel_type=channel_type or None,
+                badge_label=badge_label[:4] or None,
+            ),
             current_user.id,
         )
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if logo_payload is not None:
+        crud.set_channel_logo(db, channel.id, logo_payload[0], logo_payload[1], current_user.id)
     return _render_page(request, db, current_user.id)
 
 
 @router.patch("/{channel_id}")
-def update_channel(
+async def update_channel(
     request: Request,
     channel_id: int,
     name: str = Form(...),
     color: str = Form(...),
     channel_type: str = Form(""),
+    logo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
+    logo_payload = await _read_logo(logo)
     crud.update_channel(
         db,
         channel_id,
         schemas.ChannelUpdate(name=name, color=color, channel_type=channel_type or None),
         current_user.id,
     )
+    if logo_payload is not None:
+        crud.set_channel_logo(db, channel_id, logo_payload[0], logo_payload[1], current_user.id)
     return _render_page(request, db, current_user.id)
+
+
+@router.delete("/{channel_id}/logo")
+def delete_channel_logo(
+    request: Request,
+    channel_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.clear_channel_logo(db, channel_id, current_user.id)
+    return _render_page(request, db, current_user.id)
+
+
+@router.get("/{channel_id}/logo")
+def get_channel_logo(
+    channel_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> Response:
+    channel = crud.get_channel_logo(db, channel_id, current_user.id)
+    if channel is None or channel.logo_data is None or channel.logo_mimetype is None:
+        raise HTTPException(status_code=404, detail="No logo for this channel.")
+    return Response(
+        content=channel.logo_data,
+        media_type=channel.logo_mimetype,
+        headers={"Cache-Control": "private, max-age=300"},
+    )
 
 
 @router.post("/{channel_id}/placement")
