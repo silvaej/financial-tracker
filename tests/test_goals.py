@@ -5,26 +5,50 @@ from fastapi.testclient import TestClient
 from app import crud, models
 
 
-def test_create_goal_appears_on_page(client: TestClient) -> None:
+def _create_channel(client: TestClient, name: str) -> str:
+    create = client.post("/channels", data={"name": name, "color": "#8a8a8a"})
+    match = re.search(r'/channels/(\d+)"', create.text)
+    assert match is not None
+    return match.group(1)
+
+
+def _create_payout_period(client: TestClient, label: str) -> str:
+    create = client.post("/payout-periods", data={"label": label, "income_amount": "0"})
+    match = re.search(r"/payout-periods/(\d+)", create.text)
+    assert match is not None
+    return match.group(1)
+
+
+def _contribute(
+    client: TestClient, goal_id: str, channel_id: str, payout_period_id: str, amount: str
+) -> None:
     response = client.post(
-        "/goals", data={"name": "CAR DP", "target": "100000", "allocated": "0", "months": "6"}
+        "/goal-contributions",
+        data={
+            "goal_id": goal_id,
+            "channel_id": channel_id,
+            "payout_period_id": payout_period_id,
+            "amount": amount,
+        },
     )
+    assert response.status_code == 200
+
+
+def test_create_goal_appears_on_page(client: TestClient) -> None:
+    response = client.post("/goals", data={"name": "CAR DP", "target": "100000", "months": "6"})
     assert response.status_code == 200
     assert "CAR DP" in response.text
 
 
 def test_update_goal_renames_and_changes_amounts(client: TestClient) -> None:
-    create = client.post(
-        "/goals",
-        data={"name": "Old Name", "target": "1000", "allocated": "0", "months": "1"},
-    )
+    create = client.post("/goals", data={"name": "Old Name", "target": "1000", "months": "1"})
     match = re.search(r'/goals/(\d+)"', create.text)
     assert match is not None
     goal_id = match.group(1)
 
     response = client.patch(
         f"/goals/{goal_id}",
-        data={"name": "New Name", "target": "2000", "allocated": "500", "months": "4"},
+        data={"name": "New Name", "target": "2000", "months": "4"},
     )
     assert response.status_code == 200
     assert "New Name" in response.text
@@ -32,9 +56,7 @@ def test_update_goal_renames_and_changes_amounts(client: TestClient) -> None:
 
 
 def test_delete_goal(client: TestClient) -> None:
-    create = client.post(
-        "/goals", data={"name": "Temp Goal", "target": "1000", "allocated": "0", "months": "1"}
-    )
+    create = client.post("/goals", data={"name": "Temp Goal", "target": "1000", "months": "1"})
     match = re.search(r'/goals/(\d+)"', create.text)
     assert match is not None
     goal_id = match.group(1)
@@ -44,6 +66,60 @@ def test_delete_goal(client: TestClient) -> None:
     assert "Temp Goal" not in response.text
 
 
+def test_goal_starts_unplaced_and_can_be_placed_then_repositioned(client: TestClient) -> None:
+    create = client.post("/goals", data={"name": "Trip Fund", "target": "1000", "months": "1"})
+    match = re.search(r'/goals/(\d+)"', create.text)
+    assert match is not None
+    goal_id = match.group(1)
+    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
+    assert period_match is not None
+    period_id = period_match.group(1)
+
+    before = client.get("/cashflow")
+    assert f'data-position-url="/goals/{goal_id}/placement"' not in before.text
+    assert "Trip Fund" in before.text
+
+    place = client.post(
+        f"/goals/{goal_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+    )
+    assert place.status_code == 200
+    assert 'data-x="10.0"' in place.text
+    assert 'data-y="20.0"' in place.text
+
+    reposition = client.patch(
+        f"/goals/{goal_id}/placement",
+        json={"payout_period_id": int(period_id), "x": 55.0, "y": 66.0},
+    )
+    assert reposition.status_code == 204
+
+    page = client.get("/cashflow")
+    assert 'data-x="55.0"' in page.text
+    assert 'data-y="66.0"' in page.text
+
+
+def test_remove_goal_placement_returns_it_to_the_toolbox(client: TestClient) -> None:
+    create = client.post("/goals", data={"name": "Trip Fund", "target": "1000", "months": "1"})
+    match = re.search(r'/goals/(\d+)"', create.text)
+    assert match is not None
+    goal_id = match.group(1)
+    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
+    assert period_match is not None
+    period_id = period_match.group(1)
+
+    client.post(
+        f"/goals/{goal_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+    )
+
+    removed = client.delete(f"/goals/{goal_id}/placement?payout_period_id={period_id}")
+    assert removed.status_code == 200
+    assert f'data-position-url="/goals/{goal_id}/placement"' not in removed.text
+    assert "Trip Fund" in removed.text
+
+
 def test_goals_empty_state(client: TestClient) -> None:
     response = client.get("/goals")
     assert response.status_code == 200
@@ -51,19 +127,41 @@ def test_goals_empty_state(client: TestClient) -> None:
 
 
 def test_goal_progress_percentage_reflects_allocated_over_target(client: TestClient) -> None:
-    response = client.post(
+    channel_id = _create_channel(client, "Savings")
+    period_id = _create_payout_period(client, "15th")
+    goal = client.post(
         "/goals",
-        data={"name": "Emergency Fund", "target": "1000", "allocated": "250", "months": "12"},
+        data={
+            "name": "Emergency Fund",
+            "target": "1000",
+            "months": "12",
+            "channel_id": channel_id,
+        },
     )
-    assert response.status_code == 200
+    match = re.search(r'/goals/(\d+)"', goal.text)
+    assert match is not None
+    goal_id = match.group(1)
+
+    _contribute(client, goal_id, channel_id, period_id, "250")
+
+    response = client.get("/goals")
     assert "25%" in response.text
 
 
 def test_goal_progress_caps_at_100_when_overallocated(client: TestClient) -> None:
-    response = client.post(
-        "/goals", data={"name": "Overfunded", "target": "1000", "allocated": "1500", "months": "1"}
+    channel_id = _create_channel(client, "Savings")
+    period_id = _create_payout_period(client, "15th")
+    goal = client.post(
+        "/goals",
+        data={"name": "Overfunded", "target": "1000", "months": "1", "channel_id": channel_id},
     )
-    assert response.status_code == 200
+    match = re.search(r'/goals/(\d+)"', goal.text)
+    assert match is not None
+    goal_id = match.group(1)
+
+    _contribute(client, goal_id, channel_id, period_id, "1500")
+
+    response = client.get("/goals")
     assert "100%" in response.text
 
 
@@ -115,7 +213,6 @@ def test_create_goal_with_channel_shows_badge(client: TestClient) -> None:
         data={
             "name": "Trip Fund",
             "target": "1000",
-            "allocated": "0",
             "months": "1",
             "channel_id": channel_id,
         },
@@ -131,7 +228,6 @@ def test_goal_round_up_toggle_reflected_on_page(client: TestClient) -> None:
         data={
             "name": "Rounded Goal",
             "target": "950",
-            "allocated": "0",
             "months": "1",
             "round_up_to_hundred": "on",
         },

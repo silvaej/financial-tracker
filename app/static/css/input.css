@@ -157,6 +157,264 @@
   .warn-red {
     @apply bg-rust-soft text-rust;
   }
+  .warn-banner {
+    @apply flex flex-wrap gap-2 mb-3;
+  }
+
+  .toolbox {
+    @apply flex flex-wrap items-center gap-2 mb-3 p-2.5 rounded-lg border border-dashed border-line bg-paper-dim/40;
+  }
+  .toolbox-item {
+    @apply flex items-center gap-1.5 bg-card rounded-full pl-1.5 pr-3 py-1 shadow-sm cursor-grab select-none;
+  }
+  .toolbox-item:active {
+    @apply cursor-grabbing;
+  }
+  .toolbox-item-goal {
+    @apply border border-gold pl-3;
+  }
+
+  .canvas {
+    @apply relative w-full min-h-[520px] rounded-lg border border-line overflow-hidden touch-none;
+    background-color: var(--color-paper-dim);
+    background-image:
+      linear-gradient(rgba(28, 43, 43, 0.055) 1px, transparent 1px),
+      linear-gradient(
+        90deg,
+        transparent 63px,
+        rgba(168, 63, 40, 0.14) 63px,
+        rgba(168, 63, 40, 0.14) 64px,
+        transparent 64px
+      );
+    background-size:
+      100% 27px,
+      100% 100%;
+    cursor: grab;
+  }
+  .canvas.canvas-panning {
+    cursor: grabbing;
+  }
+  .canvas-inner {
+    @apply absolute inset-0;
+    transform-origin: 0 0;
+  }
+  .canvas-node {
+    @apply absolute bg-card rounded-lg px-4 py-3.5 shadow-sm w-40 cursor-grab select-none z-10;
+    border-left: 4px solid var(--rail, var(--color-accent));
+  }
+  .canvas-node-remove {
+    @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-ink text-white text-[10px] leading-none cursor-pointer z-20 hover:bg-rust;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease;
+  }
+  .canvas-node:hover .canvas-node-remove,
+  .canvas-node-remove:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @media (hover: none) {
+    .canvas-node-remove {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+  .canvas-node:active {
+    @apply cursor-grabbing;
+  }
+  .canvas-node-connect-hover {
+    cursor: crosshair;
+  }
+  .canvas-node-goal {
+    border-left-style: dashed;
+    border-left-color: var(--color-gold);
+  }
+  /* The base .canvas-node rule paints its own card look directly on the
+     element (background/shadow/padding/rail) -- the expense variant needs
+     that stripped off so the receipt-card visual can live on an inner
+     wrapper instead, otherwise its clip-path would also clip the hover
+     popup (a sibling, positioned outside the card's own box). */
+  .canvas-node-expense {
+    @apply w-32 bg-transparent shadow-none p-0 cursor-grab;
+    border-left: none;
+  }
+  .canvas-node-expense:active {
+    @apply cursor-grabbing;
+  }
+  .canvas-node-expense-card {
+    @apply bg-card rounded-lg px-3 pt-2.5 shadow-sm;
+    border-left: 4px solid var(--color-rust);
+    padding-bottom: 14px;
+    opacity: 0.85;
+    transition: opacity 0.15s ease;
+    /* Torn-receipt bottom edge -- visually distinct from the plain
+       rounded-rectangle channel/goal cards, and on-theme for "money out." */
+    clip-path: polygon(
+      0 0,
+      100% 0,
+      100% 82%,
+      92% 100%,
+      84% 82%,
+      76% 100%,
+      68% 82%,
+      60% 100%,
+      52% 82%,
+      44% 100%,
+      36% 82%,
+      28% 100%,
+      20% 82%,
+      12% 100%,
+      4% 82%,
+      0 92%
+    );
+  }
+  .canvas-node-expense:hover .canvas-node-expense-card {
+    opacity: 1;
+  }
+  .canvas-expense-detail {
+    @apply absolute left-1/2 bottom-full mb-2.5 w-52 bg-card rounded-lg shadow-lg px-3 py-2.5 z-30;
+    transform: translateX(-50%) translateY(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease;
+  }
+  .canvas-node-expense:hover .canvas-expense-detail {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .canvas-expense-detail::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--color-card);
+  }
+  .canvas-expense-detail-title {
+    @apply text-[10px] uppercase tracking-wide text-ink-soft font-semibold mb-1.5 pb-1.5 border-b border-line;
+  }
+  .canvas-expense-detail ul {
+    @apply flex flex-col gap-1 max-h-40 overflow-y-auto;
+  }
+  .canvas-expense-detail li {
+    @apply flex items-center justify-between gap-3 text-[11px] text-ink;
+  }
+  .canvas-expense-detail li .num {
+    @apply font-mono;
+  }
+  .canvas-node-warn {
+    box-shadow: 0 0 0 4px var(--color-rust-soft);
+  }
+  .canvas-node-warn-badge {
+    @apply absolute -left-1.5 -top-1.5 w-4 h-4 items-center justify-center rounded-full bg-rust text-white z-20;
+    display: none;
+  }
+  .canvas-node-warn .canvas-node-warn-badge {
+    display: flex;
+  }
+  .canvas-node-warn-badge svg {
+    @apply w-2.5 h-2.5;
+  }
+  .canvas-node-drop-target {
+    @apply ring-2 ring-accent ring-offset-2 ring-offset-paper-dim;
+  }
+  .canvas-node-unconnected {
+    outline: 2px dashed var(--color-rust);
+    outline-offset: 2px;
+  }
+  .canvas-node-balance-pending {
+    @apply text-[11px] italic text-ink-soft;
+  }
+  .canvas-node-progress {
+    @apply mt-1.5;
+  }
+  .canvas-node-progress .bar-track {
+    @apply h-1;
+  }
+  .canvas-edges {
+    @apply absolute inset-0 w-full h-full pointer-events-none z-0;
+    /* SVG defaults to overflow:hidden -- without this, edges to nodes
+       placed beyond this element's own (unscaled) box get clipped even
+       though the node divs themselves aren't. */
+    overflow: visible;
+  }
+  .canvas-edge-line {
+    @apply stroke-accent;
+    stroke-width: 2;
+    stroke-dasharray: 1 6;
+    stroke-linecap: round;
+    animation: canvas-edge-flow 0.7s linear infinite;
+  }
+  @keyframes canvas-edge-flow {
+    to {
+      stroke-dashoffset: -14;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .canvas-edge-line {
+      animation: none;
+    }
+  }
+  .canvas-edge-line[data-edge-id^="goal-contribution-"] {
+    @apply stroke-gold;
+  }
+  .canvas-edge-line[data-edge-id^="expense-"] {
+    @apply stroke-rust;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .canvas-edge-label {
+    @apply absolute flex items-center gap-0.5 bg-card/80 rounded-full px-1.5 py-px text-[9.5px] font-mono shadow-sm z-10 opacity-80 hover:opacity-100 hover:bg-card transition-opacity;
+    transform: translate(-50%, -50%);
+  }
+  .canvas-edge-label .icon-btn {
+    @apply p-0.5;
+  }
+  .canvas-edge-label .field {
+    @apply w-14 py-0 text-[10px];
+  }
+  .canvas-save-bar {
+    @apply flex items-center justify-between gap-3 mt-3;
+  }
+  .canvas-save-status {
+    @apply text-xs text-ink-soft;
+  }
+  .canvas-save-status-dirty {
+    @apply text-gold font-semibold;
+  }
+  .add-btn:disabled {
+    @apply opacity-40 cursor-not-allowed hover:brightness-100;
+  }
+  .btn-secondary:disabled {
+    @apply opacity-40 cursor-not-allowed hover:bg-transparent;
+  }
+  .canvas-save-bar .add-btn,
+  .canvas-save-bar .btn-secondary {
+    @apply mt-0;
+  }
+
+  .canvas-zoom-control {
+    @apply absolute right-3 bottom-3 z-20 flex items-center bg-card border border-line rounded-lg shadow-sm overflow-hidden;
+  }
+  .canvas-zoom-btn {
+    @apply flex items-center justify-center w-7 h-7 text-ink-soft hover:bg-paper-dim hover:text-ink cursor-pointer;
+  }
+  .canvas-zoom-btn svg {
+    @apply w-3 h-3;
+  }
+  .canvas-zoom-level {
+    @apply flex items-center justify-center w-11 h-7 text-[11px] font-mono font-semibold text-ink-soft border-l border-r border-line hover:bg-paper-dim hover:text-ink cursor-pointer select-none;
+  }
+  .canvas-recenter-btn {
+    @apply absolute left-3 bottom-3 z-20 flex items-center justify-center w-7 h-7 bg-card border border-line rounded-lg shadow-sm text-ink-soft hover:text-accent hover:border-accent cursor-pointer;
+  }
+  .canvas-recenter-btn svg {
+    @apply w-3.5 h-3.5;
+  }
 }
 
 @media (max-width: 640px) {

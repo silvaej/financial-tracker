@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -36,7 +36,6 @@ def create_goal(
     request: Request,
     name: str = Form(...),
     target: float = Form(...),
-    allocated: float = Form(0),
     months: int = Form(1),
     channel_id: str = Form(""),
     round_up_to_hundred: bool = Form(False),
@@ -49,7 +48,6 @@ def create_goal(
             schemas.GoalCreate(
                 name=name,
                 target=target,
-                allocated=allocated,
                 months=months,
                 channel_id=_parse_channel_id(channel_id),
                 round_up_to_hundred=round_up_to_hundred,
@@ -67,7 +65,6 @@ def update_goal(
     goal_id: int,
     name: str = Form(...),
     target: float = Form(...),
-    allocated: float = Form(...),
     months: int = Form(...),
     channel_id: str = Form(""),
     round_up_to_hundred: bool = Form(False),
@@ -81,7 +78,6 @@ def update_goal(
             schemas.GoalUpdate(
                 name=name,
                 target=target,
-                allocated=allocated,
                 months=months,
                 channel_id=_parse_channel_id(channel_id),
                 round_up_to_hundred=round_up_to_hundred,
@@ -91,6 +87,50 @@ def update_goal(
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _render_page(request, db, current_user.id)
+
+
+@router.post("/{goal_id}/placement")
+def create_goal_placement(
+    request: Request,
+    goal_id: int,
+    payout_period_id: int = Form(...),
+    x: float = Form(...),
+    y: float = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    try:
+        crud.place_goal(db, payout_period_id, goal_id, x, y, current_user.id)
+    except crud.OwnershipError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return templates.TemplateResponse(
+        request, "partials/cashflow_page.html", crud.cashflow_page_data(db, current_user.id)
+    )
+
+
+@router.patch("/{goal_id}/placement")
+def update_goal_placement(
+    goal_id: int,
+    data: schemas.PlacementUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> Response:
+    crud.place_goal(db, data.payout_period_id, goal_id, data.x, data.y, current_user.id)
+    return Response(status_code=204)
+
+
+@router.delete("/{goal_id}/placement")
+def delete_goal_placement(
+    request: Request,
+    goal_id: int,
+    payout_period_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.remove_goal_placement(db, payout_period_id, goal_id, current_user.id)
+    return templates.TemplateResponse(
+        request, "partials/cashflow_page.html", crud.cashflow_page_data(db, current_user.id)
+    )
 
 
 @router.delete("/{goal_id}")

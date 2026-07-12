@@ -64,55 +64,55 @@ def test_delete_channel_in_use_by_payout_period_is_rejected(client: TestClient) 
     assert "still used" in response.json()["detail"]
 
 
-def test_create_channel_with_funding_source(client: TestClient) -> None:
-    source_id = _create_channel(client, "BPI")
+def _create_payout_period(client: TestClient, channel_id: str) -> str:
     response = client.post(
-        "/channels",
-        data={
-            "name": "BPI Credit Card",
-            "color": "#8a8a8a",
-            "funding_source_channel_id": source_id,
-        },
+        "/payout-periods",
+        data={"label": "15th", "income_amount": "0", "receiving_channel_id": channel_id},
     )
-    assert response.status_code == 200
-    assert "BPI Credit Card" in response.text
+    match = re.search(r"/payout-periods/(\d+)", response.text)
+    assert match is not None
+    return match.group(1)
 
 
-def test_update_channel_funding_source(client: TestClient) -> None:
-    source_id = _create_channel(client, "BPI")
-    target_id = _create_channel(client, "Maya Black")
+def test_channel_starts_unplaced_and_can_be_placed_then_repositioned(
+    client: TestClient,
+) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, channel_id)
 
-    response = client.patch(
-        f"/channels/{target_id}",
-        data={"name": "Maya Black", "color": "#8a8a8a", "funding_source_channel_id": source_id},
+    # Not placed yet -> no canvas node, just a toolbox entry.
+    before = client.get("/cashflow")
+    assert f'data-position-url="/channels/{channel_id}/placement"' not in before.text
+    assert "BPI" in before.text
+
+    place = client.post(
+        f"/channels/{channel_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
     )
-    assert response.status_code == 200
-    assert "BPI" in response.text
+    assert place.status_code == 200
+    assert 'data-x="10.0"' in place.text
+    assert 'data-y="20.0"' in place.text
 
-
-def test_update_channel_self_funding_source_is_rejected(client: TestClient) -> None:
-    channel_id = _create_channel(client, "Solo Channel")
-
-    response = client.patch(
-        f"/channels/{channel_id}",
-        data={
-            "name": "Solo Channel",
-            "color": "#8a8a8a",
-            "funding_source_channel_id": channel_id,
-        },
+    reposition = client.patch(
+        f"/channels/{channel_id}/placement",
+        json={"payout_period_id": int(period_id), "x": 123.5, "y": 45.0},
     )
-    assert response.status_code == 400
-    assert "fund itself" in response.json()["detail"]
+    assert reposition.status_code == 204
+
+    page = client.get("/cashflow")
+    assert 'data-x="123.5"' in page.text
+    assert 'data-y="45.0"' in page.text
 
 
-def test_delete_channel_used_as_funding_source_is_rejected(client: TestClient) -> None:
-    source_id = _create_channel(client, "BPI")
-    target_id = _create_channel(client, "Maya Black")
-    client.patch(
-        f"/channels/{target_id}",
-        data={"name": "Maya Black", "color": "#8a8a8a", "funding_source_channel_id": source_id},
+def test_remove_channel_placement_returns_it_to_the_toolbox(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, channel_id)
+    client.post(
+        f"/channels/{channel_id}/placement",
+        data={"payout_period_id": period_id, "x": "10", "y": "20"},
     )
 
-    response = client.delete(f"/channels/{source_id}")
-    assert response.status_code == 409
-    assert "still used" in response.json()["detail"]
+    removed = client.delete(f"/channels/{channel_id}/placement?payout_period_id={period_id}")
+    assert removed.status_code == 200
+    assert f'data-position-url="/channels/{channel_id}/placement"' not in removed.text
+    assert "BPI" in removed.text

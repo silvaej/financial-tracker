@@ -1,7 +1,8 @@
+import json
 import math
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -22,10 +23,6 @@ CHANNEL_TYPES: tuple[str, ...] = (
 
 class ChannelInUseError(Exception):
     """Raised when deleting a channel that is still referenced elsewhere."""
-
-
-class InvalidFundingSourceError(Exception):
-    """Raised when a channel's funding source would create a self-reference."""
 
 
 class OwnershipError(Exception):
@@ -71,12 +68,10 @@ def list_channels(db: Session, user_id: int) -> list[models.Channel]:
 
 
 def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int) -> models.Channel:
-    _require_owned(db, models.Channel, data.funding_source_channel_id, user_id, "Funding source")
     channel = models.Channel(
         name=data.name,
         color=data.color,
         channel_type=data.channel_type,
-        funding_source_channel_id=data.funding_source_channel_id,
         user_id=user_id,
     )
     db.add(channel)
@@ -88,18 +83,64 @@ def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int) -> mo
 def update_channel(
     db: Session, channel_id: int, data: schemas.ChannelUpdate, user_id: int
 ) -> models.Channel | None:
-    if data.funding_source_channel_id == channel_id:
-        raise InvalidFundingSourceError("A channel can't fund itself.")
-    _require_owned(db, models.Channel, data.funding_source_channel_id, user_id, "Funding source")
     channel = _owned(db, models.Channel, channel_id, user_id)
     if channel is not None:
         channel.name = data.name
         channel.color = data.color
         channel.channel_type = data.channel_type
-        channel.funding_source_channel_id = data.funding_source_channel_id
         db.commit()
         db.refresh(channel)
     return channel
+
+
+def list_channel_placements(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.ChannelPlacement]:
+    stmt = select(models.ChannelPlacement).where(
+        models.ChannelPlacement.payout_period_id == payout_period_id,
+        models.ChannelPlacement.user_id == user_id,
+    )
+    return list(db.scalars(stmt))
+
+
+def place_channel(
+    db: Session, payout_period_id: int, channel_id: int, x: float, y: float, user_id: int
+) -> models.ChannelPlacement:
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    _require_owned(db, models.Channel, channel_id, user_id, "Channel")
+    placement = db.scalar(
+        select(models.ChannelPlacement).where(
+            models.ChannelPlacement.payout_period_id == payout_period_id,
+            models.ChannelPlacement.channel_id == channel_id,
+            models.ChannelPlacement.user_id == user_id,
+        )
+    )
+    if placement is None:
+        placement = models.ChannelPlacement(
+            payout_period_id=payout_period_id, channel_id=channel_id, x=x, y=y, user_id=user_id
+        )
+        db.add(placement)
+    else:
+        placement.x = x
+        placement.y = y
+    db.commit()
+    db.refresh(placement)
+    return placement
+
+
+def remove_channel_placement(
+    db: Session, payout_period_id: int, channel_id: int, user_id: int
+) -> None:
+    placement = db.scalar(
+        select(models.ChannelPlacement).where(
+            models.ChannelPlacement.payout_period_id == payout_period_id,
+            models.ChannelPlacement.channel_id == channel_id,
+            models.ChannelPlacement.user_id == user_id,
+        )
+    )
+    if placement is not None:
+        db.delete(placement)
+        db.commit()
 
 
 def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
@@ -121,17 +162,18 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
             ),
         )
         .first()
-        or db.query(models.Channel)
-        .filter_by(funding_source_channel_id=channel_id, user_id=user_id)
+        or db.query(models.GoalContribution)
+        .filter_by(channel_id=channel_id, user_id=user_id)
         .first()
     )
     if in_use is not None:
         raise ChannelInUseError(
             "This channel is still used by a payout period, expense, transfer, "
-            "or another channel's funding source, and can't be deleted until those "
-            "are removed or reassigned."
+            "or goal contribution, and can't be deleted until those are removed "
+            "or reassigned."
         )
 
+    db.query(models.ChannelPlacement).filter_by(channel_id=channel_id, user_id=user_id).delete()
     db.delete(channel)
     db.commit()
 
@@ -261,103 +303,380 @@ def delete_transfer(db: Session, transfer_id: int, user_id: int) -> None:
         db.commit()
 
 
+# --- Goal contributions -------------------------------------------------------
+
+
+def list_goal_contributions(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.GoalContribution]:
+    stmt = select(models.GoalContribution).where(
+        models.GoalContribution.payout_period_id == payout_period_id,
+        models.GoalContribution.user_id == user_id,
+    )
+    return list(db.scalars(stmt))
+
+
+def _recompute_goal_allocated(db: Session, goal_id: int, user_id: int) -> None:
+    total = (
+        db.scalar(
+            select(func.sum(models.GoalContribution.amount)).where(
+                models.GoalContribution.goal_id == goal_id,
+                models.GoalContribution.user_id == user_id,
+            )
+        )
+        or 0
+    )
+    goal = _owned(db, models.Goal, goal_id, user_id)
+    if goal is not None:
+        goal.allocated = total
+        db.commit()
+
+
+def create_goal_contribution(
+    db: Session, data: schemas.GoalContributionCreate, user_id: int
+) -> models.GoalContribution:
+    _require_owned(db, models.Goal, data.goal_id, user_id, "Goal")
+    _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
+    _require_owned(db, models.PayoutPeriod, data.payout_period_id, user_id, "Payout period")
+    contribution = models.GoalContribution(**data.model_dump(), user_id=user_id)
+    db.add(contribution)
+    db.commit()
+    db.refresh(contribution)
+    _recompute_goal_allocated(db, data.goal_id, user_id)
+    return contribution
+
+
+def update_goal_contribution(
+    db: Session, contribution_id: int, data: schemas.GoalContributionUpdate, user_id: int
+) -> models.GoalContribution | None:
+    contribution = _owned(db, models.GoalContribution, contribution_id, user_id)
+    if contribution is not None:
+        contribution.amount = data.amount
+        db.commit()
+        db.refresh(contribution)
+        _recompute_goal_allocated(db, contribution.goal_id, user_id)
+    return contribution
+
+
+def delete_goal_contribution(db: Session, contribution_id: int, user_id: int) -> None:
+    contribution = _owned(db, models.GoalContribution, contribution_id, user_id)
+    if contribution is not None:
+        goal_id = contribution.goal_id
+        db.delete(contribution)
+        db.commit()
+        _recompute_goal_allocated(db, goal_id, user_id)
+
+
+_LAYOUT_COLUMN_WIDTH = 320.0
+_LAYOUT_ROW_HEIGHT = 180.0
+_LAYOUT_MARGIN = 36.0
+
+
+def _layered_canvas_positions(
+    channel_ids: list[int],
+    goal_ids: list[int],
+    transfers: list[schemas.CanvasTransferIn],
+    goal_contributions: list[schemas.CanvasGoalContributionIn],
+) -> tuple[dict[int, tuple[float, float]], dict[int, tuple[float, float]]]:
+    """Arrange placed nodes into neat left-to-right columns by money-flow depth:
+    channels with no incoming transfer start at column 0, and each node sits one
+    column past its furthest predecessor, with goals trailing their funding
+    channel. Any cycle (a transfer loop between channels) is broken by treating
+    the second-visited node as depth 0 for that path, rather than recursing
+    forever. Within each column, nodes are ordered by a barycenter heuristic
+    (average position of their connected neighbors in the adjacent column) so
+    edges routed straight across columns don't needlessly cross one another --
+    exact crossing-free layout isn't always possible, but this avoids the
+    avoidable cases."""
+    NodeKey = tuple[str, int]
+    nodes: set[NodeKey] = {("channel", c) for c in channel_ids} | {("goal", g) for g in goal_ids}
+
+    incoming: dict[NodeKey, list[NodeKey]] = {node: [] for node in nodes}
+    outgoing: dict[NodeKey, list[NodeKey]] = {node: [] for node in nodes}
+    for transfer in transfers:
+        src, dst = ("channel", transfer.from_channel_id), ("channel", transfer.to_channel_id)
+        if src in incoming and dst in incoming:
+            incoming[dst].append(src)
+            outgoing[src].append(dst)
+    for contribution in goal_contributions:
+        src, dst = ("channel", contribution.channel_id), ("goal", contribution.goal_id)
+        if src in incoming and dst in incoming:
+            incoming[dst].append(src)
+            outgoing[src].append(dst)
+
+    depth: dict[NodeKey, int] = {}
+
+    def resolve(node: NodeKey, path: frozenset[NodeKey]) -> int:
+        if node in depth:
+            return depth[node]
+        if node in path:
+            return 0
+        preds = incoming[node]
+        result = 0 if not preds else 1 + max(resolve(p, path | {node}) for p in preds)
+        depth[node] = result
+        return result
+
+    for node in sorted(nodes):
+        resolve(node, frozenset())
+
+    columns: dict[int, list[NodeKey]] = {}
+    for node, col in depth.items():
+        columns.setdefault(col, []).append(node)
+    for col in columns:
+        columns[col].sort()
+
+    def barycenter(
+        node: NodeKey,
+        linked_nodes: list[NodeKey],
+        ref_index: dict[NodeKey, int],
+        fallback: dict[NodeKey, int],
+    ) -> float:
+        linked = [n for n in linked_nodes if n in ref_index]
+        if not linked:
+            return float(fallback[node])
+        return sum(ref_index[n] for n in linked) / len(linked)
+
+    def reorder_pass(
+        col_order: list[int], neighbors: dict[NodeKey, list[NodeKey]], reference_offset: int
+    ) -> None:
+        for col in col_order:
+            ref_col = col + reference_offset
+            if ref_col not in columns:
+                continue
+            ref_index = {node: i for i, node in enumerate(columns[ref_col])}
+            fallback = {node: i for i, node in enumerate(columns[col])}
+            columns[col] = sorted(
+                columns[col],
+                key=lambda n: (barycenter(n, neighbors[n], ref_index, fallback), n),
+            )
+
+    ascending = sorted(columns)
+    for _ in range(2):
+        reorder_pass(ascending, incoming, -1)
+        reorder_pass(list(reversed(ascending)), outgoing, 1)
+
+    channel_positions: dict[int, tuple[float, float]] = {}
+    goal_positions: dict[int, tuple[float, float]] = {}
+    for col in sorted(columns):
+        x = _LAYOUT_MARGIN + col * _LAYOUT_COLUMN_WIDTH
+        for row, (kind, node_id) in enumerate(columns[col]):
+            y = _LAYOUT_MARGIN + row * _LAYOUT_ROW_HEIGHT
+            if kind == "channel":
+                channel_positions[node_id] = (x, y)
+            else:
+                goal_positions[node_id] = (x, y)
+    return channel_positions, goal_positions
+
+
+def save_canvas(
+    db: Session, payout_period_id: int, data: schemas.CanvasSaveIn, user_id: int
+) -> str | None:
+    """Replace a payout period's placements/transfers/goal contributions to match
+    a client's staged canvas edits, in one transaction. Returns an error message
+    (making no changes) if any placed node has no connection, else None."""
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    for channel_placement in data.channel_placements:
+        _require_owned(db, models.Channel, channel_placement.channel_id, user_id, "Channel")
+    for goal_placement in data.goal_placements:
+        _require_owned(db, models.Goal, goal_placement.goal_id, user_id, "Goal")
+    for transfer in data.transfers:
+        _require_owned(db, models.Channel, transfer.from_channel_id, user_id, "From channel")
+        _require_owned(db, models.Channel, transfer.to_channel_id, user_id, "To channel")
+    for contribution in data.goal_contributions:
+        _require_owned(db, models.Channel, contribution.channel_id, user_id, "Channel")
+        _require_owned(db, models.Goal, contribution.goal_id, user_id, "Goal")
+
+    placed_channel_ids = {p.channel_id for p in data.channel_placements}
+    placed_goal_ids = {p.goal_id for p in data.goal_placements}
+    connected_channel_ids = (
+        {t.from_channel_id for t in data.transfers}
+        | {t.to_channel_id for t in data.transfers}
+        | {c.channel_id for c in data.goal_contributions}
+    )
+    connected_goal_ids = {c.goal_id for c in data.goal_contributions}
+
+    if (placed_channel_ids - connected_channel_ids) or (placed_goal_ids - connected_goal_ids):
+        return "Every node on the canvas needs at least one connection before saving."
+
+    affected_goal_ids = {
+        c.goal_id for c in list_goal_contributions(db, payout_period_id, user_id)
+    } | connected_goal_ids
+
+    channel_positions, goal_positions = _layered_canvas_positions(
+        sorted(placed_channel_ids), sorted(placed_goal_ids), data.transfers, data.goal_contributions
+    )
+
+    db.query(models.ChannelPlacement).filter_by(
+        payout_period_id=payout_period_id, user_id=user_id
+    ).delete()
+    db.query(models.GoalPlacement).filter_by(
+        payout_period_id=payout_period_id, user_id=user_id
+    ).delete()
+    db.query(models.Transfer).filter_by(payout_period_id=payout_period_id, user_id=user_id).delete()
+    db.query(models.GoalContribution).filter_by(
+        payout_period_id=payout_period_id, user_id=user_id
+    ).delete()
+
+    for channel_placement in data.channel_placements:
+        x, y = channel_positions[channel_placement.channel_id]
+        db.add(
+            models.ChannelPlacement(
+                payout_period_id=payout_period_id,
+                channel_id=channel_placement.channel_id,
+                x=x,
+                y=y,
+                user_id=user_id,
+            )
+        )
+    for goal_placement in data.goal_placements:
+        x, y = goal_positions[goal_placement.goal_id]
+        db.add(
+            models.GoalPlacement(
+                payout_period_id=payout_period_id,
+                goal_id=goal_placement.goal_id,
+                x=x,
+                y=y,
+                user_id=user_id,
+            )
+        )
+    for transfer in data.transfers:
+        db.add(
+            models.Transfer(
+                payout_period_id=payout_period_id,
+                from_channel_id=transfer.from_channel_id,
+                to_channel_id=transfer.to_channel_id,
+                amount=transfer.amount,
+                user_id=user_id,
+            )
+        )
+    for contribution in data.goal_contributions:
+        db.add(
+            models.GoalContribution(
+                payout_period_id=payout_period_id,
+                channel_id=contribution.channel_id,
+                goal_id=contribution.goal_id,
+                amount=contribution.amount,
+                user_id=user_id,
+            )
+        )
+    db.commit()
+
+    for goal_id in affected_goal_ids:
+        _recompute_goal_allocated(db, goal_id, user_id)
+
+    return None
+
+
+def preview_canvas(
+    db: Session, payout_period_id: int, data: schemas.CanvasSaveIn, user_id: int
+) -> schemas.CanvasPreviewOut:
+    """Compute channel balances and goal-contribution totals as if `data`'s
+    transfers/goal contributions were this period's saved state, without
+    writing anything to the database. Everything else that feeds a balance --
+    expenses, this period's income, and carry-in from prior (already saved)
+    periods -- is real, persisted data, since none of that is affected by
+    edits still staged on this period's canvas."""
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    for transfer in data.transfers:
+        _require_owned(db, models.Channel, transfer.from_channel_id, user_id, "From channel")
+        _require_owned(db, models.Channel, transfer.to_channel_id, user_id, "To channel")
+    for contribution in data.goal_contributions:
+        _require_owned(db, models.Channel, contribution.channel_id, user_id, "Channel")
+        _require_owned(db, models.Goal, contribution.goal_id, user_id, "Goal")
+
+    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
+    payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
+    channels = list_channels(db, user_id)
+    expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
+
+    channel_balances_out: dict[int, float] = {}
+    for channel in channels:
+        net = carry_in.get(channel.id, 0.0)
+        if payout_period is not None and payout_period.receiving_channel_id == channel.id:
+            net += float(payout_period.income_amount)
+        net += sum(t.amount for t in data.transfers if t.to_channel_id == channel.id)
+        net -= sum(t.amount for t in data.transfers if t.from_channel_id == channel.id)
+        net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+        net -= sum(c.amount for c in data.goal_contributions if c.channel_id == channel.id)
+        channel_balances_out[channel.id] = net
+
+    goal_contributed: dict[int, float] = {}
+    for contribution in data.goal_contributions:
+        goal_contributed[contribution.goal_id] = (
+            goal_contributed.get(contribution.goal_id, 0.0) + contribution.amount
+        )
+
+    payout_period_count = len(list_payout_periods(db, user_id))
+    underfunded_goal_ids = [
+        goal.id
+        for goal in list_goals(db, user_id)
+        if goal_contributed.get(goal.id, 0.0) < goal_payout_amount(goal, payout_period_count)
+    ]
+    unfunded_channel_ids = [
+        channel_id for channel_id, net in channel_balances_out.items() if net < 0
+    ]
+
+    return schemas.CanvasPreviewOut(
+        channel_balances=channel_balances_out,
+        goal_contributed=goal_contributed,
+        unfunded_channel_ids=unfunded_channel_ids,
+        underfunded_goal_ids=underfunded_goal_ids,
+    )
+
+
 # --- Channel balances -----------------------------------------------------------
+
+
+def _carry_in_for_period(db: Session, payout_period_id: int, user_id: int) -> dict[int, float]:
+    """Each channel's ending balance from the payout period before this one (in
+    display_order), so a month's leftover cash chains forward period to period."""
+    carry: dict[int, float] = {}
+    for period in list_payout_periods(db, user_id):
+        if period.id == payout_period_id:
+            break
+        carry = {c.id: net for c, net in channel_balances(db, period.id, user_id)}
+    return carry
 
 
 def channel_balances(
     db: Session, payout_period_id: int, user_id: int
 ) -> list[tuple[models.Channel, float]]:
+    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
     payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
     channels = list_channels(db, user_id)
     expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
     transfers = list_transfers(db, payout_period_id, user_id)
+    goal_contributions = list_goal_contributions(db, payout_period_id, user_id)
 
     balances = []
     for channel in channels:
-        net = 0.0
+        net = carry_in.get(channel.id, 0.0)
         if payout_period is not None and payout_period.receiving_channel_id == channel.id:
             net += float(payout_period.income_amount)
         net += sum(float(t.amount) for t in transfers if t.to_channel_id == channel.id)
         net -= sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
         net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+        net -= sum(float(gc.amount) for gc in goal_contributions if gc.channel_id == channel.id)
         balances.append((channel, net))
     return balances
 
 
-def generate_transfers(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
-    """Delete all transfers for this payout period and regenerate them from each
-    channel's configured funding source. Each channel's required inflow is its
-    own expense shortfall plus whatever it must forward to every channel that
-    names it as a funding source (a pure pass-through channel with no expenses
-    of its own can still need an inbound transfer this way). Returns the names
-    of channels with an unmet shortfall and no funding source ("unfunded"), and
-    channels caught in a circular funding loop ("circular")."""
-    for transfer in list_transfers(db, payout_period_id, user_id):
-        db.delete(transfer)
+def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
+    unfunded_channels = [
+        c.name for c, net in channel_balances(db, payout_period_id, user_id) if net < 0
+    ]
 
-    payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
-    channels = list_channels(db, user_id)
-    expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
     goals = list_goals(db, user_id)
     payout_period_count = len(list_payout_periods(db, user_id))
-
-    children: dict[int, list[models.Channel]] = {}
-    for c in channels:
-        if c.funding_source_channel_id is not None:
-            children.setdefault(c.funding_source_channel_id, []).append(c)
-
-    def own_shortfall(channel: models.Channel) -> float:
-        expense_total = sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
-        goal_total = sum(
-            goal_payout_amount(g, payout_period_count) for g in goals if g.channel_id == channel.id
-        )
-        income = (
-            float(payout_period.income_amount)
-            if payout_period is not None and payout_period.receiving_channel_id == channel.id
-            else 0.0
-        )
-        return max(expense_total + goal_total - income, 0.0)
-
-    required: dict[int, float] = {}
-    circular: set[int] = set()
-
-    def required_inflow(channel: models.Channel, visiting: set[int]) -> float:
-        if channel.id in required:
-            return required[channel.id]
-        if channel.id in visiting:
-            circular.update(visiting)
-            return 0.0
-        visiting.add(channel.id)
-        total = own_shortfall(channel) + sum(
-            required_inflow(child, visiting) for child in children.get(channel.id, [])
-        )
-        visiting.discard(channel.id)
-        required[channel.id] = total
-        return total
-
-    unfunded = []
-    for channel in channels:
-        if own_shortfall(channel) > 0 and channel.funding_source_channel_id is None:
-            unfunded.append(channel.name)
-        if channel.funding_source_channel_id is None:
-            continue
-        amount = required_inflow(channel, set())
-        if amount <= 0 or channel.id in circular:
-            continue
-        db.add(
-            models.Transfer(
-                payout_period_id=payout_period_id,
-                from_channel_id=channel.funding_source_channel_id,
-                to_channel_id=channel.id,
-                amount=amount,
-                user_id=user_id,
-            )
-        )
-    db.commit()
-    return {
-        "unfunded": unfunded,
-        "circular": [c.name for c in channels if c.id in circular],
+    contributed = {
+        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
     }
+    underfunded_goals = [
+        g.name
+        for g in goals
+        if contributed.get(g.id, 0.0) < goal_payout_amount(g, payout_period_count)
+    ]
+    return {"unfunded_channels": unfunded_channels, "underfunded_goals": underfunded_goals}
 
 
 # --- Assets ---------------------------------------------------------------
@@ -432,7 +751,6 @@ def update_goal(
     if goal is not None:
         goal.name = data.name
         goal.target = data.target
-        goal.allocated = data.allocated
         goal.months = data.months
         goal.channel_id = data.channel_id
         goal.round_up_to_hundred = data.round_up_to_hundred
@@ -441,9 +759,59 @@ def update_goal(
     return goal
 
 
+def list_goal_placements(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.GoalPlacement]:
+    stmt = select(models.GoalPlacement).where(
+        models.GoalPlacement.payout_period_id == payout_period_id,
+        models.GoalPlacement.user_id == user_id,
+    )
+    return list(db.scalars(stmt))
+
+
+def place_goal(
+    db: Session, payout_period_id: int, goal_id: int, x: float, y: float, user_id: int
+) -> models.GoalPlacement:
+    _require_owned(db, models.PayoutPeriod, payout_period_id, user_id, "Payout period")
+    _require_owned(db, models.Goal, goal_id, user_id, "Goal")
+    placement = db.scalar(
+        select(models.GoalPlacement).where(
+            models.GoalPlacement.payout_period_id == payout_period_id,
+            models.GoalPlacement.goal_id == goal_id,
+            models.GoalPlacement.user_id == user_id,
+        )
+    )
+    if placement is None:
+        placement = models.GoalPlacement(
+            payout_period_id=payout_period_id, goal_id=goal_id, x=x, y=y, user_id=user_id
+        )
+        db.add(placement)
+    else:
+        placement.x = x
+        placement.y = y
+    db.commit()
+    db.refresh(placement)
+    return placement
+
+
+def remove_goal_placement(db: Session, payout_period_id: int, goal_id: int, user_id: int) -> None:
+    placement = db.scalar(
+        select(models.GoalPlacement).where(
+            models.GoalPlacement.payout_period_id == payout_period_id,
+            models.GoalPlacement.goal_id == goal_id,
+            models.GoalPlacement.user_id == user_id,
+        )
+    )
+    if placement is not None:
+        db.delete(placement)
+        db.commit()
+
+
 def delete_goal(db: Session, goal_id: int, user_id: int) -> None:
     goal = _owned(db, models.Goal, goal_id, user_id)
     if goal is not None:
+        db.query(models.GoalPlacement).filter_by(goal_id=goal_id, user_id=user_id).delete()
+        db.query(models.GoalContribution).filter_by(goal_id=goal_id, user_id=user_id).delete()
         db.delete(goal)
         db.commit()
 
@@ -626,10 +994,47 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     goals = list_goals(db, user_id)
     all_expenses = list_expenses(db, user_id)
     payout_period_count = len(payout_periods)
+    goal_entries: list[dict[str, Any]] = [
+        {"goal": g, "per_payout": goal_payout_amount(g, payout_period_count)} for g in goals
+    ]
     payout_data = []
     for period in payout_periods:
         expenses = [e for e in all_expenses if e.payout_period_id == period.id]
         transfers = _order_transfers(channels, list_transfers(db, period.id, user_id))
+        goal_contributions = list_goal_contributions(db, period.id, user_id)
+        balances = channel_balances(db, period.id, user_id)
+        contributed_by_goal: dict[int, float] = {}
+        for gc in goal_contributions:
+            contributed_by_goal[gc.goal_id] = contributed_by_goal.get(gc.goal_id, 0.0) + float(
+                gc.amount
+            )
+
+        channel_placements = list_channel_placements(db, period.id, user_id)
+        goal_placements = list_goal_placements(db, period.id, user_id)
+        position_by_channel = {p.channel_id: (p.x, p.y) for p in channel_placements}
+        position_by_goal = {p.goal_id: (p.x, p.y) for p in goal_placements}
+        placed_channel_ids = set(position_by_channel)
+        placed_goal_ids = set(position_by_goal)
+
+        # One read-only "Expenses" node per channel, aggregating that
+        # channel's expenses this period. Positioned client-side, directly
+        # below whatever the channel's actual rendered height turns out to
+        # be (see redrawCanvas) rather than a fixed server-guessed offset --
+        # channel node height varies with content (carry-in note, etc.), so
+        # a fixed offset can't guarantee no overlap. items_json also lets a
+        # freshly toolbox-placed channel (not yet saved, so not in
+        # expenses_by_channel's server-rendered form) get its own expense
+        # node synthesized client-side in placeNode().
+        expenses_by_channel: dict[int, dict[str, Any]] = {}
+        for expense in expenses:
+            entry = expenses_by_channel.setdefault(expense.channel_id, {"total": 0.0, "items": []})
+            entry["total"] += float(expense.amount)
+            entry["items"].append(expense)
+        for entry in expenses_by_channel.values():
+            entry["items_json"] = json.dumps(
+                [{"name": item.name, "amount": float(item.amount)} for item in entry["items"]]
+            )
+
         payout_data.append(
             {
                 "period": period,
@@ -642,7 +1047,23 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                     }
                     for t in transfers
                 ],
-                "balances": channel_balances(db, period.id, user_id),
+                "goal_contributions": goal_contributions,
+                "balances": balances,
+                "balance_by_channel": {c.id: net for c, net in balances},
+                "contributed_by_goal": contributed_by_goal,
+                "carry_in": _carry_in_for_period(db, period.id, user_id),
+                "warnings": cashflow_warnings(db, period.id, user_id),
+                "expenses_by_channel": expenses_by_channel,
+                "position_by_channel": position_by_channel,
+                "position_by_goal": position_by_goal,
+                "placed_channels": [c for c in channels if c.id in placed_channel_ids],
+                "placed_goals": [e for e in goal_entries if e["goal"].id in placed_goal_ids],
+                "available_channels": [c for c in channels if c.id not in placed_channel_ids],
+                "available_goals": [e for e in goal_entries if e["goal"].id not in placed_goal_ids],
             }
         )
-    return {"channels": channels, "payout_data": payout_data}
+    return {
+        "channels": channels,
+        "goals": goal_entries,
+        "payout_data": payout_data,
+    }

@@ -1,3 +1,5 @@
+import re
+
 from fastapi.testclient import TestClient
 
 
@@ -32,9 +34,37 @@ def test_overview_net_worth_negative_uses_neg_class(client: TestClient) -> None:
 
 
 def test_overview_shows_funded_pill_for_completed_goal(client: TestClient) -> None:
-    client.post(
+    channel = client.post("/channels", data={"name": "Savings", "color": "#8a8a8a"})
+    channel_id = re.search(r'/channels/(\d+)"', channel.text)
+    assert channel_id is not None
+    channel_id_str = channel_id.group(1)
+
+    period = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_id = re.search(r"/payout-periods/(\d+)", period.text)
+    assert period_id is not None
+    period_id_str = period_id.group(1)
+
+    goal = client.post(
         "/goals",
-        data={"name": "Fully Funded", "target": "1000", "allocated": "1000", "months": "1"},
+        data={
+            "name": "Fully Funded",
+            "target": "1000",
+            "months": "1",
+            "channel_id": channel_id_str,
+        },
+    )
+    goal_id = re.search(r'/goals/(\d+)"', goal.text)
+    assert goal_id is not None
+    goal_id_str = goal_id.group(1)
+
+    client.post(
+        "/goal-contributions",
+        data={
+            "goal_id": goal_id_str,
+            "channel_id": channel_id_str,
+            "payout_period_id": period_id_str,
+            "amount": "1000",
+        },
     )
 
     response = client.get("/overview")
@@ -44,9 +74,7 @@ def test_overview_shows_funded_pill_for_completed_goal(client: TestClient) -> No
 
 
 def test_overview_does_not_show_funded_pill_for_incomplete_goal(client: TestClient) -> None:
-    client.post(
-        "/goals", data={"name": "In Progress", "target": "1000", "allocated": "250", "months": "1"}
-    )
+    client.post("/goals", data={"name": "In Progress", "target": "1000", "months": "1"})
 
     response = client.get("/overview")
     assert response.status_code == 200

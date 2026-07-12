@@ -5,14 +5,12 @@ class ChannelCreate(BaseModel):
     name: str
     color: str = "#8a8a8a"
     channel_type: str | None = None
-    funding_source_channel_id: int | None = None
 
 
 class ChannelUpdate(BaseModel):
     name: str
     color: str
     channel_type: str | None = None
-    funding_source_channel_id: int | None = None
 
 
 class PayoutPeriodCreate(BaseModel):
@@ -59,7 +57,6 @@ class AssetUpdate(BaseModel):
 class GoalCreate(BaseModel):
     name: str
     target: float
-    allocated: float = 0
     months: int = 1
     channel_id: int | None = None
     round_up_to_hundred: bool = False
@@ -68,10 +65,64 @@ class GoalCreate(BaseModel):
 class GoalUpdate(BaseModel):
     name: str
     target: float
-    allocated: float
     months: int
     channel_id: int | None = None
     round_up_to_hundred: bool = False
+
+
+class GoalContributionCreate(BaseModel):
+    goal_id: int
+    channel_id: int
+    payout_period_id: int
+    amount: float
+
+
+class GoalContributionUpdate(BaseModel):
+    amount: float
+
+
+class PlacementUpdate(BaseModel):
+    payout_period_id: int
+    x: float
+    y: float
+
+
+class CanvasChannelPlacementIn(BaseModel):
+    channel_id: int
+    x: float
+    y: float
+
+
+class CanvasGoalPlacementIn(BaseModel):
+    goal_id: int
+    x: float
+    y: float
+
+
+class CanvasTransferIn(BaseModel):
+    from_channel_id: int
+    to_channel_id: int
+    amount: float
+
+
+class CanvasGoalContributionIn(BaseModel):
+    channel_id: int
+    goal_id: int
+    amount: float
+
+
+class CanvasSaveIn(BaseModel):
+    channel_placements: list[CanvasChannelPlacementIn] = []
+    goal_placements: list[CanvasGoalPlacementIn] = []
+    transfers: list[CanvasTransferIn] = []
+    goal_contributions: list[CanvasGoalContributionIn] = []
+
+
+class CanvasPreviewOut(BaseModel):
+    channel_balances: dict[int, float]
+    goal_contributed: dict[int, float]
+    unfunded_channel_ids: list[int]
+    underfunded_goal_ids: list[int]
 
 
 class CreditLineCreate(BaseModel):
