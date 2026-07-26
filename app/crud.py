@@ -111,6 +111,11 @@ def register_successful_login(db: Session, user: models.User) -> None:
     db.commit()
 
 
+def update_password(db: Session, user: models.User, hashed_password: str) -> None:
+    user.hashed_password = hashed_password
+    db.commit()
+
+
 # --- Channels ---------------------------------------------------------------
 
 
@@ -312,10 +317,12 @@ def delete_payout_period(db: Session, payout_period_id: int, user_id: int) -> No
 # --- Expenses -----------------------------------------------------------------
 
 
-def list_expenses(db: Session, user_id: int) -> list[models.Expense]:
+def list_expenses(db: Session, user_id: int, q: str | None = None) -> list[models.Expense]:
     stmt = (
         select(models.Expense).where(models.Expense.user_id == user_id).order_by(models.Expense.id)
     )
+    if q:
+        stmt = stmt.where(models.Expense.name.ilike(f"%{q}%"))
     return list(db.scalars(stmt))
 
 
@@ -347,6 +354,15 @@ def list_transfers(db: Session, payout_period_id: int, user_id: int) -> list[mod
             models.Transfer.user_id == user_id,
         )
         .order_by(models.Transfer.id)
+    )
+    return list(db.scalars(stmt))
+
+
+def list_all_transfers(db: Session, user_id: int) -> list[models.Transfer]:
+    stmt = (
+        select(models.Transfer)
+        .where(models.Transfer.user_id == user_id)
+        .order_by(models.Transfer.payout_period_id, models.Transfer.id)
     )
     return list(db.scalars(stmt))
 
@@ -756,6 +772,15 @@ def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[
     return {"unfunded_channels": unfunded_channels, "underfunded_goals": underfunded_goals}
 
 
+def overview_warnings(db: Session, user_id: int) -> list[dict]:
+    entries = []
+    for period in list_payout_periods(db, user_id):
+        warnings = cashflow_warnings(db, period.id, user_id)
+        if warnings["unfunded_channels"] or warnings["underfunded_goals"]:
+            entries.append({"period": period, "warnings": warnings})
+    return entries
+
+
 # --- Assets ---------------------------------------------------------------
 
 
@@ -1015,6 +1040,7 @@ def overview_page_data(db: Session, user_id: int) -> dict:
         "next_payout_period": period,
         "upcoming_expenses": upcoming_expenses,
         "upcoming_expenses_total": sum(float(e.amount) for e in upcoming_expenses),
+        "period_warnings": overview_warnings(db, user_id),
     }
 
 
@@ -1025,13 +1051,14 @@ def channel_presets_by_group() -> dict[str, list[dict[str, str]]]:
     return groups
 
 
-def expenses_page_data(db: Session, user_id: int) -> dict:
+def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
     return {
         "channels": list_channels(db, user_id),
         "channel_types": CHANNEL_TYPES,
         "channel_preset_groups": channel_presets_by_group(),
         "payout_periods": list_payout_periods(db, user_id),
-        "expenses": list_expenses(db, user_id),
+        "expenses": list_expenses(db, user_id, q),
+        "q": q or "",
     }
 
 

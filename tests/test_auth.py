@@ -186,3 +186,81 @@ def test_cross_user_data_isolation(real_client: TestClient) -> None:
 
     expenses_page = real_client.get("/expenses")
     assert "Alice Bank" not in expenses_page.text
+
+
+def test_account_page_requires_login(real_client: TestClient) -> None:
+    response = real_client.get("/account", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_change_password_success_and_relogin(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post(
+        "/account/password",
+        data={
+            "current_password": "correct-horse",
+            "new_password": "new-correct-horse",
+            "confirm_password": "new-correct-horse",
+        },
+    )
+    assert response.status_code == 200
+    assert "Password updated" in response.text
+
+    real_client.post("/logout")
+    relogin = real_client.post(
+        "/login",
+        data={"email": "alice@example.com", "password": "new-correct-horse"},
+        follow_redirects=False,
+    )
+    assert relogin.status_code == 303
+
+
+def test_change_password_rejects_wrong_current_password(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post(
+        "/account/password",
+        data={
+            "current_password": "wrong-password",
+            "new_password": "new-correct-horse",
+            "confirm_password": "new-correct-horse",
+        },
+    )
+    assert response.status_code == 401
+    assert "Current password is incorrect" in response.text
+
+
+def test_change_password_rejects_mismatched_confirmation(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post(
+        "/account/password",
+        data={
+            "current_password": "correct-horse",
+            "new_password": "new-correct-horse",
+            "confirm_password": "something-else",
+        },
+    )
+    assert response.status_code == 400
+    assert "New passwords" in response.text and "match" in response.text
+
+
+def test_change_password_rejects_short_password(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post(
+        "/account/password",
+        data={
+            "current_password": "correct-horse",
+            "new_password": "short",
+            "confirm_password": "short",
+        },
+    )
+    assert response.status_code == 400
+    assert "at least" in response.text

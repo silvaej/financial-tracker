@@ -7,9 +7,10 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app import crud
-from app.auth import start_session, verify_password
+from app import crud, models
+from app.auth import get_current_user, hash_password, start_session, verify_password
 from app.database import get_db
+from app.manage_users import MIN_PASSWORD_LENGTH
 
 router = APIRouter(tags=["auth"])
 templates = Jinja2Templates(directory="app/templates")
@@ -67,3 +68,47 @@ def login(
 def logout(request: Request) -> Response:
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+@router.get("/account")
+def account_form(
+    request: Request, current_user: models.User = Depends(get_current_user)
+) -> Response:
+    return templates.TemplateResponse(request, "account.html", {"success": False})
+
+
+@router.post("/account/password")
+def change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> Response:
+    if not verify_password(current_password, current_user.hashed_password):
+        return templates.TemplateResponse(
+            request,
+            "account.html",
+            {"success": False, "error": "Current password is incorrect."},
+            status_code=401,
+        )
+    if new_password != confirm_password:
+        return templates.TemplateResponse(
+            request,
+            "account.html",
+            {"success": False, "error": "New passwords don't match."},
+            status_code=400,
+        )
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return templates.TemplateResponse(
+            request,
+            "account.html",
+            {
+                "success": False,
+                "error": f"New password must be at least {MIN_PASSWORD_LENGTH} characters long.",
+            },
+            status_code=400,
+        )
+    crud.update_password(db, current_user, hash_password(new_password))
+    return templates.TemplateResponse(request, "account.html", {"success": True})
