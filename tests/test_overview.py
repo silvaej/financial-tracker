@@ -8,6 +8,43 @@ def test_overview_empty_state(client: TestClient) -> None:
     assert response.status_code == 200
     assert "No goals yet" in response.text
     assert "No credit lines yet" in response.text
+    assert "Upcoming" not in response.text
+
+
+def test_overview_upcoming_expenses_banner(client: TestClient) -> None:
+    channel = client.post("/channels", data={"name": "Payroll", "color": "#8a8a8a"})
+    channel_id = re.search(r'/channels/(\d+)"', channel.text)
+    assert channel_id is not None
+    channel_id_str = channel_id.group(1)
+
+    period = client.post("/payout-periods", data={"label": "15th", "income_amount": "32000"})
+    period_id = re.search(r"/payout-periods/(\d+)", period.text)
+    assert period_id is not None
+    period_id_str = period_id.group(1)
+
+    client.post(
+        "/expenses",
+        data={
+            "name": "Meralco",
+            "amount": "2500.50",
+            "payout_period_id": period_id_str,
+            "channel_id": channel_id_str,
+        },
+    )
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Upcoming — 15th" in response.text
+    assert "Meralco" in response.text
+    assert "2,500.50" in response.text
+
+
+def test_overview_no_upcoming_banner_without_payout_periods(client: TestClient) -> None:
+    client.post("/assets", data={"name": "Some Asset", "amount": "100"})
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Upcoming" not in response.text
 
 
 def test_overview_kpi_totals(client: TestClient) -> None:

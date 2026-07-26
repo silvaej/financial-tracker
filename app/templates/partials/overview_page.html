@@ -6,6 +6,48 @@
       <div class="page-sub">Net worth and progress at a glance</div>
     </div>
   </div>
+  {% if next_payout_period %}
+    <div class="section">
+      <div class="section-title">
+        Upcoming — {{ next_payout_period.label }}<span class="pill">{{ upcoming_expenses|length }} due</span>
+      </div>
+      <div class="table-wrap">
+        <table class="led">
+          <colgroup>
+            <col class="min-w-28">
+            <col class="w-40">
+            <col class="w-32">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Expense</th>
+              <th>Channel</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for expense in upcoming_expenses %}
+              <tr>
+                <td>{{ expense.name }}</td>
+                <td>{{ macros.channel_label(expense.channel) }}</td>
+                <td class="num">{{ macros.peso(expense.amount) }}</td>
+              </tr>
+            {% else %}
+              {{ macros.empty_row(3, 'expenses due this period') }}
+            {% endfor %}
+          </tbody>
+          {% if upcoming_expenses %}
+            <tfoot>
+              <tr>
+                <td colspan="2" class="text-ink-soft">Total</td>
+                <td class="num">{{ macros.peso(upcoming_expenses_total) }}</td>
+              </tr>
+            </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  {% endif %}
   <div class="flex flex-wrap gap-4 mb-5">
     <div class="card flex-1 min-w-[10rem]">
       <div class="card-label">Total assets</div>
