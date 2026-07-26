@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
+    <meta name="csrf-token" content="{{ request.session.csrf_token }}">
     <title>Finance Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
@@ -46,6 +47,7 @@
           </a>
         {% endfor %}
         <form method="post" action="/logout" hx-boost="false" class="mt-auto">
+          <input type="hidden" name="csrf_token" value="{{ request.session.csrf_token }}">
           <button type="submit"
                   class="tab w-full text-left bg-transparent cursor-pointer">
             <svg class="tab-icon"
@@ -84,6 +86,11 @@
       </div>
     </div>
     <script>
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      document.body.addEventListener("htmx:configRequest", (evt) => {
+        evt.detail.headers["X-CSRF-Token"] = csrfToken;
+      });
+
       const rail = document.getElementById("rail");
       const railHead = document.getElementById("rail-head");
       const wordmark = document.getElementById("rail-wordmark");

@@ -1,4 +1,9 @@
 (function () {
+  function csrfHeaders() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return { "X-CSRF-Token": meta ? meta.content : "" };
+  }
+
   function nodeBox(node) {
     const x = parseFloat(node.dataset.x) || 0;
     const y = parseFloat(node.dataset.y) || 0;
@@ -298,7 +303,7 @@
 
     fetch("/cashflow/" + periodId + "/preview", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
       body: JSON.stringify(buildCanvasPayload(canvas)),
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -791,7 +796,7 @@
 
     fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...csrfHeaders() },
       body: JSON.stringify(buildCanvasPayload(canvas)),
     })
       .then(async (res) => {
