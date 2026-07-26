@@ -53,6 +53,47 @@ def test_login_failure_shows_error(real_client: TestClient) -> None:
     assert "Invalid email or password" in response.text
 
 
+def test_login_locks_out_after_max_failed_attempts(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+
+    for _ in range(crud.LOGIN_MAX_ATTEMPTS):
+        response = real_client.post(
+            "/login", data={"email": "alice@example.com", "password": "wrong-password"}
+        )
+        assert response.status_code == 401
+
+    locked_response = real_client.post(
+        "/login", data={"email": "alice@example.com", "password": "correct-horse"}
+    )
+    assert locked_response.status_code == 429
+    assert "Too many failed attempts" in locked_response.text
+
+
+def test_login_success_resets_failed_attempts(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+
+    for _ in range(crud.LOGIN_MAX_ATTEMPTS - 1):
+        real_client.post(
+            "/login", data={"email": "alice@example.com", "password": "wrong-password"}
+        )
+
+    success = real_client.post(
+        "/login",
+        data={"email": "alice@example.com", "password": "correct-horse"},
+        follow_redirects=False,
+    )
+    assert success.status_code == 303
+
+    db = TestingSessionLocal()
+    try:
+        user = crud.get_user_by_email(db, "alice@example.com")
+        assert user is not None
+        assert user.failed_login_attempts == 0
+        assert user.locked_until is None
+    finally:
+        db.close()
+
+
 def test_logout_clears_session(real_client: TestClient) -> None:
     _create_user("alice@example.com", "correct-horse")
     real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
