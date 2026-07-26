@@ -1011,17 +1011,35 @@ def credit_page_data(db: Session, user_id: int) -> dict:
 # --- Composed view data -----------------------------------------------------
 
 
+def next_payout_period(db: Session, user_id: int) -> models.PayoutPeriod | None:
+    """The soonest-upcoming payout period. Periods have no calendar date (just a
+    user-facing label like "15th" and a display_order for cycling through them),
+    so "next" is the first one by display_order — the same ordering used
+    everywhere else periods are listed."""
+    periods = list_payout_periods(db, user_id)
+    return periods[0] if periods else None
+
+
 def overview_page_data(db: Session, user_id: int) -> dict:
     assets = list_assets(db, user_id)
     credit_lines = list_credit_lines(db, user_id)
     total_assets = sum(float(a.amount) for a in assets)
     total_liabilities = sum(float(c.used) for c in credit_lines)
+    period = next_payout_period(db, user_id)
+    upcoming_expenses = (
+        [e for e in list_expenses(db, user_id) if e.payout_period_id == period.id]
+        if period is not None
+        else []
+    )
     return {
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
         "net_worth": total_assets - total_liabilities,
         "goals": [{"goal": g, **goal_progress(g)} for g in list_goals(db, user_id)],
         "credit_lines": [{"line": c, **credit_utilization(c)} for c in credit_lines],
+        "next_payout_period": period,
+        "upcoming_expenses": upcoming_expenses,
+        "upcoming_expenses_total": sum(float(e.amount) for e in upcoming_expenses),
         "period_warnings": overview_warnings(db, user_id),
     }
 
