@@ -22,10 +22,6 @@
         <div class="rail-head" id="rail-head">
           <div class="rail-brand" id="rail-brand">
             <div class="rail-logo">L</div>
-            <div class="rail-wordmark" id="rail-wordmark">
-              Ledger
-              <small>Household Finance</small>
-            </div>
           </div>
           <button class="shrink-0 bg-white/15 text-white rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-white/25"
                   id="collapse-toggle"
@@ -107,7 +103,6 @@
 
       const rail = document.getElementById("rail");
       const railHead = document.getElementById("rail-head");
-      const wordmark = document.getElementById("rail-wordmark");
       const icon = document.getElementById("collapse-icon");
       const labels = () => document.querySelectorAll(".tab-label");
 
@@ -117,7 +112,6 @@
         railHead.classList.toggle("flex-col", collapsed);
         railHead.classList.toggle("gap-2", collapsed);
         railHead.classList.toggle("justify-between", !collapsed);
-        wordmark.style.display = collapsed ? "none" : "";
         labels().forEach((el) => { el.style.display = collapsed ? "none" : ""; });
         icon.textContent = collapsed ? "›" : "‹";
       }
