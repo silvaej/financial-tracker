@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app import crud
-from app.auth import verify_password
+from app.auth import start_session, verify_password
 from app.database import get_db
 
 router = APIRouter(tags=["auth"])
@@ -58,9 +58,8 @@ def login(
         return templates.TemplateResponse(
             request, "login.html", {"error": "Invalid email or password."}, status_code=401
         )
-
     crud.register_successful_login(db, user)
-    request.session["user_id"] = user.id
+    start_session(request, user.id)
     return RedirectResponse(url="/", status_code=303)
 
 
