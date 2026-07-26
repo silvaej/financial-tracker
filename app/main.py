@@ -1,9 +1,11 @@
 import os
 
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -63,6 +65,15 @@ app.include_router(overview.router)
 app.include_router(cashflow.router)
 
 PLACEHOLDER_SECTIONS: dict[str, str] = {}
+
+
+@app.get("/health")
+def health(db: Session = Depends(get_db)) -> JSONResponse:
+    try:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse({"status": "error"}, status_code=503)
+    return JSONResponse({"status": "ok"})
 
 
 @app.get("/")
