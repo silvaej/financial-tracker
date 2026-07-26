@@ -1,6 +1,9 @@
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
@@ -10,7 +13,14 @@ from app.database import get_db
 router = APIRouter(prefix="/channels", tags=["channels"])
 templates = Jinja2Templates(directory="app/templates")
 
-ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+# Keyed by Pillow's `Image.format` (derived from the actual file bytes), not
+# by the client-supplied Content-Type header, which is trivially spoofable.
+ALLOWED_LOGO_FORMATS = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "WEBP": "image/webp",
+    "GIF": "image/gif",
+}
 MAX_LOGO_BYTES = 300 * 1024
 
 
@@ -23,14 +33,26 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
 async def _read_logo(logo: UploadFile | None) -> tuple[bytes, str] | None:
     if logo is None or not logo.filename:
         return None
-    if logo.content_type not in ALLOWED_LOGO_TYPES:
-        raise HTTPException(status_code=400, detail="Logo must be a PNG, JPEG, WEBP, or GIF image.")
     data = await logo.read()
     if not data:
         return None
     if len(data) > MAX_LOGO_BYTES:
         raise HTTPException(status_code=400, detail="Logo image must be under 300KB.")
-    return data, logo.content_type
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image_format = image.format
+            image.verify()
+    except Exception as exc:
+        # Pillow raises different exception types (UnidentifiedImageError,
+        # OSError, SyntaxError, ...) depending on which format parser hits
+        # the malformed/non-image data, so any failure here means "reject".
+        raise HTTPException(
+            status_code=400, detail="Logo must be a valid PNG, JPEG, WEBP, or GIF image."
+        ) from exc
+    mimetype = ALLOWED_LOGO_FORMATS.get(image_format or "")
+    if mimetype is None:
+        raise HTTPException(status_code=400, detail="Logo must be a PNG, JPEG, WEBP, or GIF image.")
+    return data, mimetype
 
 
 @router.post("")
@@ -109,7 +131,7 @@ def get_channel_logo(
     return Response(
         content=channel.logo_data,
         media_type=channel.logo_mimetype,
-        headers={"Cache-Control": "private, max-age=300"},
+        headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"},
     )
 
 
