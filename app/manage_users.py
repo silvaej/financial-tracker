@@ -9,6 +9,17 @@ from app import crud, models
 from app.auth import hash_password
 from app.database import SessionLocal
 
+MIN_PASSWORD_LENGTH = 12
+
+
+def _validate_password(password: str) -> None:
+    if len(password) < MIN_PASSWORD_LENGTH:
+        print(
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
 
 def create(email: str) -> None:
     password = getpass.getpass("Password: ")
@@ -16,6 +27,7 @@ def create(email: str) -> None:
     if password != confirm:
         print("Passwords don't match.", file=sys.stderr)
         raise SystemExit(1)
+    _validate_password(password)
 
     db = SessionLocal()
     try:
@@ -34,6 +46,7 @@ def set_password(email: str) -> None:
     if password != confirm:
         print("Passwords don't match.", file=sys.stderr)
         raise SystemExit(1)
+    _validate_password(password)
 
     db = SessionLocal()
     try:
