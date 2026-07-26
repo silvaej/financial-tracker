@@ -19,6 +19,7 @@ from app.routers import (
     channels,
     credit,
     expenses,
+    export,
     goal_contributions,
     goals,
     overview,
@@ -61,6 +62,7 @@ app.include_router(goals.router)
 app.include_router(credit.router)
 app.include_router(overview.router)
 app.include_router(cashflow.router)
+app.include_router(export.router)
 
 PLACEHOLDER_SECTIONS: dict[str, str] = {}
 

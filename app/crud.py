@@ -351,6 +351,15 @@ def list_transfers(db: Session, payout_period_id: int, user_id: int) -> list[mod
     return list(db.scalars(stmt))
 
 
+def list_all_transfers(db: Session, user_id: int) -> list[models.Transfer]:
+    stmt = (
+        select(models.Transfer)
+        .where(models.Transfer.user_id == user_id)
+        .order_by(models.Transfer.payout_period_id, models.Transfer.id)
+    )
+    return list(db.scalars(stmt))
+
+
 def create_transfer(db: Session, data: schemas.TransferCreate, user_id: int) -> models.Transfer:
     _require_owned(db, models.PayoutPeriod, data.payout_period_id, user_id, "Payout period")
     _require_owned(db, models.Channel, data.from_channel_id, user_id, "From channel")
