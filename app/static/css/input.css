@@ -41,12 +41,6 @@
   .rail-logo {
     @apply flex items-center justify-center w-8 h-8 rounded-lg bg-accent font-serif font-bold text-base text-white shrink-0;
   }
-  .rail-wordmark {
-    @apply font-serif font-semibold text-lg text-white leading-tight min-w-0;
-  }
-  .rail-wordmark small {
-    @apply block font-sans font-normal text-[11px] text-white/70 mt-0.5 uppercase tracking-wide;
-  }
   .tab {
     @apply flex items-center gap-2.5 text-sm font-medium text-white/75 px-5 py-2.5 border-l-[3px] border-transparent hover:bg-white/10 hover:text-white transition-colors;
   }
@@ -471,7 +465,6 @@
   .rail {
     width: 4rem !important;
   }
-  .rail .rail-wordmark,
   .rail .tab-label {
     display: none !important;
   }
