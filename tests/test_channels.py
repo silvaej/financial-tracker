@@ -113,11 +113,19 @@ def test_channel_presets_render_on_expenses_page(client: TestClient) -> None:
 
 
 def _png_bytes() -> bytes:
-    # Smallest valid 1x1 transparent PNG.
+    # Valid 1x1 transparent PNG.
     return bytes.fromhex(
         "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
-        "0000000a49444154789c6360000002000100ffff03000006000557bfabd4000000"
-        "0049454e44ae426082"
+        "0000000d49444154789c6360606060000000050001a5f6454000000000"
+        "49454e44ae426082"
+    )
+
+
+def _gif_bytes() -> bytes:
+    # Valid 1x1 transparent GIF.
+    return bytes.fromhex(
+        "4749463839610100010081000000000000000000000000000021f904010000"
+        "00002c000000000100010000080400010404003b"
     )
 
 
@@ -147,6 +155,64 @@ def test_upload_channel_logo_rejects_non_image_files(client: TestClient) -> None
         files={"logo": ("evil.txt", b"not an image", "text/plain")},
     )
     assert upload.status_code == 400
+
+
+def test_upload_channel_logo_rejects_non_image_bytes_disguised_with_an_image_content_type(
+    client: TestClient,
+) -> None:
+    channel_id = _create_channel(client, "Custom Wallet")
+
+    upload = client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "Custom Wallet", "color": "#8a8a8a"},
+        files={"logo": ("evil.png", b"not actually a png", "image/png")},
+    )
+    assert upload.status_code == 400
+
+
+def test_upload_channel_logo_rejects_a_truncated_png_header(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Custom Wallet")
+
+    # Correct PNG magic bytes, but the rest of the file is garbage/truncated
+    # -- Pillow raises SyntaxError for this case, not UnidentifiedImageError.
+    upload = client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "Custom Wallet", "color": "#8a8a8a"},
+        files={"logo": ("logo.png", _png_bytes()[:20] + b"garbage", "image/png")},
+    )
+    assert upload.status_code == 400
+
+
+def test_upload_channel_logo_is_served_using_its_real_type_not_the_claimed_header(
+    client: TestClient,
+) -> None:
+    channel_id = _create_channel(client, "Custom Wallet")
+
+    # A real GIF uploaded with a spoofed `image/png` Content-Type header:
+    # the stored/served mimetype must come from sniffing the actual bytes.
+    upload = client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "Custom Wallet", "color": "#8a8a8a"},
+        files={"logo": ("logo.png", _gif_bytes(), "image/png")},
+    )
+    assert upload.status_code == 200
+
+    logo = client.get(f"/channels/{channel_id}/logo")
+    assert logo.status_code == 200
+    assert logo.headers["content-type"] == "image/gif"
+    assert logo.content == _gif_bytes()
+
+
+def test_channel_logo_response_has_nosniff_header(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Custom Wallet")
+    client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "Custom Wallet", "color": "#8a8a8a"},
+        files={"logo": ("logo.png", _png_bytes(), "image/png")},
+    )
+
+    logo = client.get(f"/channels/{channel_id}/logo")
+    assert logo.headers["x-content-type-options"] == "nosniff"
 
 
 def test_remove_channel_logo_falls_back_to_initials(client: TestClient) -> None:
