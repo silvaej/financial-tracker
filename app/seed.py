@@ -1,9 +1,30 @@
+import os
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
+from app.auth import hash_password
+
+# Fixed login for testing against a freshly seeded DB (local dev or staging) without
+# having to run manage_users.py by hand. No hardcoded fallback password on purpose:
+# this module runs unattended in the seed-staging CI job (public Actions logs), so a
+# committed default would be a leaked staging credential. Set SEED_USER_PASSWORD
+# (docker-compose.yml supplies one for local dev; staging needs its own CI secret) to
+# opt in -- if it's unset, no seed user is created and seed_if_empty is skipped.
+SEED_USER_EMAIL = "demo@example.com"
+SEED_USER_PASSWORD = os.environ.get("SEED_USER_PASSWORD")
+
+
+def _seed_user(db: Session) -> models.User | None:
+    if not SEED_USER_PASSWORD:
+        print("SEED_USER_PASSWORD not set -- skipping seed user/data creation.")
+        return None
+    user = crud.get_user_by_email(db, SEED_USER_EMAIL)
+    if user is None:
+        user = crud.create_user(db, SEED_USER_EMAIL, hash_password(SEED_USER_PASSWORD))
+    return user
 
 
 def _is_empty(db: Session, model: type[Any], user_id: int) -> bool:
@@ -387,8 +408,10 @@ if __name__ == "__main__":
 
     session = SessionLocal()
     try:
-        first_user = session.scalar(select(models.User).order_by(models.User.id))
-        if first_user is not None:
-            seed_if_empty(session, first_user.id)
+        user = session.scalar(select(models.User).order_by(models.User.id))
+        if user is None:
+            user = _seed_user(session)
+        if user is not None:
+            seed_if_empty(session, user.id)
     finally:
         session.close()
