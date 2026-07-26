@@ -1,5 +1,6 @@
 import json
 import math
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, or_, select
@@ -77,6 +78,9 @@ def _require_owned(
 
 # --- Users --------------------------------------------------------------------
 
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
+
 
 def get_user(db: Session, user_id: int) -> models.User | None:
     return db.get(models.User, user_id)
@@ -92,6 +96,19 @@ def create_user(db: Session, email: str, hashed_password: str) -> models.User:
     db.commit()
     db.refresh(user)
     return user
+
+
+def register_failed_login(db: Session, user: models.User) -> None:
+    user.failed_login_attempts += 1
+    if user.failed_login_attempts >= LOGIN_MAX_ATTEMPTS:
+        user.locked_until = datetime.now(UTC) + LOGIN_LOCKOUT_DURATION
+    db.commit()
+
+
+def register_successful_login(db: Session, user: models.User) -> None:
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    db.commit()
 
 
 # --- Channels ---------------------------------------------------------------

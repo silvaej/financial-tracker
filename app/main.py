@@ -1,3 +1,5 @@
+import os
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -8,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import models
 from app.auth import SESSION_ABSOLUTE_TIMEOUT_SECONDS, NotAuthenticated, get_current_user
 from app.config import settings
+from app.csrf import csrf_protect
 from app.database import get_db
 from app.routers import (
     assets,
@@ -23,13 +26,17 @@ from app.routers import (
     transfers,
 )
 
-app = FastAPI(title="Finance Tracker")
+app = FastAPI(title="Finance Tracker", dependencies=[Depends(csrf_protect)])
 
+# Vercel sets VERCEL=1 on every deployed invocation (production and preview);
+# it's unset locally (Docker/Compose), which still runs over plain http.
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     session_cookie="ft_session",
     max_age=SESSION_ABSOLUTE_TIMEOUT_SECONDS,
+    same_site="strict",
+    https_only=os.environ.get("VERCEL") == "1",
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
