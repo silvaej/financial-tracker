@@ -3,6 +3,23 @@ import re
 from fastapi.testclient import TestClient
 
 
+def _create_channel(client: TestClient, name: str) -> str:
+    response = client.post("/channels", data={"name": name, "color": "#8a8a8a"})
+    match = re.search(rf'value="{re.escape(name)}">.*?/channels/(\d+)"', response.text, re.DOTALL)
+    assert match is not None
+    return match.group(1)
+
+
+def _create_payout_period(client: TestClient, label: str, income: str, channel_id: str) -> str:
+    response = client.post(
+        "/payout-periods",
+        data={"label": label, "income_amount": income, "receiving_channel_id": channel_id},
+    )
+    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    assert matches
+    return matches[-1]
+
+
 def test_overview_empty_state(client: TestClient) -> None:
     response = client.get("/overview")
     assert response.status_code == 200
@@ -97,6 +114,29 @@ def test_overview_shows_warn_pill_for_over_limit_credit(client: TestClient) -> N
     assert response.status_code == 200
     assert "warn-red" in response.text
     assert "Over limit" in response.text
+
+
+def test_overview_shows_no_cash_flow_warnings_section_when_none(client: TestClient) -> None:
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Cash flow warnings" not in response.text
+
+
+def test_overview_surfaces_unfunded_channel_warning(client: TestClient) -> None:
+    a = _create_channel(client, "Channel A")
+    b = _create_channel(client, "Channel B")
+    period_id = _create_payout_period(client, "15th", "0", a)
+
+    client.post(
+        "/expenses",
+        data={"name": "B bill", "amount": "500", "payout_period_id": period_id, "channel_id": b},
+    )
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Cash flow warnings" in response.text
+    assert "Channel B goes negative on the 15th" in response.text
+    assert "warn-red" in response.text
 
 
 def test_unknown_section_still_404s(client: TestClient) -> None:

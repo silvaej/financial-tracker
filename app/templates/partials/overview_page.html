@@ -6,6 +6,24 @@
       <div class="page-sub">Net worth and progress at a glance</div>
     </div>
   </div>
+  {% if period_warnings %}
+    <div class="section">
+      <div class="section-title">
+        Cash flow warnings
+        <span class="pill">{{ period_warnings|length }} period{{ 's' if period_warnings|length != 1 else '' }}</span>
+      </div>
+      <div class="warn-banner">
+        {% for entry in period_warnings %}
+          {% for name in entry.warnings.unfunded_channels %}
+            <span class="warn-pill warn-red">{{ name }} goes negative on the {{ entry.period.label }}</span>
+          {% endfor %}
+          {% for name in entry.warnings.underfunded_goals %}
+            <span class="warn-pill warn-amber">{{ name }} isn't fully funded on the {{ entry.period.label }}</span>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
   <div class="flex flex-wrap gap-4 mb-5">
     <div class="card flex-1 min-w-[10rem]">
       <div class="card-label">Total assets</div>

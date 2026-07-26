@@ -772,6 +772,15 @@ def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[
     return {"unfunded_channels": unfunded_channels, "underfunded_goals": underfunded_goals}
 
 
+def overview_warnings(db: Session, user_id: int) -> list[dict]:
+    entries = []
+    for period in list_payout_periods(db, user_id):
+        warnings = cashflow_warnings(db, period.id, user_id)
+        if warnings["unfunded_channels"] or warnings["underfunded_goals"]:
+            entries.append({"period": period, "warnings": warnings})
+    return entries
+
+
 # --- Assets ---------------------------------------------------------------
 
 
@@ -1013,6 +1022,7 @@ def overview_page_data(db: Session, user_id: int) -> dict:
         "net_worth": total_assets - total_liabilities,
         "goals": [{"goal": g, **goal_progress(g)} for g in list_goals(db, user_id)],
         "credit_lines": [{"line": c, **credit_utilization(c)} for c in credit_lines],
+        "period_warnings": overview_warnings(db, user_id),
     }
 
 
