@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import models
-from app.auth import NotAuthenticated, get_current_user
+from app.auth import SESSION_ABSOLUTE_TIMEOUT_SECONDS, NotAuthenticated, get_current_user
 from app.config import settings
 from app.database import get_db
 from app.routers import (
@@ -25,7 +25,12 @@ from app.routers import (
 
 app = FastAPI(title="Finance Tracker")
 
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, session_cookie="ft_session")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    session_cookie="ft_session",
+    max_age=SESSION_ABSOLUTE_TIMEOUT_SECONDS,
+)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
