@@ -24,9 +24,7 @@ async def _read_logo(logo: UploadFile | None) -> tuple[bytes, str] | None:
     if logo is None or not logo.filename:
         return None
     if logo.content_type not in ALLOWED_LOGO_TYPES:
-        raise HTTPException(
-            status_code=400, detail="Logo must be a PNG, JPEG, WEBP, or GIF image."
-        )
+        raise HTTPException(status_code=400, detail="Logo must be a PNG, JPEG, WEBP, or GIF image.")
     data = await logo.read()
     if not data:
         return None
