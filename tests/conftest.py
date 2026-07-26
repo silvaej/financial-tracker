@@ -12,6 +12,7 @@ from sqlalchemy.pool import StaticPool
 
 from app import models
 from app.auth import get_current_user
+from app.csrf import csrf_protect
 from app.database import Base, get_db
 from app.main import app
 
@@ -43,8 +44,13 @@ def _override_get_current_user() -> models.User:
         db.close()
 
 
+async def _override_csrf_protect() -> None:
+    return None
+
+
 app.dependency_overrides[get_db] = _override_get_db
 app.dependency_overrides[get_current_user] = _override_get_current_user
+app.dependency_overrides[csrf_protect] = _override_csrf_protect
 
 
 @pytest.fixture(autouse=True)
