@@ -111,6 +111,11 @@ def register_successful_login(db: Session, user: models.User) -> None:
     db.commit()
 
 
+def update_password(db: Session, user: models.User, hashed_password: str) -> None:
+    user.hashed_password = hashed_password
+    db.commit()
+
+
 # --- Channels ---------------------------------------------------------------
 
 
