@@ -70,11 +70,18 @@ def logout(request: Request) -> Response:
     return RedirectResponse(url="/login", status_code=303)
 
 
+def _account_response(
+    request: Request, context: dict[str, object], status_code: int = 200
+) -> Response:
+    template = "partials/account_page.html" if request.headers.get("HX-Request") else "account.html"
+    return templates.TemplateResponse(request, template, context, status_code=status_code)
+
+
 @router.get("/account")
 def account_form(
     request: Request, current_user: models.User = Depends(get_current_user)
 ) -> Response:
-    return templates.TemplateResponse(request, "account.html", {"success": False})
+    return _account_response(request, {"success": False})
 
 
 @router.post("/account/password")
@@ -87,23 +94,16 @@ def change_password(
     current_user: models.User = Depends(get_current_user),
 ) -> Response:
     if not verify_password(current_password, current_user.hashed_password):
-        return templates.TemplateResponse(
-            request,
-            "account.html",
-            {"success": False, "error": "Current password is incorrect."},
-            status_code=401,
+        return _account_response(
+            request, {"success": False, "error": "Current password is incorrect."}, status_code=401
         )
     if new_password != confirm_password:
-        return templates.TemplateResponse(
-            request,
-            "account.html",
-            {"success": False, "error": "New passwords don't match."},
-            status_code=400,
+        return _account_response(
+            request, {"success": False, "error": "New passwords don't match."}, status_code=400
         )
     if len(new_password) < MIN_PASSWORD_LENGTH:
-        return templates.TemplateResponse(
+        return _account_response(
             request,
-            "account.html",
             {
                 "success": False,
                 "error": f"New password must be at least {MIN_PASSWORD_LENGTH} characters long.",
@@ -111,4 +111,4 @@ def change_password(
             status_code=400,
         )
     crud.update_password(db, current_user, hash_password(new_password))
-    return templates.TemplateResponse(request, "account.html", {"success": True})
+    return _account_response(request, {"success": True})

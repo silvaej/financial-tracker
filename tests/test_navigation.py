@@ -27,3 +27,19 @@ def test_plain_request_returns_full_page(client: TestClient) -> None:
     assert 'id="goals-page"' in response.text
     assert "<html" in response.text
     assert 'id="rail"' in response.text
+
+
+def test_boosted_account_request_returns_fragment_only(client: TestClient) -> None:
+    response = client.get("/account", headers={"HX-Request": "true"})
+    assert response.status_code == 200
+    assert 'id="account-page"' in response.text
+    assert "<html" not in response.text
+    assert "<nav" not in response.text
+
+
+def test_plain_account_request_returns_full_page(client: TestClient) -> None:
+    response = client.get("/account")
+    assert response.status_code == 200
+    assert 'id="account-page"' in response.text
+    assert "<html" in response.text
+    assert 'id="rail"' in response.text
