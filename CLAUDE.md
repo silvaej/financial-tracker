@@ -108,9 +108,9 @@ Modeled after a personal "ledger" budgeting workflow (income arrives on recurrin
 
 ## Versioning
 
-`pyproject.toml`'s `[project].version` is the source of truth, following SemVer (`MAJOR.MINOR.PATCH`). Every PR into `dev` must bump it — the `version-check` job in `.github/workflows/ci.yml` fails the PR if it's unchanged from `dev`'s current value. Bump level follows the commit-type tags already used in this repo's commit messages (see "Commit messages" above):
-- Any `(feat)` commit in the PR → bump minor, reset patch to 0 (e.g. `1.1.0` → `1.2.0`)
+`pyproject.toml`'s `[project].version` is the source of truth, following SemVer (`MAJOR.MINOR.PATCH`). The version bumps **only on the release PR from `dev` into `main`** — feature branches merging into `dev` don't touch it, so `dev` can absorb any number of merged features without implying a release happened. The `version-check` job in `.github/workflows/ci.yml` enforces this: it fails a PR targeting `main` if the version is unchanged from `main`'s current value (PRs into `dev` are exempt from this check). Bump level follows the commit-type tags already used in this repo's commit messages (see "Commit messages" above), applied to the aggregate of commits being released since the last release:
+- Any `(feat)` commit since the last release → bump minor, reset patch to 0 (e.g. `1.1.0` → `1.2.0`)
 - Only `(fix)`/`(chore)` commits → bump patch (e.g. `1.1.0` → `1.1.1`)
 - A breaking change → bump major, reset minor/patch to 0 (e.g. `1.1.0` → `2.0.0`); call it out explicitly in the commit body since there's no dedicated marker convention yet
 
-When `dev` is later merged into `main` as a release, tag `main` with a matching `vX.Y.Z` git tag (e.g. `v1.0.0` — the existing precedent) — done manually at release time, not automated.
+Pre-release, the app is versioned `0.x.y`; the first real production release is what bumps it to `1.0.0`. At release time (the `dev` → `main` PR that ships it), also tag `main` with a matching `vX.Y.Z` git tag (e.g. `v1.0.0`) — done manually, not automated.
