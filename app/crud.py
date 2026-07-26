@@ -111,6 +111,11 @@ def register_successful_login(db: Session, user: models.User) -> None:
     db.commit()
 
 
+def update_password(db: Session, user: models.User, hashed_password: str) -> None:
+    user.hashed_password = hashed_password
+    db.commit()
+
+
 # --- Channels ---------------------------------------------------------------
 
 
@@ -312,10 +317,12 @@ def delete_payout_period(db: Session, payout_period_id: int, user_id: int) -> No
 # --- Expenses -----------------------------------------------------------------
 
 
-def list_expenses(db: Session, user_id: int) -> list[models.Expense]:
+def list_expenses(db: Session, user_id: int, q: str | None = None) -> list[models.Expense]:
     stmt = (
         select(models.Expense).where(models.Expense.user_id == user_id).order_by(models.Expense.id)
     )
+    if q:
+        stmt = stmt.where(models.Expense.name.ilike(f"%{q}%"))
     return list(db.scalars(stmt))
 
 
@@ -1016,13 +1023,14 @@ def channel_presets_by_group() -> dict[str, list[dict[str, str]]]:
     return groups
 
 
-def expenses_page_data(db: Session, user_id: int) -> dict:
+def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
     return {
         "channels": list_channels(db, user_id),
         "channel_types": CHANNEL_TYPES,
         "channel_preset_groups": channel_presets_by_group(),
         "payout_periods": list_payout_periods(db, user_id),
-        "expenses": list_expenses(db, user_id),
+        "expenses": list_expenses(db, user_id, q),
+        "q": q or "",
     }
 
 

@@ -44,3 +44,39 @@ def test_create_and_delete_expense(client: TestClient) -> None:
     response = client.delete(f"/expenses/{expense_id}")
     assert response.status_code == 200
     assert "Groceries" not in response.text
+
+
+def test_expenses_filter_by_name(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+    client.post(
+        "/expenses",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    client.post(
+        "/expenses",
+        data={
+            "name": "Electricity",
+            "amount": "800",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+
+    unfiltered = client.get("/expenses", headers={"HX-Request": "true"})
+    assert "Groceries" in unfiltered.text
+    assert "Electricity" in unfiltered.text
+
+    filtered = client.get("/expenses", params={"q": "groc"}, headers={"HX-Request": "true"})
+    assert "Groceries" in filtered.text
+    assert "Electricity" not in filtered.text
+
+    no_match = client.get("/expenses", params={"q": "nonexistent"}, headers={"HX-Request": "true"})
+    assert "Groceries" not in no_match.text
+    assert "Electricity" not in no_match.text
+    assert "0 items" in no_match.text
