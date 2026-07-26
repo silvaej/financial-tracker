@@ -3,7 +3,7 @@ from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
 
-from app import crud
+from app import auth, crud
 from app.auth import get_current_user, hash_password
 from app.main import app
 from tests.conftest import TestingSessionLocal
@@ -115,6 +115,62 @@ def test_unauthenticated_htmx_request_gets_hx_redirect(real_client: TestClient) 
     response = real_client.get("/goals", headers={"HX-Request": "true"})
     assert response.status_code == 200
     assert response.headers["HX-Redirect"] == "/login"
+
+
+def test_idle_session_is_rejected(real_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    future = 1000.0 + auth.SESSION_IDLE_TIMEOUT_SECONDS + 1
+    monkeypatch.setattr(auth.time, "time", lambda: future)
+
+    response = real_client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_activity_slides_the_idle_window(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com", "correct-horse")
+
+    monkeypatch.setattr(auth.time, "time", lambda: 1000.0)
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    just_under_idle_timeout = 1000.0 + auth.SESSION_IDLE_TIMEOUT_SECONDS - 1
+    monkeypatch.setattr(auth.time, "time", lambda: just_under_idle_timeout)
+    assert real_client.get("/").status_code == 200
+
+    # Idle window slid forward on that last request, so another near-timeout
+    # gap from *there* should still be authenticated.
+    monkeypatch.setattr(
+        auth.time, "time", lambda: just_under_idle_timeout + auth.SESSION_IDLE_TIMEOUT_SECONDS - 1
+    )
+    assert real_client.get("/").status_code == 200
+
+
+def test_absolute_session_lifetime_is_enforced_despite_activity(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com", "correct-horse")
+
+    monkeypatch.setattr(auth.time, "time", lambda: 1000.0)
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    # Stay active often enough to never hit the idle timeout, but long enough
+    # to blow past the absolute session lifetime.
+    step = auth.SESSION_IDLE_TIMEOUT_SECONDS - 1
+    now = 1000.0
+    deadline = 1000.0 + auth.SESSION_ABSOLUTE_TIMEOUT_SECONDS + step
+    response = None
+    while now < deadline:
+        now += step
+        monkeypatch.setattr(auth.time, "time", lambda now=now: now)
+        response = real_client.get("/", follow_redirects=False)
+
+    assert response is not None
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
 
 
 def test_cross_user_data_isolation(real_client: TestClient) -> None:
