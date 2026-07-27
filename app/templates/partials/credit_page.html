@@ -1,4 +1,4 @@
-﻿{% import "macros.html" as macros %}
+{% import "macros.html" as macros %}
 <div id="credit-page">
   <div class="page-head">
     <div>
@@ -13,174 +13,143 @@
           hx-target="#credit-page"
           hx-swap="outerHTML">
     </form>
-    <div class="table-wrap">
-      <table class="led">
-        <colgroup>
-          <col class="min-w-28">
-          <col class="w-40">
-          <col class="w-28">
-          <col class="w-28">
-          <col class="w-44">
-          <col class="w-28">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Channel</th>
-            <th class="text-right">Limit</th>
-            <th class="text-right">Used</th>
-            <th>Utilization</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in credit_lines %}
-            {% set line = item.line %}
-            <tr>
-              <td>
-                <span class="view-credit-{{ line.id }}">{{ line.name }}</span>
-                <form id="credit-edit-form-{{ line.id }}"
-                      hx-patch="/credit/{{ line.id }}"
-                      hx-target="#credit-page"
-                      hx-swap="outerHTML"
-                      class="edit-credit-{{ line.id }} hidden items-center gap-2">
-                  <input class="field" type="text" name="name" value="{{ line.name }}">
-                </form>
-              </td>
-              <td>
-                <span class="view-credit-{{ line.id }}">
-                  {% if line.channel %}
-                    {{ macros.channel_label(line.channel) }}
-                  {% else %}
-                    &mdash;
-                  {% endif %}
-                </span>
-                <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
-                  <select class="field" name="channel_id" form="credit-edit-form-{{ line.id }}">
-                    <option value="">No channel</option>
-                    {% for channel in channels %}
-                      <option value="{{ channel.id }}"
-                              {{ "selected" if line.channel_id == channel.id else "" }}>{{ channel.name }}
-                      </option>
-                    {% endfor %}
-                  </select>
-                </div>
-              </td>
-              <td class="num">
-                <span class="view-credit-{{ line.id }}">{{ macros.peso(line.limit) }}</span>
-                <div class="edit-credit-{{ line.id }} hidden items-center justify-end gap-1">
-                  <span class="text-ink-soft text-sm">&#8369;</span>
-                  <input class="field field-mono w-24"
-                         type="number"
-                         step="0.01"
-                         name="limit"
-                         form="credit-edit-form-{{ line.id }}"
-                         value="{{ line.limit }}">
-                </div>
-              </td>
-              <td class="num">
-                <span class="view-credit-{{ line.id }}">{{ macros.peso(line.used) }}</span>
-                <div class="edit-credit-{{ line.id }} hidden items-center justify-end gap-1">
-                  <span class="text-ink-soft text-sm">&#8369;</span>
-                  <input class="field field-mono w-24"
-                         type="number"
-                         step="0.01"
-                         name="used"
-                         form="credit-edit-form-{{ line.id }}"
-                         value="{{ line.used }}">
-                </div>
-              </td>
-              <td>
-                <div class="bar-track">
-                  <div class="bar-fill" style="width: {{ [item.pct, 100]|min }}%"></div>
-                </div>
-                <div class="text-[11px] text-ink-soft mt-1 flex items-center gap-1.5">
-                  <span>{{ item.pct|round|int }}%</span>
-                  {% if item.level == "amber" %}
-                    <span class="warn-pill warn-amber">Near limit</span>
-                  {% elif item.level == "red" %}
-                    <span class="warn-pill warn-red">Over limit</span>
-                  {% endif %}
-                </div>
-              </td>
-              <td>
-                <div class="view-credit-{{ line.id }} flex items-center gap-1">
-                  <button type="button"
-                          class="icon-btn hover:bg-accent/15 hover:text-accent"
-                          onclick="toggleEditMode('credit-{{ line.id }}')">Edit</button>
-                  <button class="icon-btn"
-                          hx-delete="/credit/{{ line.id }}"
-                          hx-target="#credit-page"
-                          hx-swap="outerHTML"
-                          hx-confirm="Delete this credit line?">Delete</button>
-                </div>
-                <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
-                  <button type="submit"
-                          form="credit-edit-form-{{ line.id }}"
-                          class="add-btn mt-0">Save</button>
-                  <button type="button"
-                          class="btn-secondary"
-                          onclick="cancelEdit('credit-{{ line.id }}', 'credit-edit-form-{{ line.id }}')">Cancel</button>
-                </div>
-              </td>
-            </tr>
-          {% else %}
-            {{ macros.empty_row(6, 'credit lines') }}
-          {% endfor %}
-          <tr>
-            <td colspan="6">
-              <button type="button"
-                      class="add-btn w-20 justify-center"
-                      onclick="toggleAddRow('add-credit-row', this)">+ Add</button>
-            </td>
-          </tr>
-          <tr id="add-credit-row" class="hidden">
-            <td>
-              <input class="field"
-                     type="text"
-                     name="name"
-                     form="add-credit-form"
-                     placeholder="Credit line name"
-                     required>
-            </td>
-            <td>
-              <select class="field" name="channel_id" form="add-credit-form">
-                <option value="">No channel</option>
-                {% for channel in channels %}
-                  <option value="{{ channel.id }}">{{ channel.name }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td class="num">
-              <div class="flex items-center justify-end gap-1">
+    <div class="item-grid">
+      {% for item in credit_lines %}
+        {% set line = item.line %}
+        <div class="item-card">
+          <div class="item-card-head">
+            <div>
+              <span class="view-credit-{{ line.id }} font-semibold">{{ line.name }}</span>
+              <form id="credit-edit-form-{{ line.id }}"
+                    hx-patch="/credit/{{ line.id }}"
+                    hx-target="#credit-page"
+                    hx-swap="outerHTML"
+                    class="edit-credit-{{ line.id }} hidden items-center gap-2">
+                <input class="field" type="text" name="name" value="{{ line.name }}">
+              </form>
+            </div>
+            <span class="font-mono text-sm font-semibold {{ 'text-gold' if item.level == 'amber' else 'text-rust' if item.level == 'red' else 'text-ink-soft' }}">
+              {{ item.pct|round|int }}%
+            </span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: {{ [item.pct, 100]|min }}%"></div>
+          </div>
+          <div class="text-[11px] text-ink-soft mt-1 mb-2.5 flex items-center gap-1.5">
+            <span>{{ item.pct|round|int }}%</span>
+            {% if item.level == "amber" %}
+              <span class="warn-pill warn-amber">Near limit</span>
+            {% elif item.level == "red" %}
+              <span class="warn-pill warn-red">Over limit</span>
+            {% endif %}
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-xs mb-2.5">
+            <div>
+              <div class="card-label mb-0.5">Channel</div>
+              <span class="view-credit-{{ line.id }}">
+                {% if line.channel %}
+                  {{ macros.channel_label(line.channel) }}
+                {% else %}
+                  &mdash;
+                {% endif %}
+              </span>
+              <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
+                <select class="field" name="channel_id" form="credit-edit-form-{{ line.id }}">
+                  <option value="">No channel</option>
+                  {% for channel in channels %}
+                    <option value="{{ channel.id }}"
+                            {{ "selected" if line.channel_id == channel.id else "" }}>{{ channel.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div>
+              <div class="card-label mb-0.5">Limit</div>
+              <span class="view-credit-{{ line.id }} font-mono">{{ macros.peso(line.limit) }}</span>
+              <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
-                <input class="field field-mono w-24"
+                <input class="field field-mono w-20"
                        type="number"
                        step="0.01"
                        name="limit"
-                       form="add-credit-form"
-                       placeholder="Limit"
-                       required>
+                       form="credit-edit-form-{{ line.id }}"
+                       value="{{ line.limit }}">
               </div>
-            </td>
-            <td class="num">
-              <div class="flex items-center justify-end gap-1">
+            </div>
+            <div>
+              <div class="card-label mb-0.5">Used</div>
+              <span class="view-credit-{{ line.id }} font-mono">{{ macros.peso(line.used) }}</span>
+              <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
-                <input class="field field-mono w-24"
+                <input class="field field-mono w-20"
                        type="number"
                        step="0.01"
                        name="used"
-                       form="add-credit-form"
-                       placeholder="0">
+                       form="credit-edit-form-{{ line.id }}"
+                       value="{{ line.used }}">
               </div>
-            </td>
-            <td></td>
-            <td>
-              <button class="add-btn" type="submit" form="add-credit-form">Add</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+          </div>
+          <div class="view-credit-{{ line.id }} flex items-center gap-1">
+            <button type="button"
+                    class="icon-btn hover:bg-accent/15 hover:text-accent"
+                    onclick="toggleEditMode('credit-{{ line.id }}')">Edit</button>
+            <button class="icon-btn"
+                    hx-delete="/credit/{{ line.id }}"
+                    hx-target="#credit-page"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete this credit line?">Delete</button>
+          </div>
+          <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
+            <button type="submit"
+                    form="credit-edit-form-{{ line.id }}"
+                    class="add-btn mt-0">Save</button>
+            <button type="button"
+                    class="btn-secondary"
+                    onclick="cancelEdit('credit-{{ line.id }}', 'credit-edit-form-{{ line.id }}')">Cancel</button>
+          </div>
+        </div>
+      {% else %}
+        {{ macros.empty_state('credit lines') }}
+      {% endfor %}
+    </div>
+    <button type="button"
+            class="add-btn w-20 justify-center"
+            onclick="toggleAddRow('add-credit-row', this)">+ Add</button>
+    <div id="add-credit-row" class="hidden items-center gap-2 flex-wrap mt-3">
+      <input class="field flex-1 min-w-[140px]"
+             type="text"
+             name="name"
+             form="add-credit-form"
+             placeholder="Credit line name"
+             required>
+      <select class="field w-40" name="channel_id" form="add-credit-form">
+        <option value="">No channel</option>
+        {% for channel in channels %}
+          <option value="{{ channel.id }}">{{ channel.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="flex items-center gap-1">
+        <span class="text-ink-soft text-sm">&#8369;</span>
+        <input class="field field-mono w-24"
+               type="number"
+               step="0.01"
+               name="limit"
+               form="add-credit-form"
+               placeholder="Limit"
+               required>
+      </div>
+      <div class="flex items-center gap-1">
+        <span class="text-ink-soft text-sm">&#8369;</span>
+        <input class="field field-mono w-24"
+               type="number"
+               step="0.01"
+               name="used"
+               form="add-credit-form"
+               placeholder="0">
+      </div>
+      <button class="add-btn" type="submit" form="add-credit-form">Add</button>
     </div>
   </div>
 </div>
