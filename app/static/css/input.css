@@ -258,8 +258,34 @@
   .warn-red {
     @apply bg-rust-soft text-rust;
   }
+  /* Clips to ~2 rows of chips by default; .warn-more only reveals itself
+     (via the .has-overflow modifier, set by JS once it measures actual
+     overflow) when there really is a 3rd+ row hidden. */
+  .warn-banner-wrap {
+    @apply relative mb-3;
+  }
   .warn-banner {
-    @apply flex flex-wrap gap-2 mb-3;
+    @apply flex flex-wrap gap-2 overflow-hidden;
+    max-height: 4rem;
+  }
+  .has-overflow .warn-banner {
+    @apply pr-9;
+  }
+  .warn-fade {
+    @apply absolute bottom-0 right-8 w-10 pointer-events-none;
+    height: 1.75rem;
+    background: linear-gradient(to right, transparent, var(--color-card));
+    display: none;
+  }
+  .has-overflow .warn-fade {
+    display: block;
+  }
+  .warn-more {
+    @apply absolute bottom-0 right-0 flex items-center justify-center w-7 h-7 rounded-full bg-card border border-line text-ink-soft text-xs font-bold shadow-sm hover:text-ink hover:border-accent no-underline;
+    display: none;
+  }
+  .has-overflow .warn-more {
+    display: flex;
   }
 
   .toolbox {

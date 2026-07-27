@@ -12,15 +12,22 @@
         Cash flow warnings
         <span class="pill">{{ period_warnings|length }} period{{ 's' if period_warnings|length != 1 else '' }}</span>
       </div>
-      <div class="warn-banner">
-        {% for entry in period_warnings %}
-          {% for name in entry.warnings.unfunded_channels %}
-            <span class="warn-pill warn-red">{{ name }} goes negative on the {{ entry.period.label }}</span>
+      <div class="warn-banner-wrap" id="overview-warn-wrap">
+        <div class="warn-banner">
+          {% for entry in period_warnings %}
+            {% for name in entry.warnings.unfunded_channels %}
+              <span class="warn-pill warn-red">{{ name }} goes negative on the {{ entry.period.label }}</span>
+            {% endfor %}
+            {% for name in entry.warnings.underfunded_goals %}
+              <span class="warn-pill warn-amber">{{ name }} isn't fully funded on the {{ entry.period.label }}</span>
+            {% endfor %}
           {% endfor %}
-          {% for name in entry.warnings.underfunded_goals %}
-            <span class="warn-pill warn-amber">{{ name }} isn't fully funded on the {{ entry.period.label }}</span>
-          {% endfor %}
-        {% endfor %}
+        </div>
+        <div class="warn-fade"></div>
+        <a href="/cashflow"
+           class="warn-more"
+           title="See all warnings on Cash Flow"
+           aria-label="See all warnings on Cash Flow">&hellip;</a>
       </div>
     </div>
   {% endif %}

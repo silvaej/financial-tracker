@@ -177,6 +177,9 @@
         const collapsed = !rail.classList.contains("w-16");
         localStorage.setItem("railCollapsed", collapsed);
         applyCollapsed(collapsed);
+        // .rail's width change is a 200ms CSS transition -- wait for it to
+        // finish before re-measuring how many warning chips now fit.
+        setTimeout(updateWarnOverflow, 220);
       });
 
       const confirmModal = document.getElementById("confirm-modal");
@@ -330,8 +333,26 @@
         });
       }
 
+      function updateWarnOverflow() {
+        document.querySelectorAll(".warn-banner-wrap").forEach((wrap) => {
+          const banner = wrap.querySelector(".warn-banner");
+          if (!banner) return;
+          wrap.classList.toggle("has-overflow", banner.scrollHeight > banner.clientHeight + 1);
+        });
+      }
+      updateWarnOverflow();
+
+      let warnResizeTimer = null;
+      window.addEventListener("resize", () => {
+        clearTimeout(warnResizeTimer);
+        warnResizeTimer = setTimeout(updateWarnOverflow, 100);
+      });
+
       document.body.addEventListener("htmx:afterSettle", (evt) => {
-        if (evt.detail.target && evt.detail.target.id === "page-content") updateActiveTab();
+        if (evt.detail.target && evt.detail.target.id === "page-content") {
+          updateActiveTab();
+          updateWarnOverflow();
+        }
       });
     </script>
     <script src="{{ url_for('static', path='js/cashflow.js') }}?v=19"></script>
