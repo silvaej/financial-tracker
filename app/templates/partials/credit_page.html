@@ -19,7 +19,7 @@
         <div class="item-card">
           <div class="item-card-head">
             <div>
-              <span class="view-credit-{{ line.id }} font-semibold">{{ line.name }}</span>
+              <span class="view-credit-{{ line.id }} item-card-title">{{ line.name }}</span>
               <form id="credit-edit-form-{{ line.id }}"
                     hx-patch="/credit/{{ line.id }}"
                     hx-target="#credit-page"
@@ -35,15 +35,16 @@
           <div class="bar-track">
             <div class="bar-fill" style="width: {{ [item.pct, 100]|min }}%"></div>
           </div>
-          <div class="text-[11px] text-ink-soft mt-1 mb-2.5 flex items-center gap-1.5">
-            <span>{{ item.pct|round|int }}%</span>
-            {% if item.level == "amber" %}
-              <span class="warn-pill warn-amber">Near limit</span>
-            {% elif item.level == "red" %}
-              <span class="warn-pill warn-red">Over limit</span>
-            {% endif %}
-          </div>
-          <div class="grid grid-cols-3 gap-2 text-xs mb-2.5">
+          {% if item.level == "amber" or item.level == "red" %}
+            <div class="mt-2 mb-1">
+              {% if item.level == "amber" %}
+                <span class="warn-pill warn-amber">Near limit</span>
+              {% else %}
+                <span class="warn-pill warn-red">Over limit</span>
+              {% endif %}
+            </div>
+          {% endif %}
+          <div class="grid grid-cols-3 gap-x-3 gap-y-3 text-xs mt-3 mb-3">
             <div>
               <div class="card-label mb-0.5">Channel</div>
               <span class="view-credit-{{ line.id }}">
@@ -91,7 +92,7 @@
               </div>
             </div>
           </div>
-          <div class="view-credit-{{ line.id }} flex items-center gap-1">
+          <div class="view-credit-{{ line.id }} flex items-center gap-1 mt-1">
             <button type="button"
                     class="icon-btn hover:bg-accent/15 hover:text-accent"
                     onclick="toggleEditMode('credit-{{ line.id }}')">Edit</button>
@@ -101,7 +102,7 @@
                     hx-swap="outerHTML"
                     hx-confirm="Delete this credit line?">Delete</button>
           </div>
-          <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
+          <div class="edit-credit-{{ line.id }} hidden items-center gap-1 mt-1">
             <button type="submit"
                     form="credit-edit-form-{{ line.id }}"
                     class="add-btn mt-0">Save</button>

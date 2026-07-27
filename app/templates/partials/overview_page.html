@@ -87,7 +87,7 @@
         {% for item in goals %}
           <div class="item-card">
             <div class="item-card-head">
-              <span>{{ item.goal.name }}</span>
+              <span class="item-card-title">{{ item.goal.name }}</span>
               {% if item.pct >= 100 %}
                 <span class="pill-gold">Funded</span>
               {% else %}
@@ -111,7 +111,7 @@
         {% for item in credit_lines %}
           <div class="item-card">
             <div class="item-card-head">
-              <span>{{ item.line.name }}</span>
+              <span class="item-card-title">{{ item.line.name }}</span>
               <span class="flex items-center gap-1.5">
                 <span class="text-[11px] text-ink-soft">{{ item.pct|round|int }}%</span>
                 {% if item.level == "amber" %}

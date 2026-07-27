@@ -153,14 +153,17 @@
      contain the same inline view/edit-toggle markup a .led row would, just
      reflowed. */
   .item-grid {
-    @apply grid gap-2.5;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
   .item-card {
-    @apply bg-paper-dim border border-line rounded-lg px-3.5 py-3;
+    @apply bg-paper-dim border border-line rounded-lg px-4 py-4;
   }
   .item-card-head {
-    @apply flex items-baseline justify-between gap-2 mb-2;
+    @apply flex items-baseline justify-between gap-2 mb-2.5;
+  }
+  .item-card-title {
+    @apply text-sm font-semibold text-ink;
   }
 
   .icon-btn {
