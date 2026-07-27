@@ -25,6 +25,9 @@
         class="text-center text-ink-soft text-sm py-3">------------ No {{ label }} yet ------------</td>
   </tr>
 {% endmacro %}
+{% macro empty_state(label) %}
+  <div class="text-center text-ink-soft text-sm py-6">No {{ label }} yet</div>
+{% endmacro %}
 {% macro peso(amount) -%}
   {{- '-' if amount < 0 else '' }}&#8369;{{ "{:,.2f}".format(amount|abs) }}
 {%- endmacro %}
