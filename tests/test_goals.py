@@ -162,7 +162,8 @@ def test_goal_progress_caps_at_100_when_overallocated(client: TestClient) -> Non
     _contribute(client, goal_id, channel_id, period_id, "1500")
 
     response = client.get("/goals")
-    assert "100%" in response.text
+    assert "Funded" in response.text
+    assert "pill-gold" in response.text
 
 
 def test_goal_progress_matches_spreadsheet_car_dp() -> None:
