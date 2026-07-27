@@ -256,8 +256,12 @@
     @apply bg-rust-soft text-rust;
   }
 
+  /* No w-full: table-fixed sizes to the sum of each <col>'s width, so the
+     table only takes the room its columns actually need instead of
+     stretching to fill a much wider .section (leaving noticeable gaps
+     on tables with few/narrow columns, e.g. Goals, Credit, Assets). */
   .led {
-    @apply w-full min-w-max table-fixed text-[13.5px] border-collapse;
+    @apply min-w-max table-fixed text-[13.5px] border-collapse;
   }
   .led th {
     @apply text-left text-[11px] uppercase tracking-wide text-ink-soft font-semibold px-2.5 py-1.5 border-b-2 border-ink;
@@ -370,8 +374,27 @@
   .warn-red {
     @apply bg-rust-soft text-rust;
   }
+  .warn-banner-wrap {
+    @apply relative mb-3;
+  }
   .warn-banner {
-    @apply flex flex-wrap gap-2 mb-3;
+    @apply flex gap-2 overflow-hidden pr-9;
+    max-height: 2rem;
+  }
+  .warn-banner-wrap.expanded .warn-banner {
+    @apply flex-wrap;
+    max-height: none;
+    overflow: visible;
+  }
+  .warn-fade {
+    @apply absolute top-0 right-8 bottom-0 w-10 pointer-events-none;
+    background: linear-gradient(to right, transparent, var(--color-card));
+  }
+  .warn-banner-wrap.expanded .warn-fade {
+    @apply hidden;
+  }
+  .warn-toggle {
+    @apply absolute top-0 right-0 flex items-center justify-center w-7 h-7 rounded-full bg-card border border-line text-ink-soft text-xs font-bold cursor-pointer shadow-sm hover:text-ink hover:border-accent;
   }
 
   .toolbox {

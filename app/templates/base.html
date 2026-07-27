@@ -258,6 +258,13 @@
         moreSheet.classList.toggle("hidden", !open);
       }
 
+      function toggleWarnBanner(wrapId, btn) {
+        const wrap = document.getElementById(wrapId);
+        const expanded = wrap.classList.toggle("expanded");
+        btn.textContent = expanded ? "×" : "…";
+        btn.setAttribute("aria-label", expanded ? "Show fewer warnings" : "Show all warnings");
+      }
+
       const rail = document.getElementById("rail");
       const railHead = document.getElementById("rail-head");
       const icon = document.getElementById("collapse-icon");

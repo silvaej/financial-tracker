@@ -13,13 +13,20 @@
       <span class="entry-tab">Cash Flow</span>
       <div class="section-title">{{ data.period.label }} cash flow</div>
       {% if data.warnings.unfunded_channels or data.warnings.underfunded_goals %}
-        <div class="warn-banner">
-          {% for name in data.warnings.unfunded_channels %}
-            <span class="warn-pill warn-red">{{ name }} is short this payout</span>
-          {% endfor %}
-          {% for name in data.warnings.underfunded_goals %}
-            <span class="warn-pill warn-amber">{{ name }} isn't fully funded this payout</span>
-          {% endfor %}
+        <div class="warn-banner-wrap" id="cashflow-warn-wrap-{{ data.period.id }}">
+          <div class="warn-banner">
+            {% for name in data.warnings.unfunded_channels %}
+              <span class="warn-pill warn-red">{{ name }} is short this payout</span>
+            {% endfor %}
+            {% for name in data.warnings.underfunded_goals %}
+              <span class="warn-pill warn-amber">{{ name }} isn't fully funded this payout</span>
+            {% endfor %}
+          </div>
+          <div class="warn-fade"></div>
+          <button type="button"
+                  class="warn-toggle"
+                  aria-label="Show all warnings"
+                  onclick="toggleWarnBanner('cashflow-warn-wrap-{{ data.period.id }}', this)">&hellip;</button>
         </div>
       {% endif %}
       <div class="toolbox">
