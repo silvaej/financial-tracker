@@ -7,10 +7,12 @@
     </div>
   </div>
   <div class="card mb-5 max-w-xs">
+    <span class="entry-tab">Balance</span>
     <div class="card-label">Total assets</div>
     <div class="card-value">{{ macros.peso(total_assets) }}</div>
   </div>
   <div class="section">
+    <span class="entry-tab">Assets</span>
     <div class="section-title">Assets<span class="pill">{{ assets|length }} items</span></div>
     <form id="add-asset-form"
           hx-post="/assets"

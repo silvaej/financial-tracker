@@ -15,44 +15,204 @@
 @theme {
   --color-ink: #1c2b2b;
   --color-ink-soft: #4b5d5d;
-  --color-paper: #fafafa;
-  --color-paper-dim: #ececec;
-  --color-card: #ffffff;
-  --color-line: #dcdcdc;
+  --color-paper: #f3f0e3;
+  --color-paper-dim: #e9e3cf;
+  --color-paper-line: rgba(22, 33, 21, 0.08);
+  --color-card: #fffdf6;
+  --color-line: #dcd5c0;
   --color-accent: #2f6d4f;
   --color-gold: #b6872f;
   --color-gold-soft: #f1e2bc;
   --color-rust: #a83f28;
   --color-rust-soft: #f0dcd2;
+  /* "-strong" fill tokens are for solid chips/buttons carrying fixed white
+     text (.add-btn, .entry-tab, canvas badges). --color-accent/--color-gold/
+     --color-rust brighten in dark mode for legibility as *foreground* text
+     on dark paper, which would fail contrast as a *background* under white
+     text -- these stay dark/saturated in both themes instead. */
+  --color-accent-strong: #2f6d4f;
+  --color-rust-strong: #a83f28;
+  /* The rail/spine is a book cover: it stays this same dark green
+     regardless of the paper theme, so it isn't part of the dark-mode
+     override block below. */
+  --color-cover: #0e2620;
+  --color-cover-soft: rgba(243, 240, 227, 0.62);
+  --color-cover-line: rgba(243, 240, 227, 0.14);
   --font-serif: "Fraunces", serif;
   --font-mono: "IBM Plex Mono", monospace;
 }
 
+/* Plain (non-@theme) tokens: referenced only via var() in hand-written CSS
+   below, never as Tailwind utilities, so they don't belong in @theme's
+   color/font namespaces. */
+:root {
+  --canvas-grid-line: rgba(28, 43, 43, 0.055);
+  --canvas-margin-line: rgba(168, 63, 40, 0.14);
+}
+
+/* Paper-theme tokens only -- --color-cover* is deliberately excluded, see
+   the comment in @theme above. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ink: #f1ede0;
+    --color-ink-soft: #aab6ae;
+    --color-paper: #121e1a;
+    --color-paper-dim: #182924;
+    --color-paper-line: rgba(240, 237, 224, 0.07);
+    --color-card: #1a2b26;
+    --color-line: rgba(241, 237, 224, 0.14);
+    --color-accent: #57a17c;
+    --color-gold: #d7ab5a;
+    --color-gold-soft: rgba(215, 171, 90, 0.16);
+    --color-rust: #d97a5c;
+    --color-rust-soft: rgba(217, 122, 92, 0.16);
+    --color-accent-strong: #3c8262;
+    --color-rust-strong: #b8543a;
+    --canvas-grid-line: rgba(240, 237, 224, 0.06);
+    --canvas-margin-line: rgba(217, 122, 92, 0.22);
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-ink: #f1ede0;
+  --color-ink-soft: #aab6ae;
+  --color-paper: #121e1a;
+  --color-paper-dim: #182924;
+  --color-paper-line: rgba(240, 237, 224, 0.07);
+  --color-card: #1a2b26;
+  --color-line: rgba(241, 237, 224, 0.14);
+  --color-accent: #57a17c;
+  --color-gold: #d7ab5a;
+  --color-gold-soft: rgba(215, 171, 90, 0.16);
+  --color-rust: #d97a5c;
+  --color-rust-soft: rgba(217, 122, 92, 0.16);
+  --color-accent-strong: #3c8262;
+  --color-rust-strong: #b8543a;
+  --canvas-grid-line: rgba(240, 237, 224, 0.06);
+  --canvas-margin-line: rgba(217, 122, 92, 0.22);
+}
+
+:root[data-theme="light"] {
+  --color-ink: #1c2b2b;
+  --color-ink-soft: #4b5d5d;
+  --color-paper: #f3f0e3;
+  --color-paper-dim: #e9e3cf;
+  --color-paper-line: rgba(22, 33, 21, 0.08);
+  --color-card: #fffdf6;
+  --color-line: #dcd5c0;
+  --color-accent: #2f6d4f;
+  --color-gold: #b6872f;
+  --color-gold-soft: #f1e2bc;
+  --color-rust: #a83f28;
+  --color-rust-soft: #f0dcd2;
+  --color-accent-strong: #2f6d4f;
+  --color-rust-strong: #a83f28;
+  --canvas-grid-line: rgba(28, 43, 43, 0.055);
+  --canvas-margin-line: rgba(168, 63, 40, 0.14);
+}
+
 @layer components {
   .rail {
-    @apply w-52 shrink-0 bg-ink flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
+    @apply w-52 shrink-0 bg-cover flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out relative;
+  }
+  /* Bound-ledger stitching along the spine's inner edge. */
+  .rail::after {
+    content: "";
+    @apply absolute top-2.5 bottom-2.5 right-2.5 w-px pointer-events-none;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      var(--color-cover-line) 0,
+      var(--color-cover-line) 4px,
+      transparent 4px,
+      transparent 11px
+    );
   }
   .rail-head {
-    @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-white/20;
+    @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-cover-line;
   }
   .rail-brand {
     @apply flex items-center gap-2.5 min-w-0;
   }
   .rail-logo {
-    @apply flex items-center justify-center w-8 h-8 rounded-lg bg-accent font-serif font-bold text-base text-white shrink-0;
+    @apply flex items-center justify-center w-8 h-8 rounded border-[1.5px] border-gold font-serif font-bold text-base text-gold shrink-0;
   }
   .tab {
-    @apply flex items-center gap-2.5 text-sm font-medium text-white/75 px-5 py-2.5 border-l-[3px] border-transparent hover:bg-white/10 hover:text-white transition-colors;
+    @apply flex items-center gap-2.5 text-sm font-medium text-cover-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-cover-line hover:text-white transition-colors;
   }
   .tab-icon {
     @apply w-5 h-5 shrink-0;
   }
   .tab-active {
-    @apply bg-white/15 text-white border-l-accent;
+    @apply bg-cover-line text-white border-l-gold;
   }
 
   .page {
     @apply flex-1 px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8 bg-paper overflow-y-auto overflow-x-hidden;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 27px,
+      var(--color-paper-line) 27px,
+      var(--color-paper-line) 28px
+    );
+  }
+
+  /* Mobile bottom tab bar -- replaces the rail below the sm breakpoint,
+     see the max-width media query at the bottom of this file. */
+  .tabbar {
+    @apply hidden fixed bottom-0 left-0 right-0 z-40 bg-cover items-stretch;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-top: 1px solid var(--color-cover-line);
+  }
+  .tabbar-item {
+    @apply flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10.5px] font-medium text-cover-soft;
+  }
+  .tabbar-item.tab-active {
+    @apply bg-transparent text-gold border-l-0;
+  }
+  .tabbar-icon {
+    @apply w-5 h-5;
+  }
+  .more-sheet {
+    @apply hidden fixed inset-0 z-50 items-end justify-center bg-ink/50;
+  }
+  .more-sheet.flex {
+    @apply flex;
+  }
+  .more-sheet-panel {
+    @apply w-full bg-card rounded-t-xl shadow-lg p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))];
+    animation: sheet-up 0.16s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  @keyframes sheet-up {
+    from { transform: translateY(12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .more-sheet-panel { animation: none; }
+  }
+  .more-sheet-item {
+    @apply flex items-center gap-3 text-sm font-medium text-ink px-4 py-3 rounded-lg hover:bg-paper-dim;
+  }
+  .more-sheet-item svg {
+    @apply w-5 h-5 text-ink-soft shrink-0;
+  }
+
+  /* Ledger index-card treatment shared by .section and .card -- lets
+     .entry-tab position itself against the card's own top edge. */
+  .section,
+  .card {
+    @apply relative;
+  }
+  .entry-tab {
+    @apply absolute -top-2 left-4 text-[10px] font-bold uppercase tracking-wide text-white bg-accent-strong px-2 py-0.5 rounded-sm;
+  }
+  /* Gold is too light for white text in either theme -- .rail-logo/-cover
+     is a fixed dark tone regardless of theme, so it stays legible here. */
+  .entry-tab-gold {
+    @apply bg-gold text-cover;
+  }
+  .entry-tab-rust {
+    @apply bg-rust-strong;
   }
   .page-head {
     @apply flex items-baseline justify-between gap-3 flex-wrap mb-5;
@@ -113,7 +273,7 @@
     @apply inline-flex items-center p-1 rounded text-ink-soft hover:bg-rust-soft hover:text-rust cursor-pointer;
   }
   .add-btn {
-    @apply inline-flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:brightness-90 cursor-pointer mt-2;
+    @apply inline-flex items-center gap-1.5 bg-accent-strong text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:brightness-90 cursor-pointer mt-2;
   }
   .btn-secondary {
     @apply inline-flex items-center text-ink-soft text-xs font-semibold px-3 py-1.5 rounded-md border border-line hover:bg-paper-dim cursor-pointer;
@@ -192,8 +352,17 @@
     @apply h-full rounded-full bg-accent;
   }
 
+  /* Styled like a rubber ink stamp: a double ring and a slight tilt that
+     straightens on hover. */
   .warn-pill {
-    @apply inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap;
+    @apply inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap border-[1.5px] border-current;
+    outline: 1px solid currentColor;
+    outline-offset: -3px;
+    transform: rotate(-1.5deg);
+    transition: transform 0.15s ease;
+  }
+  .warn-pill:hover {
+    transform: rotate(0deg);
   }
   .warn-amber {
     @apply bg-gold-soft text-gold;
@@ -222,12 +391,12 @@
     @apply relative w-full min-h-[520px] rounded-lg border border-line overflow-hidden touch-none;
     background-color: var(--color-paper-dim);
     background-image:
-      linear-gradient(rgba(28, 43, 43, 0.055) 1px, transparent 1px),
+      linear-gradient(var(--canvas-grid-line) 1px, transparent 1px),
       linear-gradient(
         90deg,
         transparent 63px,
-        rgba(168, 63, 40, 0.14) 63px,
-        rgba(168, 63, 40, 0.14) 64px,
+        var(--canvas-margin-line) 63px,
+        var(--canvas-margin-line) 64px,
         transparent 64px
       );
     background-size:
@@ -247,7 +416,7 @@
     border-left: 4px solid var(--rail, var(--color-accent));
   }
   .canvas-node-remove {
-    @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-ink text-white text-[10px] leading-none cursor-pointer z-20 hover:bg-rust;
+    @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-cover text-white text-[10px] leading-none cursor-pointer z-20 hover:bg-rust-strong;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.1s ease;
@@ -354,7 +523,7 @@
     box-shadow: 0 0 0 4px var(--color-rust-soft);
   }
   .canvas-node-warn-badge {
-    @apply absolute -left-1.5 -top-1.5 w-4 h-4 items-center justify-center rounded-full bg-rust text-white z-20;
+    @apply absolute -left-1.5 -top-1.5 w-4 h-4 items-center justify-center rounded-full bg-rust-strong text-white z-20;
     display: none;
   }
   .canvas-node-warn .canvas-node-warn-badge {
@@ -462,22 +631,16 @@
 }
 
 @media (max-width: 640px) {
+  /* Mobile trades the spine for a bottom tab bar entirely, rather than a
+     shrunk desktop rail -- see .tabbar in the components layer above. */
   .rail {
-    width: 4rem !important;
-  }
-  .rail .tab-label {
     display: none !important;
   }
-  .rail-head {
-    flex-direction: column;
-    gap: 0.5rem;
-    justify-content: center !important;
+  .tabbar {
+    display: flex !important;
   }
-  /* Width is forced above regardless of the collapsed/expanded JS state, so
-     the toggle button has no effect on mobile — hide it rather than leave a
-     dead control. */
-  #collapse-toggle {
-    display: none !important;
+  .page {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
   }
 
   /* Keep inputs at >=16px so iOS Safari doesn't auto-zoom the page on focus. */

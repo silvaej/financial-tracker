@@ -10,6 +10,7 @@
   </div>
   {% for data in payout_data %}
     <div class="section">
+      <span class="entry-tab">Cash Flow</span>
       <div class="section-title">{{ data.period.label }} cash flow</div>
       {% if data.warnings.unfunded_channels or data.warnings.underfunded_goals %}
         <div class="warn-banner">

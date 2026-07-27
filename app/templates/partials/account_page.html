@@ -6,6 +6,7 @@
     </div>
   </div>
   <div class="card max-w-sm">
+    <span class="entry-tab">Account</span>
     {% if success %}<p class="text-sm text-accent mb-4">Password updated.</p>{% endif %}
     {% if error %}<p class="text-sm text-rust mb-4">{{ error }}</p>{% endif %}
     <form method="post" action="/account/password" class="flex flex-col gap-3">

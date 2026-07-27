@@ -51,7 +51,8 @@ def test_overview_upcoming_expenses_banner(client: TestClient) -> None:
 
     response = client.get("/overview")
     assert response.status_code == 200
-    assert "Upcoming — 15th" in response.text
+    assert "Upcoming" in response.text
+    assert "15th" in response.text
     assert "Meralco" in response.text
     assert "2,500.50" in response.text
 

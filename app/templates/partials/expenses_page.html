@@ -7,6 +7,7 @@
     </div>
   </div>
   <div class="section">
+    <span class="entry-tab">Channels</span>
     <div class="section-title">Channels<span class="pill">{{ channels|length }} total</span></div>
     <form id="add-channel-form"
           hx-post="/channels"
@@ -178,6 +179,7 @@
     </div>
   </div>
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels }}">
+    <span class="entry-tab entry-tab-gold">Payout periods</span>
     <div class="section-title">Payout periods<span class="pill">{{ payout_periods|length }} total</span></div>
     <form id="add-payout-form"
           hx-post="/payout-periods"
@@ -312,6 +314,7 @@
     </div>
   </div>
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not payout_periods }}">
+    <span class="entry-tab entry-tab-rust">Expenses</span>
     <div class="section-title">
       <span>Recurring expenses<span class="pill">{{ expenses|length }} items</span></span>
       <input id="expense-search"

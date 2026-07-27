@@ -6,8 +6,24 @@
       <div class="page-sub">Net worth and progress at a glance</div>
     </div>
   </div>
+  <div class="card mb-5">
+    <span class="entry-tab">Balance</span>
+    <div class="card-label">Net worth</div>
+    <div class="card-value text-2xl {{ 'card-value-neg' if net_worth < 0 else '' }}">{{ macros.peso(net_worth) }}</div>
+    <div class="flex gap-6 mt-3 pt-3 border-t border-dashed border-line">
+      <div>
+        <div class="card-label mb-0.5">Assets</div>
+        <div class="num text-sm">{{ macros.peso(total_assets) }}</div>
+      </div>
+      <div>
+        <div class="card-label mb-0.5">Liabilities</div>
+        <div class="num text-sm">{{ macros.peso(total_liabilities) }}</div>
+      </div>
+    </div>
+  </div>
   {% if period_warnings %}
     <div class="section">
+      <span class="entry-tab entry-tab-rust">Warning</span>
       <div class="section-title">
         Cash flow warnings
         <span class="pill">{{ period_warnings|length }} period{{ 's' if period_warnings|length != 1 else '' }}</span>
@@ -26,8 +42,9 @@
   {% endif %}
   {% if next_payout_period %}
     <div class="section">
+      <span class="entry-tab entry-tab-gold">Upcoming</span>
       <div class="section-title">
-        Upcoming — {{ next_payout_period.label }}<span class="pill">{{ upcoming_expenses|length }} due</span>
+        {{ next_payout_period.label }}<span class="pill">{{ upcoming_expenses|length }} due</span>
       </div>
       <div class="table-wrap">
         <table class="led">
@@ -66,21 +83,8 @@
       </div>
     </div>
   {% endif %}
-  <div class="flex flex-wrap gap-4 mb-5">
-    <div class="card flex-1 min-w-[10rem]">
-      <div class="card-label">Total assets</div>
-      <div class="card-value">{{ macros.peso(total_assets) }}</div>
-    </div>
-    <div class="card flex-1 min-w-[10rem]">
-      <div class="card-label">Total liabilities</div>
-      <div class="card-value">{{ macros.peso(total_liabilities) }}</div>
-    </div>
-    <div class="card flex-1 min-w-[10rem]">
-      <div class="card-label">Net worth</div>
-      <div class="card-value {{ 'card-value-neg' if net_worth < 0 else '' }}">{{ macros.peso(net_worth) }}</div>
-    </div>
-  </div>
   <div class="section">
+    <span class="entry-tab">Goals</span>
     <div class="section-title">Goals<span class="pill">{{ goals|length }} total</span></div>
     <div class="table-wrap">
       <table class="led">
@@ -116,6 +120,7 @@
     </div>
   </div>
   <div class="section">
+    <span class="entry-tab">Credit</span>
     <div class="section-title">Credit<span class="pill">{{ credit_lines|length }} total</span></div>
     <div class="table-wrap">
       <table class="led">
