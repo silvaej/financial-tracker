@@ -81,12 +81,16 @@
                 <div class="view-asset-{{ asset.id }} flex items-center gap-1">
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
-                          onclick="toggleEditMode('asset-{{ asset.id }}')">Edit</button>
+                          title="Edit"
+                          aria-label="Edit"
+                          onclick="toggleEditMode('asset-{{ asset.id }}')">{{ macros.icon_edit() }}</button>
                   <button class="icon-btn"
+                          title="Delete"
+                          aria-label="Delete"
                           hx-delete="/assets/{{ asset.id }}"
                           hx-target="#assets-page"
                           hx-swap="outerHTML"
-                          hx-confirm="Delete this asset?">Delete</button>
+                          hx-confirm="Delete this asset?">{{ macros.icon_delete() }}</button>
                 </div>
                 <div class="edit-asset-{{ asset.id }} hidden items-center gap-1">
                   <button type="submit"

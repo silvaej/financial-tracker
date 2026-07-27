@@ -97,6 +97,10 @@
             <div class="bar-track">
               <div class="bar-fill" style="width: {{ item.pct }}%"></div>
             </div>
+            <div class="text-[11px] text-ink-soft mt-1.5 flex items-center justify-between font-mono">
+              <span>{{ macros.peso(item.goal.allocated) }}</span>
+              <span>{{ macros.peso(item.goal.target) }}</span>
+            </div>
           </div>
         {% endfor %}
       </div>
@@ -123,6 +127,10 @@
             </div>
             <div class="bar-track">
               <div class="bar-fill" style="width: {{ [item.pct, 100]|min }}%"></div>
+            </div>
+            <div class="text-[11px] text-ink-soft mt-1.5 flex items-center justify-between font-mono">
+              <span>{{ macros.peso(item.line.used) }}</span>
+              <span>{{ macros.peso(item.line.limit) }}</span>
             </div>
           </div>
         {% endfor %}

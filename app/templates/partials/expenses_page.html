@@ -86,12 +86,16 @@
                 <div class="view-channel-{{ channel.id }} flex items-center gap-1">
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
-                          onclick="toggleEditMode('channel-{{ channel.id }}')">Edit</button>
+                          title="Edit"
+                          aria-label="Edit"
+                          onclick="toggleEditMode('channel-{{ channel.id }}')">{{ macros.icon_edit() }}</button>
                   <button class="icon-btn"
+                          title="Delete"
+                          aria-label="Delete"
                           hx-delete="/channels/{{ channel.id }}"
                           hx-target="#expenses-page"
                           hx-swap="outerHTML"
-                          hx-confirm="Delete this channel?">Delete</button>
+                          hx-confirm="Delete this channel?">{{ macros.icon_delete() }}</button>
                 </div>
                 <div class="edit-channel-{{ channel.id }} hidden items-center gap-1">
                   <button type="submit"
@@ -248,12 +252,16 @@
                 <div class="view-payout-{{ period.id }} flex items-center gap-1">
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
-                          onclick="toggleEditMode('payout-{{ period.id }}')">Edit</button>
+                          title="Edit"
+                          aria-label="Edit"
+                          onclick="toggleEditMode('payout-{{ period.id }}')">{{ macros.icon_edit() }}</button>
                   <button class="icon-btn"
+                          title="Delete"
+                          aria-label="Delete"
                           hx-delete="/payout-periods/{{ period.id }}"
                           hx-target="#expenses-page"
                           hx-swap="outerHTML"
-                          hx-confirm="Delete this payout period?">Delete</button>
+                          hx-confirm="Delete this payout period?">{{ macros.icon_delete() }}</button>
                 </div>
                 <div class="edit-payout-{{ period.id }} hidden items-center gap-1">
                   <button type="submit"
@@ -358,10 +366,12 @@
               <td class="num">{{ macros.peso(expense.amount) }}</td>
               <td>
                 <button class="icon-btn"
+                        title="Delete"
+                        aria-label="Delete"
                         hx-delete="/expenses/{{ expense.id }}"
                         hx-target="#expenses-page"
                         hx-swap="outerHTML"
-                        hx-confirm="Delete this expense?">Delete</button>
+                        hx-confirm="Delete this expense?">{{ macros.icon_delete() }}</button>
               </td>
             </tr>
           {% else %}
