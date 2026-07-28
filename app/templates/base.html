@@ -56,24 +56,22 @@
         </a>
         <button type="button"
                 id="theme-toggle"
-                class="tab w-full text-left bg-transparent cursor-pointer">
-          <svg class="tab-icon"
-               id="theme-icon-light"
+                class="tab w-full text-left bg-transparent cursor-pointer js-theme-toggle">
+          <svg class="tab-icon js-theme-icon-light"
                viewBox="0 0 24 24"
                fill="none"
                stroke="currentColor"
                stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0Z" />
           </svg>
-          <svg class="tab-icon hidden"
-               id="theme-icon-dark"
+          <svg class="tab-icon hidden js-theme-icon-dark"
                viewBox="0 0 24 24"
                fill="none"
                stroke="currentColor"
                stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998Z" />
           </svg>
-          <span class="tab-label" id="theme-toggle-label">Dark mode</span>
+          <span class="tab-label js-theme-label">Dark mode</span>
         </button>
         <form method="post" action="/logout" hx-boost="false">
           <input type="hidden"
@@ -95,6 +93,105 @@
       <div class="page" id="page-content">
         {% block content %}
         {% endblock content %}
+      </div>
+    </div>
+    <nav class="tabbar"
+         id="tabbar"
+         hx-boost="true"
+         hx-target="#page-content"
+         hx-swap="innerHTML"
+         hx-push-url="true">
+      {% for href, label, icon_path in nav_items[:4] %}
+        <a class="tabbar-item{{ ' tabbar-item-active' if request.url.path == href else '' }}"
+           href="{{ href }}">
+          <svg class="tabbar-icon"
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon_path }}" />
+          </svg>
+          <span>{{ label }}</span>
+        </a>
+      {% endfor %}
+      <button type="button"
+              id="more-tab-btn"
+              class="tabbar-item{{ ' tabbar-item-active' if request.url.path in ('/credit', '/assets', '/account') else '' }}">
+        <svg class="tabbar-icon"
+             viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.5">
+          <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+        </svg>
+        <span>More</span>
+      </button>
+    </nav>
+    <div class="sheet-overlay hidden"
+         id="more-sheet-overlay"
+         hx-boost="true"
+         hx-target="#page-content"
+         hx-swap="innerHTML"
+         hx-push-url="true">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        {% for href, label, icon_path in nav_items[4:] %}
+          <a class="sheet-item" href="{{ href }}" onclick="closeMoreSheet()">
+            <svg viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon_path }}" />
+            </svg>
+            {{ label }}
+          </a>
+        {% endfor %}
+        <div class="sheet-divider"></div>
+        <a class="sheet-item" href="/account" onclick="closeMoreSheet()">
+          <svg viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+          Account
+        </a>
+        <button type="button"
+                class="sheet-item js-theme-toggle"
+                onclick="closeMoreSheet()">
+          <svg class="js-theme-icon-light"
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0Z" />
+          </svg>
+          <svg class="hidden js-theme-icon-dark"
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998Z" />
+          </svg>
+          <span class="js-theme-label">Dark mode</span>
+        </button>
+        <div class="sheet-divider"></div>
+        <form method="post" action="/logout" hx-boost="false">
+          <input type="hidden"
+                 name="csrf_token"
+                 value="{{ request.session.csrf_token }}">
+          <button type="submit" class="sheet-item sheet-item-logout">
+            <svg viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H3" />
+            </svg>
+            Log out
+          </button>
+        </form>
       </div>
     </div>
     <div id="confirm-modal"
@@ -123,9 +220,9 @@
       });
 
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
-      const lightIcon = document.getElementById("theme-icon-light");
-      const darkIcon = document.getElementById("theme-icon-dark");
-      const themeLabel = document.getElementById("theme-toggle-label");
+      const lightIcons = document.querySelectorAll(".js-theme-icon-light");
+      const darkIcons = document.querySelectorAll(".js-theme-icon-dark");
+      const themeLabels = document.querySelectorAll(".js-theme-label");
 
       function effectiveTheme() {
         const stored = localStorage.getItem("theme");
@@ -137,9 +234,9 @@
         const stored = localStorage.getItem("theme");
         document.documentElement.setAttribute("data-theme", stored === "light" || stored === "dark" ? stored : "");
         const isDark = effectiveTheme() === "dark";
-        lightIcon.classList.toggle("hidden", isDark);
-        darkIcon.classList.toggle("hidden", !isDark);
-        themeLabel.textContent = isDark ? "Light mode" : "Dark mode";
+        lightIcons.forEach((el) => el.classList.toggle("hidden", isDark));
+        darkIcons.forEach((el) => el.classList.toggle("hidden", !isDark));
+        themeLabels.forEach((el) => { el.textContent = isDark ? "Light mode" : "Dark mode"; });
       }
 
       function toggleTheme() {
@@ -147,7 +244,7 @@
         applyTheme();
       }
 
-      document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
+      document.querySelectorAll(".js-theme-toggle").forEach((btn) => btn.addEventListener("click", toggleTheme));
       prefersDark.addEventListener("change", () => {
         if (localStorage.getItem("theme") === null) applyTheme();
       });
@@ -180,6 +277,26 @@
         // .rail's width change is a 200ms CSS transition -- wait for it to
         // finish before re-measuring how many warning chips now fit.
         setTimeout(updateWarnOverflow, 220);
+      });
+
+      const moreSheetOverlay = document.getElementById("more-sheet-overlay");
+
+      function openMoreSheet() {
+        moreSheetOverlay.classList.remove("hidden");
+        moreSheetOverlay.classList.add("flex");
+      }
+
+      function closeMoreSheet() {
+        moreSheetOverlay.classList.add("hidden");
+        moreSheetOverlay.classList.remove("flex");
+      }
+
+      document.getElementById("more-tab-btn").addEventListener("click", openMoreSheet);
+      moreSheetOverlay.addEventListener("click", (evt) => {
+        if (evt.target === moreSheetOverlay) closeMoreSheet();
+      });
+      document.addEventListener("keydown", (evt) => {
+        if (evt.key === "Escape") closeMoreSheet();
       });
 
       const confirmModal = document.getElementById("confirm-modal");
@@ -331,6 +448,13 @@
         document.querySelectorAll(".tab").forEach((tab) => {
           tab.classList.toggle("tab-active", tab.getAttribute("href") === path);
         });
+        document.querySelectorAll(".tabbar-item[href]").forEach((tab) => {
+          tab.classList.toggle("tabbar-item-active", tab.getAttribute("href") === path);
+        });
+        document.getElementById("more-tab-btn").classList.toggle(
+          "tabbar-item-active",
+          ["/credit", "/assets", "/account"].includes(path),
+        );
       }
 
       function updateWarnOverflow() {

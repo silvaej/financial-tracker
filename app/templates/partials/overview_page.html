@@ -53,9 +53,9 @@
           <tbody>
             {% for expense in upcoming_expenses %}
               <tr>
-                <td>{{ expense.name }}</td>
-                <td>{{ macros.channel_label(expense.channel) }}</td>
-                <td class="num">{{ macros.peso(expense.amount) }}</td>
+                <td data-label="Expense">{{ expense.name }}</td>
+                <td data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+                <td class="num" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               </tr>
             {% else %}
               {{ macros.empty_row(3, 'expenses due this period') }}

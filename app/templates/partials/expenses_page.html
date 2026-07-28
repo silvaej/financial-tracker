@@ -17,15 +17,13 @@
     <div class="table-wrap">
       <table class="led">
         <colgroup>
-          <col class="w-12">
           <col class="min-w-28">
           <col class="w-36">
           <col class="w-28">
         </colgroup>
         <thead>
           <tr>
-            <th></th>
-            <th>Name &amp; color</th>
+            <th>Name</th>
             <th>Type</th>
             <th></th>
           </tr>
@@ -33,9 +31,10 @@
         <tbody>
           {% for channel in channels %}
             <tr>
-              <td>{{ macros.channel_badge(channel) }}</td>
-              <td>
-                <span class="view-channel-{{ channel.id }}">{{ macros.channel_name(channel) }}</span>
+              <td class="led-inline led-inline-2" data-label="Name">
+                <span class="view-channel-{{ channel.id }} inline-flex items-center gap-1.5">
+                  {{ macros.channel_label(channel, size=18) }}
+                </span>
                 <form id="channel-edit-form-{{ channel.id }}"
                       hx-patch="/channels/{{ channel.id }}"
                       hx-target="#expenses-page"
@@ -61,7 +60,7 @@
                   {% endif %}
                 </form>
               </td>
-              <td>
+              <td class="led-inline led-inline-2" data-label="Type">
                 <span class="view-channel-{{ channel.id }}">
                   {% if channel.channel_type %}
                     {{ channel.channel_type }}
@@ -82,7 +81,7 @@
                   </select>
                 </div>
               </td>
-              <td>
+              <td class="led-actions">
                 <div class="view-channel-{{ channel.id }} flex items-center gap-1">
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
@@ -100,15 +99,19 @@
                 <div class="edit-channel-{{ channel.id }} hidden items-center gap-1">
                   <button type="submit"
                           form="channel-edit-form-{{ channel.id }}"
-                          class="add-btn mt-0">Save</button>
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Save"
+                          aria-label="Save">{{ macros.icon_save() }}</button>
                   <button type="button"
-                          class="btn-secondary"
-                          onclick="cancelEdit('channel-{{ channel.id }}', 'channel-edit-form-{{ channel.id }}')">Cancel</button>
+                          class="icon-btn hover:bg-paper-dim hover:text-ink"
+                          title="Cancel"
+                          aria-label="Cancel"
+                          onclick="cancelEdit('channel-{{ channel.id }}', 'channel-edit-form-{{ channel.id }}')">{{ macros.icon_cancel() }}</button>
                 </div>
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(4, 'channels') }}
+            {{ macros.empty_row(3, 'channels') }}
           {% endfor %}
         </tbody>
       </table>
@@ -214,8 +217,8 @@
         <tbody>
           {% for period in payout_periods %}
             <tr>
-              <td>{{ period.label }}</td>
-              <td class="num">
+              <td data-label="Label">{{ period.label }}</td>
+              <td class="num" data-label="Income">
                 <span class="view-payout-{{ period.id }}">{{ macros.peso(period.income_amount) }}</span>
                 <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
                   <span class="text-ink-soft text-sm">&#8369;</span>
@@ -227,7 +230,7 @@
                          value="{{ period.income_amount }}">
                 </div>
               </td>
-              <td class="text-right">
+              <td class="text-right" data-label="Receiving channel">
                 <span class="view-payout-{{ period.id }}">
                   {% if period.receiving_channel %}
                     {{ macros.channel_label(period.receiving_channel) }}
@@ -248,7 +251,7 @@
                   </select>
                 </div>
               </td>
-              <td>
+              <td class="led-actions">
                 <div class="view-payout-{{ period.id }} flex items-center gap-1">
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
@@ -266,10 +269,14 @@
                 <div class="edit-payout-{{ period.id }} hidden items-center gap-1">
                   <button type="submit"
                           form="edit-payout-form-{{ period.id }}"
-                          class="add-btn mt-0">Save</button>
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Save"
+                          aria-label="Save">{{ macros.icon_save() }}</button>
                   <button type="button"
-                          class="btn-secondary"
-                          onclick="cancelEdit('payout-{{ period.id }}', 'edit-payout-form-{{ period.id }}')">Cancel</button>
+                          class="icon-btn hover:bg-paper-dim hover:text-ink"
+                          title="Cancel"
+                          aria-label="Cancel"
+                          onclick="cancelEdit('payout-{{ period.id }}', 'edit-payout-form-{{ period.id }}')">{{ macros.icon_cancel() }}</button>
                 </div>
               </td>
             </tr>
@@ -286,7 +293,7 @@
             </td>
           </tr>
           <tr id="add-payout-row" class="hidden">
-            <td>
+            <td data-label="Label">
               <input class="field"
                      type="text"
                      name="label"
@@ -294,7 +301,7 @@
                      placeholder="e.g. 15th"
                      required>
             </td>
-            <td class="num">
+            <td class="num" data-label="Income">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
@@ -305,7 +312,7 @@
                        placeholder="Income">
               </div>
             </td>
-            <td class="text-right">
+            <td class="text-right" data-label="Receiving channel">
               <select class="field" name="receiving_channel_id" form="add-payout-form">
                 <option value="">No channel</option>
                 {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
@@ -360,11 +367,11 @@
         <tbody>
           {% for expense in expenses %}
             <tr>
-              <td>{{ expense.name }}</td>
-              <td>{{ expense.payout_period.label }}</td>
-              <td>{{ macros.channel_label(expense.channel) }}</td>
-              <td class="num">{{ macros.peso(expense.amount) }}</td>
-              <td>
+              <td data-label="Name">{{ expense.name }}</td>
+              <td data-label="Payout">{{ expense.payout_period.label }}</td>
+              <td data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+              <td class="num" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
+              <td class="led-actions">
                 <button class="icon-btn"
                         title="Delete"
                         aria-label="Delete"
@@ -387,7 +394,7 @@
             </td>
           </tr>
           <tr id="add-expense-row" class="hidden">
-            <td>
+            <td data-label="Name">
               <input class="field"
                      type="text"
                      name="name"
@@ -395,7 +402,7 @@
                      placeholder="Expense name"
                      required>
             </td>
-            <td>
+            <td data-label="Payout">
               <select class="field"
                       name="payout_period_id"
                       form="add-expense-form"
@@ -405,12 +412,12 @@
                 {% endfor %}
               </select>
             </td>
-            <td>
+            <td data-label="Channel">
               <select class="field" name="channel_id" form="add-expense-form" required>
                 {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
               </select>
             </td>
-            <td class="num">
+            <td class="num" data-label="Amount">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
