@@ -149,9 +149,10 @@
           {% else %}
             {{ macros.empty_row(7, 'goals') }}
           {% endfor %}
-          <tr>
+          <tr class="tr-add-btn">
             <td colspan="7">
               <button type="button"
+                      id="add-goal-trigger"
                       class="add-btn w-20 justify-center"
                       onclick="toggleAddRow('add-goal-row', this)">+ Add</button>
             </td>
@@ -210,7 +211,12 @@
               </label>
             </td>
             <td>
-              <button class="add-btn" type="submit" form="add-goal-form">Add</button>
+              <div class="flex items-center gap-2">
+                <button class="add-btn mt-0" type="submit" form="add-goal-form">Add</button>
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="cancelAddRow('add-goal-row', 'add-goal-trigger', 'add-goal-form')">Cancel</button>
+              </div>
             </td>
           </tr>
         </tbody>

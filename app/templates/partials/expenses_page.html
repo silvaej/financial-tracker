@@ -117,6 +117,7 @@
       </table>
     </div>
     <button type="button"
+            id="add-channel-trigger"
             class="add-btn w-20 justify-center"
             onclick="toggleAddRow('add-channel-row', this)">+ Add</button>
     <div id="add-channel-row" class="hidden items-center gap-2 flex-wrap mt-3">
@@ -181,7 +182,12 @@
              accept="image/png,image/jpeg,image/webp,image/gif"
              title="Optional custom logo image (overrides the preset badge)">
       <input type="hidden" name="badge_label" form="add-channel-form">
-      <button class="add-btn" type="submit" form="add-channel-form">Add</button>
+      <div class="flex items-center gap-2">
+        <button class="add-btn mt-0" type="submit" form="add-channel-form">Add</button>
+        <button type="button"
+                class="btn-secondary"
+                onclick="cancelAddRow('add-channel-row', 'add-channel-trigger', 'add-channel-form')">Cancel</button>
+      </div>
     </div>
   </div>
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels }}">
@@ -283,9 +289,10 @@
           {% else %}
             {{ macros.empty_row(4, 'payout periods') }}
           {% endfor %}
-          <tr>
+          <tr class="tr-add-btn">
             <td colspan="4">
               <button type="button"
+                      id="add-payout-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed"
                       {{ "disabled" if not channels }}
                       onclick="toggleAddRow('add-payout-row', this)">+ Add
@@ -319,7 +326,12 @@
               </select>
             </td>
             <td>
-              <button class="add-btn" type="submit" form="add-payout-form">Add</button>
+              <div class="flex items-center gap-2">
+                <button class="add-btn mt-0" type="submit" form="add-payout-form">Add</button>
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="cancelAddRow('add-payout-row', 'add-payout-trigger', 'add-payout-form')">Cancel</button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -329,18 +341,18 @@
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not payout_periods }}">
     <div class="section-title">
       <span>Recurring expenses<span class="pill">{{ expenses|length }} items</span></span>
-      <input id="expense-search"
-             class="field w-48"
-             type="search"
-             name="q"
-             value="{{ q }}"
-             placeholder="Filter by name&hellip;"
-             hx-preserve
-             hx-get="/expenses"
-             hx-trigger="keyup changed delay:300ms, search"
-             hx-target="#expenses-page"
-             hx-swap="outerHTML">
     </div>
+    <input id="expense-search"
+           class="field w-48 mb-3"
+           type="search"
+           name="q"
+           value="{{ q }}"
+           placeholder="Filter by name&hellip;"
+           hx-preserve
+           hx-get="/expenses"
+           hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#expenses-page"
+           hx-swap="outerHTML">
     <form id="add-expense-form"
           hx-post="/expenses"
           hx-target="#expenses-page"
@@ -367,10 +379,10 @@
         <tbody>
           {% for expense in expenses %}
             <tr>
-              <td data-label="Name">{{ expense.name }}</td>
-              <td data-label="Payout">{{ expense.payout_period.label }}</td>
-              <td data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
-              <td class="num" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
+              <td class="led-inline led-inline-2" data-label="Name">{{ expense.name }}</td>
+              <td class="led-inline led-inline-2" data-label="Payout">{{ expense.payout_period.label }}</td>
+              <td class="led-inline led-inline-2" data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+              <td class="num led-inline led-inline-2" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               <td class="led-actions">
                 <button class="icon-btn"
                         title="Delete"
@@ -384,9 +396,10 @@
           {% else %}
             {{ macros.empty_row(5, 'expenses') }}
           {% endfor %}
-          <tr>
+          <tr class="tr-add-btn">
             <td colspan="5">
               <button type="button"
+                      id="add-expense-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed"
                       {{ "disabled" if not channels or not payout_periods }}
                       onclick="toggleAddRow('add-expense-row', this)">+ Add
@@ -394,7 +407,7 @@
             </td>
           </tr>
           <tr id="add-expense-row" class="hidden">
-            <td data-label="Name">
+            <td class="led-inline led-inline-2" data-label="Name">
               <input class="field"
                      type="text"
                      name="name"
@@ -402,7 +415,7 @@
                      placeholder="Expense name"
                      required>
             </td>
-            <td data-label="Payout">
+            <td class="led-inline led-inline-2" data-label="Payout">
               <select class="field"
                       name="payout_period_id"
                       form="add-expense-form"
@@ -412,12 +425,12 @@
                 {% endfor %}
               </select>
             </td>
-            <td data-label="Channel">
+            <td class="led-inline led-inline-2" data-label="Channel">
               <select class="field" name="channel_id" form="add-expense-form" required>
                 {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
               </select>
             </td>
-            <td class="num" data-label="Amount">
+            <td class="num led-inline led-inline-2" data-label="Amount">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
@@ -430,7 +443,12 @@
               </div>
             </td>
             <td>
-              <button class="add-btn" type="submit" form="add-expense-form">Add</button>
+              <div class="flex items-center gap-2">
+                <button class="add-btn mt-0" type="submit" form="add-expense-form">Add</button>
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="cancelAddRow('add-expense-row', 'add-expense-trigger', 'add-expense-form')">Cancel</button>
+              </div>
             </td>
           </tr>
         </tbody>

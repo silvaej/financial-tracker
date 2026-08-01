@@ -394,11 +394,24 @@
         // alongside "hidden" -- a bare <tr> restores its table-row display
         // on its own, but a <div> would otherwise default to block.
         if (row.tagName !== "TR") row.classList.toggle("flex", visible);
-        buttonEl.textContent = row.classList.contains("hidden") ? "+ Add" : "Cancel";
+        // The trigger button hides itself while the row is open -- Cancel
+        // lives next to the row's own Add submit button instead, so the two
+        // aren't pinned to opposite ends of the form (see cancelAddRow).
+        buttonEl.classList.toggle("hidden", visible);
         if (visible) {
           const toSelect = row.querySelector('select[name="to_channel_id"]');
           if (toSelect) prefillTransferAmount(toSelect);
         }
+      }
+
+      function cancelAddRow(rowId, triggerId, formId) {
+        const row = document.getElementById(rowId);
+        const trigger = document.getElementById(triggerId);
+        const form = formId ? document.getElementById(formId) : null;
+        if (form) form.reset();
+        row.classList.add("hidden");
+        if (row.tagName !== "TR") row.classList.remove("flex");
+        if (trigger) trigger.classList.remove("hidden");
       }
 
       function closeAllPresetPopovers() {

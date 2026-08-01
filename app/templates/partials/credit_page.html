@@ -37,7 +37,7 @@
           {% for item in credit_lines %}
             {% set line = item.line %}
             <tr>
-              <td data-label="Name">
+              <td class="led-inline led-inline-2" data-label="Name">
                 <span class="view-credit-{{ line.id }}">{{ line.name }}</span>
                 <form id="credit-edit-form-{{ line.id }}"
                       hx-patch="/credit/{{ line.id }}"
@@ -47,7 +47,7 @@
                   <input class="field" type="text" name="name" value="{{ line.name }}">
                 </form>
               </td>
-              <td data-label="Channel">
+              <td class="led-inline led-inline-2" data-label="Channel">
                 <span class="view-credit-{{ line.id }}">
                   {% if line.channel %}
                     {{ macros.channel_label(line.channel) }}
@@ -66,7 +66,7 @@
                   </select>
                 </div>
               </td>
-              <td class="num" data-label="Limit">
+              <td class="num led-inline led-inline-2" data-label="Limit">
                 <span class="view-credit-{{ line.id }}">{{ macros.peso(line.limit) }}</span>
                 <div class="edit-credit-{{ line.id }} hidden items-center justify-end gap-1">
                   <span class="text-ink-soft text-sm">&#8369;</span>
@@ -78,7 +78,7 @@
                          value="{{ line.limit }}">
                 </div>
               </td>
-              <td class="num" data-label="Used">
+              <td class="num led-inline led-inline-2" data-label="Used">
                 <span class="view-credit-{{ line.id }}">{{ macros.peso(line.used) }}</span>
                 <div class="edit-credit-{{ line.id }} hidden items-center justify-end gap-1">
                   <span class="text-ink-soft text-sm">&#8369;</span>
@@ -135,15 +135,16 @@
           {% else %}
             {{ macros.empty_row(6, 'credit lines') }}
           {% endfor %}
-          <tr>
+          <tr class="tr-add-btn">
             <td colspan="6">
               <button type="button"
+                      id="add-credit-trigger"
                       class="add-btn w-20 justify-center"
                       onclick="toggleAddRow('add-credit-row', this)">+ Add</button>
             </td>
           </tr>
           <tr id="add-credit-row" class="hidden">
-            <td data-label="Name">
+            <td class="led-inline led-inline-2" data-label="Name">
               <input class="field"
                      type="text"
                      name="name"
@@ -151,7 +152,7 @@
                      placeholder="Credit line name"
                      required>
             </td>
-            <td data-label="Channel">
+            <td class="led-inline led-inline-2" data-label="Channel">
               <select class="field" name="channel_id" form="add-credit-form">
                 <option value="">No channel</option>
                 {% for channel in channels %}
@@ -159,7 +160,7 @@
                 {% endfor %}
               </select>
             </td>
-            <td class="num" data-label="Limit">
+            <td class="num led-inline led-inline-2" data-label="Limit">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
@@ -171,7 +172,7 @@
                        required>
               </div>
             </td>
-            <td class="num" data-label="Used">
+            <td class="num led-inline led-inline-2" data-label="Used">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">&#8369;</span>
                 <input class="field field-mono w-24"
@@ -184,7 +185,12 @@
             </td>
             <td></td>
             <td>
-              <button class="add-btn" type="submit" form="add-credit-form">Add</button>
+              <div class="flex items-center gap-2">
+                <button class="add-btn mt-0" type="submit" form="add-credit-form">Add</button>
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="cancelAddRow('add-credit-row', 'add-credit-trigger', 'add-credit-form')">Cancel</button>
+              </div>
             </td>
           </tr>
         </tbody>

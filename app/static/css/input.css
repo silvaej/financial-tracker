@@ -576,11 +576,6 @@
     padding-bottom: 4.5rem;
   }
 
-  /* Keep inputs at >=16px so iOS Safari doesn't auto-zoom the page on focus. */
-  .field {
-    font-size: 16px;
-  }
-
   /* Bigger tap targets for the text/icon action buttons. */
   .icon-btn {
     padding: 0.5rem 0.625rem;
@@ -704,5 +699,27 @@
     align-items: baseline;
     font-weight: 600;
     padding: 0.5rem 0.2rem 0;
+  }
+  /* Money edit/add inputs (Income, Amount, Limit, Used, Target,
+     Allocated) sit in a "justify-end" flex row so their currency
+     symbol + value hug the right edge of a desktop table column. On
+     mobile's stacked cards every other field is full-width and
+     left-aligned, so a right-hugging money input's left edge floats
+     out of line with the label above it. Left-align it and let the
+     input grow to fill the row instead, matching the other fields. */
+  .led td.num > .flex {
+    justify-content: flex-start;
+  }
+  .led td.num > .flex input {
+    flex: 1;
+  }
+  /* A lone "+ Add" trigger row shouldn't get the same card
+     background/border/padding as a real data row -- override
+     .led tbody tr (above) back to a plain block. */
+  .led tbody tr.tr-add-btn {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
   }
 }
