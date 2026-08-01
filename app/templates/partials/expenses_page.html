@@ -1,4 +1,4 @@
-{% import "macros.html" as macros %}
+{% import "macros.html" as macros with context %}
 <div id="expenses-page">
   <div class="page-head">
     <div>
@@ -227,7 +227,7 @@
               <td class="num" data-label="Income">
                 <span class="view-payout-{{ period.id }}">{{ macros.peso(period.income_amount) }}</span>
                 <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
-                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                   <input class="field field-mono w-24"
                          type="number"
                          step="0.01"
@@ -310,7 +310,7 @@
             </td>
             <td class="num" data-label="Income">
               <div class="flex items-center justify-end gap-1">
-                <span class="text-ink-soft text-sm">&#8369;</span>
+                <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
@@ -432,7 +432,7 @@
             </td>
             <td class="num led-inline led-inline-2" data-label="Amount">
               <div class="flex items-center justify-end gap-1">
-                <span class="text-ink-soft text-sm">&#8369;</span>
+                <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"

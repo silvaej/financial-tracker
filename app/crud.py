@@ -82,9 +82,7 @@ def _require_owned(
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
 
-# (code, label) pairs for the Account page's currency <select>. Stored on
-# User.currency_code but not yet read anywhere -- macros.peso() still hardcodes
-# ₱ pending a follow-up that wires this through every amount-rendering call site.
+# (code, label) pairs for the Account page's currency <select>.
 CURRENCY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("PHP", "₱ PHP — Philippine Peso"),
     ("USD", "$ USD — US Dollar"),
@@ -95,6 +93,22 @@ CURRENCY_OPTIONS: tuple[tuple[str, str], ...] = (
     ("AUD", "$ AUD — Australian Dollar"),
 )
 CURRENCY_CODES: frozenset[str] = frozenset(code for code, _ in CURRENCY_OPTIONS)
+CURRENCY_SYMBOLS: dict[str, str] = {
+    "PHP": "₱",
+    "USD": "$",
+    "EUR": "€",
+    "JPY": "¥",
+    "GBP": "£",
+    "SGD": "$",
+    "AUD": "$",
+}
+DEFAULT_CURRENCY_SYMBOL = CURRENCY_SYMBOLS["PHP"]
+
+
+def currency_symbol_for(user: models.User | None) -> str:
+    if user is None:
+        return DEFAULT_CURRENCY_SYMBOL
+    return CURRENCY_SYMBOLS.get(user.currency_code, DEFAULT_CURRENCY_SYMBOL)
 
 TIMEZONE_OPTIONS: tuple[str, ...] = tuple(sorted(zoneinfo.available_timezones()))
 
@@ -1139,9 +1153,9 @@ def _order_transfers(
     return sorted(transfers, key=lambda t: (depth[t.from_channel_id], t.id))
 
 
-def _peso(amount: float) -> str:
+def _format_amount(amount: float, symbol: str) -> str:
     sign = "-" if amount < 0 else ""
-    return f"{sign}₱{abs(amount):,.2f}"
+    return f"{sign}{symbol}{abs(amount):,.2f}"
 
 
 def _transfer_note(
@@ -1149,12 +1163,15 @@ def _transfer_note(
     expenses: list[models.Expense],
     goals: list[models.Goal],
     payout_period_count: int,
+    symbol: str,
 ) -> str:
     parts = [
-        f"{e.name} ({_peso(float(e.amount))})" for e in expenses if e.channel_id == to_channel_id
+        f"{e.name} ({_format_amount(float(e.amount), symbol)})"
+        for e in expenses
+        if e.channel_id == to_channel_id
     ]
     parts += [
-        f"{g.name} goal ({_peso(goal_payout_amount(g, payout_period_count))})"
+        f"{g.name} goal ({_format_amount(goal_payout_amount(g, payout_period_count), symbol)})"
         for g in goals
         if g.channel_id == to_channel_id
     ]
@@ -1164,6 +1181,7 @@ def _transfer_note(
 
 
 def cashflow_page_data(db: Session, user_id: int) -> dict:
+    currency_symbol = currency_symbol_for(get_user(db, user_id))
     payout_periods = list_payout_periods(db, user_id)
     channels = list_channels(db, user_id)
     goals = list_goals(db, user_id)
@@ -1217,7 +1235,11 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                     {
                         "transfer": t,
                         "note": _transfer_note(
-                            t.to_channel_id, expenses, goals, payout_period_count
+                            t.to_channel_id,
+                            expenses,
+                            goals,
+                            payout_period_count,
+                            currency_symbol,
                         ),
                     }
                     for t in transfers

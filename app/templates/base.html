@@ -1,10 +1,11 @@
-{% import "macros.html" as macros %}
+{% import "macros.html" as macros with context %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ request.session.csrf_token }}">
+    <meta name="currency-symbol" content="{{ currency_symbol }}">
     <title>Finance Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
@@ -22,7 +23,8 @@
            hx-push-url="true">
         <div class="rail-head" id="rail-head">
           <div class="rail-brand" id="rail-brand">
-            <div class="rail-logo">L</div>
+            {% set greeting_name = current_user.display_name if current_user and current_user.display_name else (current_user.email.split('@')[0] if current_user else '') %}
+            <span class="rail-greeting" title="What's up, {{ greeting_name }}!">What's up, {{ greeting_name }}!</span>
           </div>
           <button class="shrink-0 bg-paper-dim text-ink-soft rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-line"
                   id="collapse-toggle"
@@ -228,6 +230,7 @@
     </div>
     <script>
       const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      window.CURRENCY_SYMBOL = document.querySelector('meta[name="currency-symbol"]').content;
       document.body.addEventListener("htmx:configRequest", (evt) => {
         evt.detail.headers["X-CSRF-Token"] = csrfToken;
       });
@@ -513,7 +516,7 @@
         }
       });
     </script>
-    <script src="{{ url_for('static', path='js/cashflow.js') }}?v=19"></script>
+    <script src="{{ url_for('static', path='js/cashflow.js') }}?v=20"></script>
     {% block extra_scripts %}
     {% endblock extra_scripts %}
   </body>

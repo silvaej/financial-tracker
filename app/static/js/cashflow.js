@@ -437,7 +437,7 @@
     const sign = amount < 0 ? "-" : "";
     return (
       sign +
-      "₱" +
+      (window.CURRENCY_SYMBOL || "₱") +
       Math.abs(amount).toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
