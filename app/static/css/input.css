@@ -13,27 +13,66 @@
 }
 
 @theme {
-  --color-ink: #1c2b2b;
-  --color-ink-soft: #4b5d5d;
-  --color-paper: #fafafa;
-  --color-paper-dim: #ececec;
+  --color-ink: #14181f;
+  --color-ink-soft: #6b7280;
+  --color-paper: #f4f5f8;
+  --color-paper-dim: #eceef2;
   --color-card: #ffffff;
-  --color-line: #dcdcdc;
-  --color-accent: #2f6d4f;
-  --color-gold: #b6872f;
-  --color-gold-soft: #f1e2bc;
-  --color-rust: #a83f28;
-  --color-rust-soft: #f0dcd2;
-  --font-serif: "Fraunces", serif;
+  --color-line: #e3e6ec;
+  --color-accent: #2f56e8;
+  --color-gold: #a5720f;
+  --color-gold-soft: #fbf0d8;
+  --color-rust: #c53d3d;
+  --color-rust-soft: #fbe8e8;
+  /* Not a display face any more -- flat/fintech direction dropped the serif
+     look entirely, but .page-title/.rail-logo still use the font-serif
+     utility, so this token is repointed to the same sans stack as body text
+     rather than touching every template that references it. */
+  --font-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
+}
+
+/* Dark-mode token overrides -- @theme above only feeds Tailwind's utility
+   generator (bg-accent, text-ink-soft, etc.), so re-pointing those same
+   custom-property names here recolors every existing utility class
+   app-wide with zero template changes. Kept in two blocks (system
+   preference + explicit override) so a user's manual toggle always wins
+   over prefers-color-scheme, in both directions. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-ink: #e7e9ee;
+    --color-ink-soft: #939ba8;
+    --color-paper: #0b0d12;
+    --color-paper-dim: #161a22;
+    --color-card: #12151c;
+    --color-line: #242833;
+    --color-accent: #7291ff;
+    --color-gold: #dba63f;
+    --color-gold-soft: rgba(219, 166, 63, 0.16);
+    --color-rust: #e57373;
+    --color-rust-soft: rgba(229, 115, 115, 0.16);
+  }
+}
+:root[data-theme="dark"] {
+  --color-ink: #e7e9ee;
+  --color-ink-soft: #939ba8;
+  --color-paper: #0b0d12;
+  --color-paper-dim: #161a22;
+  --color-card: #12151c;
+  --color-line: #242833;
+  --color-accent: #7291ff;
+  --color-gold: #dba63f;
+  --color-gold-soft: rgba(219, 166, 63, 0.16);
+  --color-rust: #e57373;
+  --color-rust-soft: rgba(229, 115, 115, 0.16);
 }
 
 @layer components {
   .rail {
-    @apply w-52 shrink-0 bg-ink flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
+    @apply w-52 shrink-0 bg-card border-r border-line flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
   }
   .rail-head {
-    @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-white/20;
+    @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-line;
   }
   .rail-brand {
     @apply flex items-center gap-2.5 min-w-0;
@@ -42,13 +81,55 @@
     @apply flex items-center justify-center w-8 h-8 rounded-lg bg-accent font-serif font-bold text-base text-white shrink-0;
   }
   .tab {
-    @apply flex items-center gap-2.5 text-sm font-medium text-white/75 px-5 py-2.5 border-l-[3px] border-transparent hover:bg-white/10 hover:text-white transition-colors;
+    @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors;
   }
   .tab-icon {
     @apply w-5 h-5 shrink-0;
   }
   .tab-active {
-    @apply bg-white/15 text-white border-l-accent;
+    @apply bg-accent/10 text-accent border-l-accent font-semibold;
+  }
+
+  /* Bottom tab bar -- the mobile replacement for .rail. Hidden by default;
+     the max-width:640px block below flips it to `flex` and hides .rail. */
+  .tabbar {
+    @apply hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-line;
+  }
+  .tabbar-item {
+    @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold text-ink-soft;
+  }
+  .tabbar-item-active {
+    @apply text-accent;
+  }
+  .tabbar-icon {
+    @apply w-5 h-5 shrink-0;
+  }
+
+  /* "More" sheet -- holds the rail items that don't fit in the tabbar's 5
+     slots (Credit, Assets, Account, theme toggle, log out). */
+  .sheet-overlay {
+    @apply hidden fixed inset-0 z-40 items-end bg-black/50;
+  }
+  .sheet {
+    @apply w-full bg-card border-t border-line rounded-t-2xl pt-2.5 pb-1.5;
+  }
+  .sheet-handle {
+    @apply w-9 h-1 bg-line rounded-full mx-auto mb-1.5;
+  }
+  .sheet-item {
+    @apply flex items-center gap-3 px-5 py-3 text-sm font-semibold text-ink w-full text-left bg-transparent cursor-pointer;
+  }
+  .sheet-item svg {
+    @apply w-[18px] h-[18px] text-ink-soft shrink-0;
+  }
+  .sheet-item-logout {
+    @apply text-rust;
+  }
+  .sheet-item-logout svg {
+    @apply text-rust;
+  }
+  .sheet-divider {
+    @apply h-px bg-line my-1;
   }
 
   .page {
@@ -68,7 +149,7 @@
   }
 
   .card {
-    @apply bg-card rounded-lg px-4 py-3.5 shadow-sm;
+    @apply bg-card border border-line rounded-lg px-4 py-3.5;
   }
   .card-label {
     @apply text-[11px] uppercase tracking-wide text-ink-soft font-semibold mb-1.5;
@@ -81,13 +162,13 @@
   }
 
   .section {
-    @apply bg-card rounded-xl px-5 py-5 shadow-sm mb-5;
+    @apply bg-card border border-line rounded-lg px-5 py-5 mb-5;
   }
   .section-title {
-    @apply font-serif font-semibold text-base mb-3 flex items-center justify-between;
+    @apply font-semibold text-base mb-3 flex items-center justify-between;
   }
   .pill {
-    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/15 text-accent tracking-wide;
+    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide;
   }
   .pill-gold {
     @apply bg-gold-soft text-gold;
@@ -100,13 +181,31 @@
     @apply w-full min-w-max table-fixed text-[13.5px] border-collapse;
   }
   .led th {
-    @apply text-left text-[11px] uppercase tracking-wide text-ink-soft font-semibold px-2.5 py-1.5 border-b-2 border-ink;
+    @apply text-left text-[11px] uppercase tracking-wide text-ink-soft font-semibold px-2.5 py-1.5 border-b border-line;
   }
   .led td {
-    @apply px-2.5 py-1.5 border-b border-paper-dim align-middle;
+    @apply px-2.5 py-1.5 border-b border-line align-middle;
   }
   .num {
     @apply font-mono text-right;
+  }
+
+  /* Card-grid layout for repeating entities (Goals, Credit lines) shown as
+     individual units instead of table rows -- each .item-card is expected to
+     contain the same inline view/edit-toggle markup a .led row would, just
+     reflowed. */
+  .item-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+  .item-card {
+    @apply bg-paper-dim border border-line rounded-lg px-4 py-4;
+  }
+  .item-card-head {
+    @apply flex items-baseline justify-between gap-2 mb-2.5;
+  }
+  .item-card-title {
+    @apply text-sm font-semibold text-ink;
   }
 
   .icon-btn {
@@ -186,7 +285,11 @@
   }
 
   .bar-track {
-    @apply h-2 bg-paper-dim rounded-full overflow-hidden;
+    /* A relative darken (rather than a fixed bg-* token) so the empty
+       track stays visible against whichever surface it sits on --
+       bg-card on desktop, bg-paper-dim inside .item-card and the mobile
+       .led card reflow -- without needing a per-context override. */
+    @apply h-2 bg-ink/10 rounded-full overflow-hidden;
   }
   .bar-fill {
     @apply h-full rounded-full bg-accent;
@@ -201,8 +304,34 @@
   .warn-red {
     @apply bg-rust-soft text-rust;
   }
+  /* Clips to ~2 rows of chips by default; .warn-more only reveals itself
+     (via the .has-overflow modifier, set by JS once it measures actual
+     overflow) when there really is a 3rd+ row hidden. */
+  .warn-banner-wrap {
+    @apply relative mb-3;
+  }
   .warn-banner {
-    @apply flex flex-wrap gap-2 mb-3;
+    @apply flex flex-wrap gap-2 overflow-hidden;
+    max-height: 4rem;
+  }
+  .has-overflow .warn-banner {
+    @apply pr-9;
+  }
+  .warn-fade {
+    @apply absolute bottom-0 right-8 w-10 pointer-events-none;
+    height: 1.75rem;
+    background: linear-gradient(to right, transparent, var(--color-card));
+    display: none;
+  }
+  .has-overflow .warn-fade {
+    display: block;
+  }
+  .warn-more {
+    @apply absolute bottom-0 right-0 flex items-center justify-center w-7 h-7 rounded-full bg-card border border-line text-ink-soft text-xs font-bold shadow-sm hover:text-ink hover:border-accent no-underline;
+    display: none;
+  }
+  .has-overflow .warn-more {
+    display: flex;
   }
 
   .toolbox {
@@ -220,19 +349,9 @@
 
   .canvas {
     @apply relative w-full min-h-[520px] rounded-lg border border-line overflow-hidden touch-none;
-    background-color: var(--color-paper-dim);
-    background-image:
-      linear-gradient(rgba(28, 43, 43, 0.055) 1px, transparent 1px),
-      linear-gradient(
-        90deg,
-        transparent 63px,
-        rgba(168, 63, 40, 0.14) 63px,
-        rgba(168, 63, 40, 0.14) 64px,
-        transparent 64px
-      );
-    background-size:
-      100% 27px,
-      100% 100%;
+    background-color: var(--color-paper);
+    background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+    background-size: 18px 18px;
     cursor: grab;
   }
   .canvas.canvas-panning {
@@ -243,11 +362,11 @@
     transform-origin: 0 0;
   }
   .canvas-node {
-    @apply absolute bg-card rounded-lg px-4 py-3.5 shadow-sm w-40 cursor-grab select-none z-10;
-    border-left: 4px solid var(--rail, var(--color-accent));
+    @apply absolute bg-card border border-line rounded-lg px-4 py-3.5 w-40 cursor-grab select-none z-10;
+    border-left: 3px solid var(--rail, var(--color-accent));
   }
   .canvas-node-remove {
-    @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-ink text-white text-[10px] leading-none cursor-pointer z-20 hover:bg-rust;
+    @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-card border border-line text-ink-soft text-[10px] leading-none cursor-pointer z-20 hover:bg-rust hover:text-white hover:border-rust;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.1s ease;
@@ -275,9 +394,9 @@
   }
   /* The base .canvas-node rule paints its own card look directly on the
      element (background/shadow/padding/rail) -- the expense variant needs
-     that stripped off so the receipt-card visual can live on an inner
-     wrapper instead, otherwise its clip-path would also clip the hover
-     popup (a sibling, positioned outside the card's own box). */
+     that stripped off so the card visual can live on an inner wrapper
+     instead, keeping this node's hover popup (a sibling, positioned outside
+     the card's own box) unclipped. */
   .canvas-node-expense {
     @apply w-32 bg-transparent shadow-none p-0 cursor-grab;
     border-left: none;
@@ -286,31 +405,10 @@
     @apply cursor-grabbing;
   }
   .canvas-node-expense-card {
-    @apply bg-card rounded-lg px-3 pt-2.5 shadow-sm;
-    border-left: 4px solid var(--color-rust);
-    padding-bottom: 14px;
+    @apply bg-card border border-line rounded-lg px-3 py-2.5;
+    border-left: 3px solid var(--color-rust);
     opacity: 0.85;
     transition: opacity 0.15s ease;
-    /* Torn-receipt bottom edge -- visually distinct from the plain
-       rounded-rectangle channel/goal cards, and on-theme for "money out." */
-    clip-path: polygon(
-      0 0,
-      100% 0,
-      100% 82%,
-      92% 100%,
-      84% 82%,
-      76% 100%,
-      68% 82%,
-      60% 100%,
-      52% 82%,
-      44% 100%,
-      36% 82%,
-      28% 100%,
-      20% 82%,
-      12% 100%,
-      4% 82%,
-      0 92%
-    );
   }
   .canvas-node-expense:hover .canvas-node-expense-card {
     opacity: 1;
@@ -462,27 +560,20 @@
 }
 
 @media (max-width: 640px) {
+  /* The left rail is replaced outright by the bottom .tabbar on mobile
+     (rather than shrunk to icon-only) -- there's no room for a sidebar once
+     content needs to stack into cards. */
   .rail {
-    width: 4rem !important;
-  }
-  .rail .tab-label {
     display: none !important;
   }
-  .rail-head {
-    flex-direction: column;
-    gap: 0.5rem;
-    justify-content: center !important;
+  .tabbar {
+    display: flex;
   }
-  /* Width is forced above regardless of the collapsed/expanded JS state, so
-     the toggle button has no effect on mobile — hide it rather than leave a
-     dead control. */
-  #collapse-toggle {
-    display: none !important;
+  .sheet-overlay.flex {
+    display: flex;
   }
-
-  /* Keep inputs at >=16px so iOS Safari doesn't auto-zoom the page on focus. */
-  .field {
-    font-size: 16px;
+  .page {
+    padding-bottom: 4.5rem;
   }
 
   /* Bigger tap targets for the text/icon action buttons. */
@@ -493,5 +584,142 @@
   .btn-secondary {
     padding-block: 0.625rem;
     padding-inline: 0.875rem;
+  }
+
+  /* Ledger tables reflow into stacked cards instead of scrolling
+     horizontally -- each <tr> becomes a card and each <td> a label/value
+     row, with the label pulled from data-label so no template markup needs
+     duplicating between a "table" and "card" version. */
+  .table-wrap {
+    overflow-x: visible;
+  }
+  .led,
+  .led thead,
+  .led tbody,
+  .led tfoot,
+  .led tr,
+  .led th,
+  .led td {
+    display: block;
+    width: auto;
+    /* .led's base rule sets min-w-max (desktop column widths) -- without
+       overriding it here, the table keeps its full desktop intrinsic
+       width even in block layout, pushing edit-mode inputs off-screen. */
+    min-width: 0;
+  }
+  .led thead {
+    display: none;
+  }
+  /* This block's rules are unlayered, so they beat Tailwind's own layered
+     utilities (e.g. .hidden) regardless of specificity -- without this,
+     a hidden "add row" <tr> would force itself back to display:block. */
+  .led tr.hidden {
+    display: none !important;
+  }
+  /* Grid (not flex) deliberately -- a flex row with mixed 100%/0%-basis
+     children lets 0%-basis items slip onto the same line as a preceding
+     100%-basis one instead of wrapping (their hypothetical size
+     contributes 0 to the line-fit check). Grid's auto-placement always
+     starts the next item on a fresh row once a full-width (1/-1) item
+     has claimed the current one. */
+  .led tbody tr {
+    display: grid;
+    /* A fine-grained 6-column track lets both a 2-up group (Channels'
+       Name/Type, spanning 3 tracks each) and a 3-up group (Goals'
+       Target/Allocated/Months, spanning 2 tracks each) split their row
+       evenly -- see .led-inline-2/.led-inline-3 below. */
+    grid-template-columns: repeat(6, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.3rem;
+    background: var(--color-paper-dim);
+    border: 1px solid var(--color-line);
+    border-radius: 0.6rem;
+    padding: 0.65rem 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  /* A row's edit/delete (and, once toggled, save/cancel) icon buttons
+     live in a dedicated .led-actions cell (see templates) so they can be
+     pinned flush right in their own strip above the rest of the card's
+     content (including the first cell's "NAME"-style label) instead of
+     trailing at the bottom in source order. The extra top padding on the
+     row reserves that strip so the pinned icons never overlap the
+     content below. Both the view-state and edit-state child are
+     icon-only, so both pin to the same spot -- whichever is visible. */
+  .led tbody tr:has(.led-actions) {
+    position: relative;
+    padding-top: 2.75rem;
+  }
+  .led td.led-actions [class*="view-"],
+  .led td.led-actions [class*="edit-"] {
+    position: absolute;
+    top: 0.8rem;
+    right: 1.25rem;
+  }
+  .led td {
+    grid-column: 1 / -1;
+    border-bottom: none;
+    padding: 0;
+    text-align: left;
+  }
+  .led td:empty {
+    display: none;
+  }
+  /* Cells marked .led-inline (see templates -- e.g. Goals' Target/
+     Allocated/Months, Channels' Name/Type) sit side by side on one line
+     instead of each taking the full row, with a divider along the
+     bottom of the group. Pair with .led-inline-2 or .led-inline-3 to say
+     how many cells share that line. */
+  .led td.led-inline {
+    border-bottom: 1px solid var(--color-line);
+    padding-bottom: 0.6rem;
+  }
+  .led td.led-inline-2 {
+    grid-column: span 3;
+  }
+  .led td.led-inline-3 {
+    grid-column: span 2;
+  }
+  /* Labelled cells stack the label above the value -- block layout (rather
+     than a same-line label:value flex row) since some cells (Goals'
+     Progress column, a channel's edit form) hold several stacked elements,
+     not a single scalar value. */
+  .led td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-ink-soft);
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+  }
+  .led tfoot tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-weight: 600;
+    padding: 0.5rem 0.2rem 0;
+  }
+  /* Money edit/add inputs (Income, Amount, Limit, Used, Target,
+     Allocated) sit in a "justify-end" flex row so their currency
+     symbol + value hug the right edge of a desktop table column. On
+     mobile's stacked cards every other field is full-width and
+     left-aligned, so a right-hugging money input's left edge floats
+     out of line with the label above it. Left-align it and let the
+     input grow to fill the row instead, matching the other fields. */
+  .led td.num > .flex {
+    justify-content: flex-start;
+  }
+  .led td.num > .flex input {
+    flex: 1;
+  }
+  /* A lone "+ Add" trigger row shouldn't get the same card
+     background/border/padding as a real data row -- override
+     .led tbody tr (above) back to a plain block. */
+  .led tbody tr.tr-add-btn {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
   }
 }
