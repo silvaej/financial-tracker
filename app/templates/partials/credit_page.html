@@ -1,4 +1,4 @@
-﻿{% import "macros.html" as macros %}
+﻿{% import "macros.html" as macros with context %}
 <div id="credit-page">
   <div class="page-head">
     <div>
@@ -69,7 +69,7 @@
               <td class="num led-inline led-inline-2" data-label="Limit">
                 <span class="view-credit-{{ line.id }}">{{ macros.peso(line.limit) }}</span>
                 <div class="edit-credit-{{ line.id }} hidden items-center justify-end gap-1">
-                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                   <input class="field field-mono w-24"
                          type="number"
                          step="0.01"
@@ -81,7 +81,7 @@
               <td class="num led-inline led-inline-2" data-label="Used">
                 <span class="view-credit-{{ line.id }}">{{ macros.peso(line.used) }}</span>
                 <div class="edit-credit-{{ line.id }} hidden items-center justify-end gap-1">
-                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                   <input class="field field-mono w-24"
                          type="number"
                          step="0.01"
@@ -162,7 +162,7 @@
             </td>
             <td class="num led-inline led-inline-2" data-label="Limit">
               <div class="flex items-center justify-end gap-1">
-                <span class="text-ink-soft text-sm">&#8369;</span>
+                <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
@@ -174,7 +174,7 @@
             </td>
             <td class="num led-inline led-inline-2" data-label="Used">
               <div class="flex items-center justify-end gap-1">
-                <span class="text-ink-soft text-sm">&#8369;</span>
+                <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"

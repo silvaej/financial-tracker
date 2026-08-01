@@ -1,9 +1,11 @@
+{% import "macros.html" as macros with context %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ request.session.csrf_token }}">
+    <meta name="currency-symbol" content="{{ currency_symbol }}">
     <title>Finance Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
@@ -21,7 +23,8 @@
            hx-push-url="true">
         <div class="rail-head" id="rail-head">
           <div class="rail-brand" id="rail-brand">
-            <div class="rail-logo">L</div>
+            {% set greeting_name = current_user.display_name if current_user and current_user.display_name else (current_user.email.split('@')[0] if current_user else '') %}
+            <span class="rail-greeting" title="What's up, {{ greeting_name }}!">What's up, {{ greeting_name }}!</span>
           </div>
           <button class="shrink-0 bg-paper-dim text-ink-soft rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-line"
                   id="collapse-toggle"
@@ -45,13 +48,19 @@
         {% endfor %}
         <a class="tab mt-auto{{ ' tab-active' if request.url.path == '/account' else '' }}"
            href="/account">
-          <svg class="tab-icon"
-               viewBox="0 0 24 24"
-               fill="none"
-               stroke="currentColor"
-               stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
+          {% if current_user and current_user.avatar_data %}
+            <img class="tab-icon rounded-full object-cover"
+                 src="/account/avatar"
+                 alt="">
+          {% else %}
+            <svg class="tab-icon"
+                 viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+          {% endif %}
           <span class="tab-label">Account</span>
         </a>
         <button type="button"
@@ -150,12 +159,18 @@
         {% endfor %}
         <div class="sheet-divider"></div>
         <a class="sheet-item" href="/account" onclick="closeMoreSheet()">
-          <svg viewBox="0 0 24 24"
-               fill="none"
-               stroke="currentColor"
-               stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
+          {% if current_user and current_user.avatar_data %}
+            <img class="w-[18px] h-[18px] rounded-full object-cover shrink-0"
+                 src="/account/avatar"
+                 alt="">
+          {% else %}
+            <svg viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+          {% endif %}
           Account
         </a>
         <button type="button"
@@ -215,6 +230,7 @@
     </div>
     <script>
       const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      window.CURRENCY_SYMBOL = document.querySelector('meta[name="currency-symbol"]').content;
       document.body.addEventListener("htmx:configRequest", (evt) => {
         evt.detail.headers["X-CSRF-Token"] = csrfToken;
       });
@@ -414,6 +430,14 @@
         if (trigger) trigger.classList.remove("hidden");
       }
 
+      function togglePasswordVisibility(buttonEl) {
+        const input = buttonEl.parentElement.querySelector("input");
+        const showing = input.type === "text";
+        input.type = showing ? "password" : "text";
+        buttonEl.querySelector(".pw-icon-show").classList.toggle("hidden", !showing);
+        buttonEl.querySelector(".pw-icon-hide").classList.toggle("hidden", showing);
+      }
+
       function closeAllPresetPopovers() {
         document.querySelectorAll(".preset-popover").forEach((p) => p.classList.add("hidden"));
         document
@@ -492,7 +516,7 @@
         }
       });
     </script>
-    <script src="{{ url_for('static', path='js/cashflow.js') }}?v=19"></script>
+    <script src="{{ url_for('static', path='js/cashflow.js') }}?v=20"></script>
     {% block extra_scripts %}
     {% endblock extra_scripts %}
   </body>

@@ -264,3 +264,123 @@ def test_change_password_rejects_short_password(real_client: TestClient) -> None
     )
     assert response.status_code == 400
     assert "at least" in response.text
+
+
+def _png_bytes() -> bytes:
+    # Valid 1x1 transparent PNG.
+    return bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+        "0000000d49444154789c6360606060000000050001a5f6454000000000"
+        "49454e44ae426082"
+    )
+
+
+def test_update_profile_persists_all_fields(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post(
+        "/account/profile",
+        data={
+            "display_name": "Alice Cooper",
+            "currency_code": "USD",
+            "timezone": "America/New_York",
+            "notify_cash_flow_warnings": "on",
+        },
+    )
+    assert response.status_code == 200
+    assert "Profile updated" in response.text
+
+    page = real_client.get("/account")
+    assert 'value="Alice Cooper"' in page.text
+    assert 'value="USD"' in page.text and "selected" in page.text
+    assert "America/New_York" in page.text
+
+
+def test_update_profile_unchecked_notify_box_is_saved_as_false(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    real_client.post(
+        "/account/profile",
+        data={"display_name": "", "currency_code": "PHP", "timezone": ""},
+    )
+
+    db = TestingSessionLocal()
+    try:
+        user = crud.get_user_by_email(db, "alice@example.com")
+        assert user is not None
+        assert user.notify_cash_flow_warnings is False
+        assert user.display_name is None
+    finally:
+        db.close()
+
+
+def test_update_profile_rejects_invalid_currency(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post("/account/profile", data={"currency_code": "XXX", "timezone": ""})
+    assert response.status_code == 400
+    assert "valid currency" in response.text
+
+
+def test_update_profile_rejects_invalid_timezone(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post(
+        "/account/profile",
+        data={"currency_code": "PHP", "timezone": "Not/A_Real_Zone"},
+    )
+    assert response.status_code == 400
+    assert "valid timezone" in response.text
+
+
+def test_upload_avatar_is_served_and_shown_in_rail(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    before = real_client.get("/account")
+    assert 'src="/account/avatar"' not in before.text
+
+    upload = real_client.post(
+        "/account/avatar", files={"avatar": ("avatar.png", _png_bytes(), "image/png")}
+    )
+    assert upload.status_code == 200
+    assert 'src="/account/avatar"' in upload.text
+
+    avatar = real_client.get("/account/avatar")
+    assert avatar.status_code == 200
+    assert avatar.headers["content-type"] == "image/png"
+    assert avatar.headers["x-content-type-options"] == "nosniff"
+    assert avatar.content == _png_bytes()
+
+    home = real_client.get("/")
+    assert 'src="/account/avatar"' in home.text
+
+
+def test_upload_avatar_rejects_non_image_files(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.post(
+        "/account/avatar", files={"avatar": ("evil.txt", b"not an image", "text/plain")}
+    )
+    assert response.status_code == 400
+
+
+def test_remove_avatar_falls_back_to_icon(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+    real_client.post("/account/avatar", files={"avatar": ("avatar.png", _png_bytes(), "image/png")})
+
+    removed = real_client.delete("/account/avatar")
+    assert removed.status_code == 200
+    assert 'src="/account/avatar"' not in removed.text
+
+    missing = real_client.get("/account/avatar")
+    assert missing.status_code == 404
+
+    home = real_client.get("/")
+    assert 'src="/account/avatar"' not in home.text

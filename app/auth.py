@@ -52,4 +52,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> models.
         raise NotAuthenticated()
 
     request.session["last_seen"] = now
+    # Stashed for Jinja2Templates' context_processor (app/main.py) so every
+    # template render gets `current_user` (e.g. the rail's avatar) without
+    # threading it through each router's own render context.
+    request.state.user = user
     return user

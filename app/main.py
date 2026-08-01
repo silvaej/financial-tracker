@@ -3,7 +3,6 @@ import os
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -28,6 +27,7 @@ from app.routers import (
     payout_periods,
     transfers,
 )
+from app.templating import templates
 
 app = FastAPI(title="Finance Tracker", dependencies=[Depends(csrf_protect)])
 
@@ -43,7 +43,6 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
 
 
 @app.exception_handler(NotAuthenticated)

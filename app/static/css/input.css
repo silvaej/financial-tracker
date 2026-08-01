@@ -25,7 +25,7 @@
   --color-rust: #c53d3d;
   --color-rust-soft: #fbe8e8;
   /* Not a display face any more -- flat/fintech direction dropped the serif
-     look entirely, but .page-title/.rail-logo still use the font-serif
+     look entirely, but .page-title/.rail-greeting still use the font-serif
      utility, so this token is repointed to the same sans stack as body text
      rather than touching every template that references it. */
   --font-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
@@ -77,8 +77,8 @@
   .rail-brand {
     @apply flex items-center gap-2.5 min-w-0;
   }
-  .rail-logo {
-    @apply flex items-center justify-center w-8 h-8 rounded-lg bg-accent font-serif font-bold text-base text-white shrink-0;
+  .rail-greeting {
+    @apply font-serif font-semibold text-sm text-ink truncate;
   }
   .tab {
     @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors;
@@ -235,6 +235,9 @@
   }
   .badge-lg {
     @apply w-[26px] h-[26px] text-[9.5px];
+  }
+  .badge-xl {
+    @apply w-[72px] h-[72px] text-2xl;
   }
 
   .preset-popover-wrap {

@@ -1,4 +1,4 @@
-{% import "macros.html" as macros %}
+{% import "macros.html" as macros with context %}
 <div id="goals-page">
   <div class="page-head">
     <div>
@@ -71,7 +71,7 @@
               <td class="num led-inline led-inline-3" data-label="Target">
                 <span class="view-goal-{{ goal.id }}">{{ macros.peso(goal.target) }}</span>
                 <div class="edit-goal-{{ goal.id }} hidden items-center justify-end gap-1">
-                  <span class="text-ink-soft text-sm">&#8369;</span>
+                  <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                   <input class="field field-mono w-24"
                          type="number"
                          step="0.01"
@@ -114,7 +114,7 @@
                          hx-swap="outerHTML"
                          hx-trigger="change"
                          {{ "checked" if goal.round_up_to_hundred else "" }}>
-                  Round up to nearest &#8369;100
+                  Round up to nearest {{ currency_symbol }}100
                 </label>
               </td>
               <td class="led-actions">
@@ -174,7 +174,7 @@
             </td>
             <td class="num led-inline led-inline-3" data-label="Target">
               <div class="flex items-center justify-end gap-1">
-                <span class="text-ink-soft text-sm">&#8369;</span>
+                <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
@@ -186,7 +186,7 @@
             </td>
             <td class="num led-inline led-inline-3" data-label="Allocated">
               <div class="flex items-center justify-end gap-1">
-                <span class="text-ink-soft text-sm">&#8369;</span>
+                <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                 <input class="field field-mono w-24"
                        type="number"
                        step="0.01"
@@ -207,7 +207,7 @@
             <td>
               <label class="flex items-center gap-1.5 text-[11px] text-ink-soft">
                 <input type="checkbox" name="round_up_to_hundred" form="add-goal-form">
-                Round up to nearest &#8369;100
+                Round up to nearest {{ currency_symbol }}100
               </label>
             </td>
             <td>

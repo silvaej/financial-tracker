@@ -129,4 +129,4 @@ def test_cashflow_canvas_shows_channel_nodes_with_balances(
     assert f'data-node-id="channel-{a}"' in response.text
     assert f'data-node-id="channel-{b}"' in response.text
     assert "1,000.00" in response.text
-    assert "-&#8369;500.00" in response.text
+    assert "-₱500.00" in response.text

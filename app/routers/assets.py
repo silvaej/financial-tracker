@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.auth import get_current_user
 from app.database import get_db
+from app.templating import templates
 
 router = APIRouter(prefix="/assets", tags=["assets"])
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
