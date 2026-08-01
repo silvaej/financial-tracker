@@ -1,3 +1,4 @@
+{% import "macros.html" as macros %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -45,13 +46,19 @@
         {% endfor %}
         <a class="tab mt-auto{{ ' tab-active' if request.url.path == '/account' else '' }}"
            href="/account">
-          <svg class="tab-icon"
-               viewBox="0 0 24 24"
-               fill="none"
-               stroke="currentColor"
-               stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
+          {% if current_user and current_user.avatar_data %}
+            <img class="tab-icon rounded-full object-cover"
+                 src="/account/avatar"
+                 alt="">
+          {% else %}
+            <svg class="tab-icon"
+                 viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+          {% endif %}
           <span class="tab-label">Account</span>
         </a>
         <button type="button"
@@ -150,12 +157,18 @@
         {% endfor %}
         <div class="sheet-divider"></div>
         <a class="sheet-item" href="/account" onclick="closeMoreSheet()">
-          <svg viewBox="0 0 24 24"
-               fill="none"
-               stroke="currentColor"
-               stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
+          {% if current_user and current_user.avatar_data %}
+            <img class="w-[18px] h-[18px] rounded-full object-cover shrink-0"
+                 src="/account/avatar"
+                 alt="">
+          {% else %}
+            <svg viewBox="0 0 24 24"
+                 fill="none"
+                 stroke="currentColor"
+                 stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+          {% endif %}
           Account
         </a>
         <button type="button"
@@ -412,6 +425,14 @@
         row.classList.add("hidden");
         if (row.tagName !== "TR") row.classList.remove("flex");
         if (trigger) trigger.classList.remove("hidden");
+      }
+
+      function togglePasswordVisibility(buttonEl) {
+        const input = buttonEl.parentElement.querySelector("input");
+        const showing = input.type === "text";
+        input.type = showing ? "password" : "text";
+        buttonEl.querySelector(".pw-icon-show").classList.toggle("hidden", !showing);
+        buttonEl.querySelector(".pw-icon-hide").classList.toggle("hidden", showing);
       }
 
       function closeAllPresetPopovers() {

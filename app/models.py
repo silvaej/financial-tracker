@@ -14,6 +14,14 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     failed_login_attempts: Mapped[int] = mapped_column(default=0, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    avatar_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    avatar_mimetype: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    currency_code: Mapped[str] = mapped_column(
+        String(3), nullable=False, default="PHP", server_default="PHP"
+    )
+    timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    notify_cash_flow_warnings: Mapped[bool] = mapped_column(default=True)
 
 
 class Channel(Base):

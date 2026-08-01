@@ -1,5 +1,6 @@
 import json
 import math
+import zoneinfo
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -81,6 +82,22 @@ def _require_owned(
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
 
+# (code, label) pairs for the Account page's currency <select>. Stored on
+# User.currency_code but not yet read anywhere -- macros.peso() still hardcodes
+# ₱ pending a follow-up that wires this through every amount-rendering call site.
+CURRENCY_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("PHP", "₱ PHP — Philippine Peso"),
+    ("USD", "$ USD — US Dollar"),
+    ("EUR", "€ EUR — Euro"),
+    ("JPY", "¥ JPY — Japanese Yen"),
+    ("GBP", "£ GBP — British Pound"),
+    ("SGD", "$ SGD — Singapore Dollar"),
+    ("AUD", "$ AUD — Australian Dollar"),
+)
+CURRENCY_CODES: frozenset[str] = frozenset(code for code, _ in CURRENCY_OPTIONS)
+
+TIMEZONE_OPTIONS: tuple[str, ...] = tuple(sorted(zoneinfo.available_timezones()))
+
 
 def get_user(db: Session, user_id: int) -> models.User | None:
     return db.get(models.User, user_id)
@@ -113,6 +130,34 @@ def register_successful_login(db: Session, user: models.User) -> None:
 
 def update_password(db: Session, user: models.User, hashed_password: str) -> None:
     user.hashed_password = hashed_password
+    db.commit()
+
+
+def update_profile(
+    db: Session,
+    user: models.User,
+    *,
+    display_name: str | None,
+    currency_code: str,
+    timezone: str | None,
+    notify_cash_flow_warnings: bool,
+) -> None:
+    user.display_name = display_name
+    user.currency_code = currency_code
+    user.timezone = timezone
+    user.notify_cash_flow_warnings = notify_cash_flow_warnings
+    db.commit()
+
+
+def set_avatar(db: Session, user: models.User, data: bytes, mimetype: str) -> None:
+    user.avatar_data = data
+    user.avatar_mimetype = mimetype
+    db.commit()
+
+
+def clear_avatar(db: Session, user: models.User) -> None:
+    user.avatar_data = None
+    user.avatar_mimetype = None
     db.commit()
 
 

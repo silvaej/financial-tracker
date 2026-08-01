@@ -1,33 +1,164 @@
+{% import "macros.html" as macros %}
 <div id="account-page">
   <div class="page-head">
     <div>
       <div class="page-title">Account</div>
-      <div class="page-sub">Change your password</div>
+      <div class="page-sub">Manage your profile and security</div>
     </div>
   </div>
-  <div class="card max-w-sm">
-    {% if success %}<p class="text-sm text-accent mb-4">Password updated.</p>{% endif %}
-    {% if error %}<p class="text-sm text-rust mb-4">{{ error }}</p>{% endif %}
-    <form method="post" action="/account/password" class="flex flex-col gap-3">
+  <div class="card max-w-md mb-5">
+    <p class="text-sm font-bold text-ink mb-0.5">Profile</p>
+    <p class="text-xs text-ink-soft mb-4">Your name, photo, and regional preferences.</p>
+    {% if profile_success %}<p class="text-sm text-accent mb-4">Profile updated.</p>{% endif %}
+    {% if profile_error %}<p class="text-sm text-rust mb-4">{{ profile_error }}</p>{% endif %}
+    <div class="flex flex-col sm:flex-row items-start gap-4 mb-4">
+      <div class="shrink-0 text-center">
+        {{ macros.user_avatar(current_user, size='xl') }}
+        <div class="flex gap-2 mt-2 justify-center">
+          <form id="avatar-form"
+                method="post"
+                action="/account/avatar"
+                enctype="multipart/form-data">
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ request.session.csrf_token }}">
+            <label class="btn-secondary cursor-pointer">
+              Change
+              <input type="file"
+                     name="avatar"
+                     accept="image/png,image/jpeg,image/webp,image/gif"
+                     class="hidden"
+                     onchange="this.form.requestSubmit()">
+            </label>
+          </form>
+          {% if current_user.avatar_data %}
+            <button type="button"
+                    class="btn-secondary hover:bg-rust-soft hover:text-rust"
+                    hx-delete="/account/avatar"
+                    hx-target="#account-page"
+                    hx-swap="outerHTML"
+                    hx-confirm="Remove your profile photo?">Remove</button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Display name</span>
+        <input class="field"
+               type="text"
+               name="display_name"
+               form="profile-form"
+               maxlength="100"
+               value="{{ current_user.display_name or '' }}"
+               placeholder="Your name">
+      </div>
+    </div>
+    <form id="profile-form"
+          method="post"
+          action="/account/profile"
+          class="flex flex-col gap-3.5">
       <input type="hidden"
              name="csrf_token"
              value="{{ request.session.csrf_token }}">
-      <input class="field"
-             type="password"
-             name="current_password"
-             placeholder="Current password"
-             required>
-      <input class="field"
-             type="password"
-             name="new_password"
-             placeholder="New password"
-             required>
-      <input class="field"
-             type="password"
-             name="confirm_password"
-             placeholder="Confirm new password"
-             required>
-      <button type="submit" class="add-btn mt-2">Update password</button>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Currency</span>
+          <select class="field" name="currency_code">
+            {% for code, label in currency_options %}
+              <option value="{{ code }}"
+                      {{ "selected" if current_user.currency_code == code else "" }}>{{ label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Timezone</span>
+          <select class="field" name="timezone">
+            <option value="">No timezone set</option>
+            {% for tz in timezone_options %}
+              <option value="{{ tz }}"
+                      {{ "selected" if current_user.timezone == tz else "" }}>{{ tz }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <label class="flex items-start gap-2.5 pt-3.5 border-t border-line cursor-pointer">
+        <input type="checkbox"
+               name="notify_cash_flow_warnings"
+               class="mt-0.5"
+               {{ "checked" if current_user.notify_cash_flow_warnings else "" }}>
+        <span class="text-sm">
+          <span class="block font-semibold text-ink">Email me when a channel is projected to go negative</span>
+          <span class="flex items-center gap-1.5 text-[11px] text-ink-soft mt-0.5">
+            <span class="w-[5px] h-[5px] rounded-full bg-gold shrink-0"></span>
+            Not active yet — we'll turn this on once email delivery ships
+          </span>
+        </span>
+      </label>
+      <button type="submit" class="add-btn mt-1">Save profile</button>
+    </form>
+  </div>
+  <div class="card max-w-md">
+    <p class="text-sm font-bold text-ink mb-0.5">Password</p>
+    <p class="text-xs text-ink-soft mb-4">Update the password used to sign in.</p>
+    {% if password_success %}<p class="text-sm text-accent mb-4">Password updated.</p>{% endif %}
+    {% if password_error %}<p class="text-sm text-rust mb-4">{{ password_error }}</p>{% endif %}
+    <button type="button"
+            id="password-form-trigger"
+            class="btn-secondary{{ ' hidden' if password_error or password_success else '' }}"
+            onclick="toggleAddRow('password-form', this)">Change password</button>
+    <form id="password-form"
+          method="post"
+          action="/account/password"
+          class="{{ '' if password_error or password_success else 'hidden' }} flex-col gap-3">
+      <input type="hidden"
+             name="csrf_token"
+             value="{{ request.session.csrf_token }}">
+      <div class="relative">
+        <input class="field pr-9"
+               type="password"
+               name="current_password"
+               placeholder="Current password"
+               required>
+        <button type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
+                onclick="togglePasswordVisibility(this)">
+          <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
+          <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
+        </button>
+      </div>
+      <div class="relative">
+        <input class="field pr-9"
+               type="password"
+               name="new_password"
+               placeholder="New password"
+               required>
+        <button type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
+                onclick="togglePasswordVisibility(this)">
+          <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
+          <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
+        </button>
+      </div>
+      <div class="relative">
+        <input class="field pr-9"
+               type="password"
+               name="confirm_password"
+               placeholder="Confirm new password"
+               required>
+        <button type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
+                onclick="togglePasswordVisibility(this)">
+          <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
+          <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
+        </button>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="submit" class="add-btn mt-0">Update password</button>
+        <button type="button"
+                class="btn-secondary"
+                onclick="cancelAddRow('password-form', 'password-form-trigger', 'password-form')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>

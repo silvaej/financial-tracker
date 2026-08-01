@@ -236,6 +236,9 @@
   .badge-lg {
     @apply w-[26px] h-[26px] text-[9.5px];
   }
+  .badge-xl {
+    @apply w-[72px] h-[72px] text-2xl;
+  }
 
   .preset-popover-wrap {
     @apply relative;
