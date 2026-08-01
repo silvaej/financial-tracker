@@ -110,6 +110,7 @@ def currency_symbol_for(user: models.User | None) -> str:
         return DEFAULT_CURRENCY_SYMBOL
     return CURRENCY_SYMBOLS.get(user.currency_code, DEFAULT_CURRENCY_SYMBOL)
 
+
 TIMEZONE_OPTIONS: tuple[str, ...] = tuple(sorted(zoneinfo.available_timezones()))
 
 
