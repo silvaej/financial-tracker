@@ -5,9 +5,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import crud
-from app.auth import get_current_user, hash_password
+from app.auth import get_current_user
 from app.main import app
 from tests.conftest import TestingSessionLocal
+from tests.conftest import oauth_login as _oauth_login
 
 
 @pytest.fixture
@@ -20,19 +21,19 @@ def real_client() -> Generator[TestClient, None, None]:
         app.dependency_overrides[get_current_user] = original
 
 
-def _create_user(email: str, password: str) -> int:
+def _create_user(email: str) -> int:
     db = TestingSessionLocal()
     try:
-        user = crud.create_user(db, email, hash_password(password))
+        user = crud.create_user(db, email)
         return user.id
     finally:
         db.close()
 
 
 def _login(
-    client: TestClient, email: str = "alice@example.com", password: str = "correct-horse"
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, email: str = "alice@example.com"
 ) -> None:
-    client.post("/login", data={"email": email, "password": password})
+    _oauth_login(client, monkeypatch, email=email, provider_user_id=f"g-{email}")
 
 
 def _create_channel(client: TestClient, name: str = "GCash") -> str:
@@ -61,18 +62,22 @@ def _element_classes(html: str, element_id: str) -> str:
     return match.group(1)
 
 
-def test_root_redirects_to_expenses_when_onboarding_needed(real_client: TestClient) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+def test_root_redirects_to_expenses_when_onboarding_needed(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
 
     response = real_client.get("/", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/expenses"
 
 
-def test_root_htmx_request_gets_hx_redirect_to_expenses(real_client: TestClient) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+def test_root_htmx_request_gets_hx_redirect_to_expenses(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
 
     response = real_client.get("/", headers={"HX-Request": "true"})
     assert response.status_code == 200
@@ -81,9 +86,10 @@ def test_root_htmx_request_gets_hx_redirect_to_expenses(real_client: TestClient)
 
 def test_root_still_redirects_after_channel_but_before_payout_period(
     real_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
     _create_channel(real_client)
 
     response = real_client.get("/", follow_redirects=False)
@@ -91,9 +97,11 @@ def test_root_still_redirects_after_channel_but_before_payout_period(
     assert response.headers["location"] == "/expenses"
 
 
-def test_root_does_not_redirect_once_onboarding_skipped(real_client: TestClient) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+def test_root_does_not_redirect_once_onboarding_skipped(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
     real_client.post("/onboarding/skip")
 
     response = real_client.get("/", follow_redirects=False)
@@ -103,9 +111,10 @@ def test_root_does_not_redirect_once_onboarding_skipped(real_client: TestClient)
 
 def test_root_does_not_redirect_once_all_three_prerequisites_exist(
     real_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
     channel_id = _create_channel(real_client)
     period_id = _create_payout_period(real_client, channel_id)
     real_client.post(
@@ -125,9 +134,10 @@ def test_root_does_not_redirect_once_all_three_prerequisites_exist(
 
 def test_expenses_page_shows_step_1_banner_with_open_channel_row(
     real_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
 
     response = real_client.get("/expenses")
     assert response.status_code == 200
@@ -138,9 +148,10 @@ def test_expenses_page_shows_step_1_banner_with_open_channel_row(
 
 def test_expenses_page_shows_step_2_banner_after_channel_created(
     real_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
     _create_channel(real_client, "GCash")
 
     response = real_client.get("/expenses")
@@ -152,9 +163,10 @@ def test_expenses_page_shows_step_2_banner_after_channel_created(
 
 def test_expenses_page_shows_step_3_banner_after_payout_period_created(
     real_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
     channel_id = _create_channel(real_client, "GCash")
     _create_payout_period(real_client, channel_id)
 
@@ -166,9 +178,11 @@ def test_expenses_page_shows_step_3_banner_after_payout_period_created(
     assert "Skip" in response.text and "add bills later" in response.text
 
 
-def test_creating_first_expense_completes_onboarding(real_client: TestClient) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+def test_creating_first_expense_completes_onboarding(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
     channel_id = _create_channel(real_client, "GCash")
     period_id = _create_payout_period(real_client, channel_id)
 
@@ -197,9 +211,11 @@ def test_creating_first_expense_completes_onboarding(real_client: TestClient) ->
     assert 'id="overview-page"' in overview.text
 
 
-def test_skip_onboarding_hides_banner_and_persists(real_client: TestClient) -> None:
-    _create_user("alice@example.com", "correct-horse")
-    _login(real_client)
+def test_skip_onboarding_hides_banner_and_persists(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _login(real_client, monkeypatch)
 
     response = real_client.post("/onboarding/skip")
     assert response.status_code == 200

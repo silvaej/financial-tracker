@@ -1,37 +1,16 @@
-import os
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
-from app.auth import hash_password
-
-# Fixed login for testing against a freshly seeded DB (local dev or staging) without
-# having to run manage_users.py by hand. No hardcoded fallback password on purpose:
-# this module runs unattended in the seed-staging CI job (public Actions logs), so a
-# committed default would be a leaked staging credential. Set SEED_USER_PASSWORD
-# (docker-compose.yml supplies one for local dev; staging needs its own CI secret) to
-# opt in -- if it's unset, no seed user is created and seed_if_empty is skipped.
-SEED_USER_EMAIL = "demo@example.com"
-SEED_USER_PASSWORD = os.environ.get("SEED_USER_PASSWORD")
 
 
-def _seed_user(db: Session) -> models.User | None:
-    if not SEED_USER_PASSWORD:
-        print("SEED_USER_PASSWORD not set -- skipping seed user/data creation.")
-        return None
-    user = crud.get_user_by_email(db, SEED_USER_EMAIL)
-    if user is None:
-        user = crud.create_user(db, SEED_USER_EMAIL, hash_password(SEED_USER_PASSWORD))
-    return user
-
-
-def _is_empty(db: Session, model: type[Any], user_id: int) -> bool:
+def _is_empty(db: Session, model: type[Any], user_id: int | None) -> bool:
     return db.scalar(select(func.count()).select_from(model).where(model.user_id == user_id)) == 0
 
 
-def _seed_channels(db: Session, user_id: int) -> None:
+def _seed_channels(db: Session, user_id: int | None) -> None:
     crud.create_channel(
         db,
         schemas.ChannelCreate(name="BPI Payroll", channel_type="Traditional Bank", color="#2f6d4f"),
@@ -83,11 +62,13 @@ def _seed_channels(db: Session, user_id: int) -> None:
     )
 
 
-def _channels_by_name(db: Session, user_id: int) -> dict[str, models.Channel]:
+def _channels_by_name(db: Session, user_id: int | None) -> dict[str, models.Channel]:
     return {c.name: c for c in crud.list_channels(db, user_id)}
 
 
-def _seed_payout_periods(db: Session, channels: dict[str, models.Channel], user_id: int) -> None:
+def _seed_payout_periods(
+    db: Session, channels: dict[str, models.Channel], user_id: int | None
+) -> None:
     payroll = channels.get("BPI Payroll")
     gateway = channels.get("PayMongo Payouts")
     if payroll is None or gateway is None:
@@ -115,11 +96,11 @@ def _seed_payout_periods(db: Session, channels: dict[str, models.Channel], user_
     )
 
 
-def _periods_by_label(db: Session, user_id: int) -> dict[str, models.PayoutPeriod]:
+def _periods_by_label(db: Session, user_id: int | None) -> dict[str, models.PayoutPeriod]:
     return {p.label: p for p in crud.list_payout_periods(db, user_id)}
 
 
-def _goals_by_name(db: Session, user_id: int) -> dict[str, models.Goal]:
+def _goals_by_name(db: Session, user_id: int | None) -> dict[str, models.Goal]:
     return {g.name: g for g in crud.list_goals(db, user_id)}
 
 
@@ -127,7 +108,7 @@ def _seed_expenses(
     db: Session,
     channels: dict[str, models.Channel],
     periods: dict[str, models.PayoutPeriod],
-    user_id: int,
+    user_id: int | None,
 ) -> None:
     payroll, gcash, maya, unionbank, rcbc_cc = (
         channels.get("BPI Payroll"),
@@ -179,7 +160,7 @@ def _seed_expenses(
     expense("Software Subscriptions", 2200, freelance, unionbank)
 
 
-def _seed_goals(db: Session, channels: dict[str, models.Channel], user_id: int) -> None:
+def _seed_goals(db: Session, channels: dict[str, models.Channel], user_id: int | None) -> None:
     savings, maya, timedeposit = (
         channels.get("BPI Savings"),
         channels.get("Maya"),
@@ -284,7 +265,7 @@ def _seed_canvas(
     channels: dict[str, models.Channel],
     periods: dict[str, models.PayoutPeriod],
     goals: dict[str, models.Goal],
-    user_id: int,
+    user_id: int | None,
 ) -> None:
     for label, period in periods.items():
         transfer_specs = _TRANSFERS_BY_PERIOD.get(label, [])
@@ -336,7 +317,9 @@ def _seed_canvas(
             raise RuntimeError(f"seed canvas failed for payout period {label!r}: {error}")
 
 
-def _seed_credit_lines(db: Session, channels: dict[str, models.Channel], user_id: int) -> None:
+def _seed_credit_lines(
+    db: Session, channels: dict[str, models.Channel], user_id: int | None
+) -> None:
     bpi_cc, rcbc_cc = channels.get("BPI Credit Card"), channels.get("RCBC Credit Card")
     if not (bpi_cc and rcbc_cc):
         return
@@ -357,7 +340,7 @@ def _seed_credit_lines(db: Session, channels: dict[str, models.Channel], user_id
     )
 
 
-def _seed_assets(db: Session, channels: dict[str, models.Channel], user_id: int) -> None:
+def _seed_assets(db: Session, channels: dict[str, models.Channel], user_id: int | None) -> None:
     timedeposit = channels.get("CIMB Time Deposit")
     crud.create_asset(
         db, schemas.AssetCreate(name="Stock Portfolio (COL Financial)", amount=85000), user_id
@@ -373,7 +356,7 @@ def _seed_assets(db: Session, channels: dict[str, models.Channel], user_id: int)
         )
 
 
-def seed_if_empty(db: Session, user_id: int) -> None:
+def seed_if_empty(db: Session, user_id: int | None) -> None:
     """Insert sample staging data into whichever of this user's tables are currently empty.
 
     Safe to call repeatedly: already-populated tables are left untouched, so it won't
@@ -406,12 +389,11 @@ def seed_if_empty(db: Session, user_id: int) -> None:
 if __name__ == "__main__":
     from app.database import SessionLocal
 
+    # Seeded as orphaned rows (user_id=None) -- no password login to create a
+    # demo account with anymore. Claim this data after your first real
+    # OAuth login via `python -m app.manage_users assign-orphans <email>`.
     session = SessionLocal()
     try:
-        user = session.scalar(select(models.User).order_by(models.User.id))
-        if user is None:
-            user = _seed_user(session)
-        if user is not None:
-            seed_if_empty(session, user.id)
+        seed_if_empty(session, None)
     finally:
         session.close()

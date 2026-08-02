@@ -5,9 +5,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import crud, schemas
-from app.auth import get_current_user, hash_password
+from app.auth import get_current_user
 from app.main import app
 from tests.conftest import TestingSessionLocal
+from tests.conftest import oauth_login as _oauth_login
 
 
 def _create_channel(client: TestClient, name: str) -> str:
@@ -158,18 +159,20 @@ def real_client() -> Generator[TestClient, None, None]:
         app.dependency_overrides[get_current_user] = original
 
 
-def _create_user(email: str, password: str) -> int:
+def _create_user(email: str) -> int:
     db = TestingSessionLocal()
     try:
-        user = crud.create_user(db, email, hash_password(password))
+        user = crud.create_user(db, email)
         return user.id
     finally:
         db.close()
 
 
-def test_create_goal_contribution_requires_owned_goal(real_client: TestClient) -> None:
-    alice_id = _create_user("alice@example.com", "alice-pass")
-    _create_user("bob@example.com", "bob-pass")
+def test_create_goal_contribution_requires_owned_goal(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alice_id = _create_user("alice@example.com")
+    _create_user("bob@example.com")
 
     db = TestingSessionLocal()
     try:
@@ -184,7 +187,7 @@ def test_create_goal_contribution_requires_owned_goal(real_client: TestClient) -
     finally:
         db.close()
 
-    real_client.post("/login", data={"email": "bob@example.com", "password": "bob-pass"})
+    _oauth_login(real_client, monkeypatch, email="bob@example.com", provider_user_id="g-bob")
     response = real_client.post(
         "/goal-contributions",
         data={

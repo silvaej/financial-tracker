@@ -58,3 +58,13 @@ def test_seed_leaves_existing_channels_alone(db: Session) -> None:
     channel_names = {c.name for c in db.query(models.Channel).all()}
     assert channel_names == {"My Own Bank"}
     assert db.query(models.PayoutPeriod).count() == 0
+
+
+def test_seed_with_no_user_creates_orphaned_rows(db: Session) -> None:
+    seed_if_empty(db, None)
+
+    channels = db.query(models.Channel).all()
+    assert channels, "expected seeded channels"
+    assert all(c.user_id is None for c in channels)
+    periods = db.query(models.PayoutPeriod).all()
+    assert periods and all(p.user_id is None for p in periods)

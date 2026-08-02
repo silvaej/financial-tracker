@@ -3,10 +3,10 @@
   <div class="page-head">
     <div>
       <div class="page-title">Account</div>
-      <div class="page-sub">Manage your profile and security</div>
+      <div class="page-sub">Manage your profile and preferences</div>
     </div>
   </div>
-  <div class="card max-w-md mb-5">
+  <div class="card max-w-md">
     <p class="text-sm font-bold text-ink mb-0.5">Profile</p>
     <p class="text-xs text-ink-soft mb-4">Your name, photo, and regional preferences.</p>
     {% if profile_success %}<p class="text-sm text-accent mb-4">Profile updated.</p>{% endif %}
@@ -96,69 +96,6 @@
         </span>
       </label>
       <button type="submit" class="add-btn mt-1">Save profile</button>
-    </form>
-  </div>
-  <div class="card max-w-md">
-    <p class="text-sm font-bold text-ink mb-0.5">Password</p>
-    <p class="text-xs text-ink-soft mb-4">Update the password used to sign in.</p>
-    {% if password_success %}<p class="text-sm text-accent mb-4">Password updated.</p>{% endif %}
-    {% if password_error %}<p class="text-sm text-rust mb-4">{{ password_error }}</p>{% endif %}
-    <button type="button"
-            id="password-form-trigger"
-            class="btn-secondary{{ ' hidden' if password_error or password_success else '' }}"
-            onclick="toggleAddRow('password-form', this)">Change password</button>
-    <form id="password-form"
-          method="post"
-          action="/account/password"
-          class="{{ '' if password_error or password_success else 'hidden' }} flex-col gap-3">
-      <input type="hidden"
-             name="csrf_token"
-             value="{{ request.session.csrf_token }}">
-      <div class="relative">
-        <input class="field pr-9"
-               type="password"
-               name="current_password"
-               placeholder="Current password"
-               required>
-        <button type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
-                onclick="togglePasswordVisibility(this)">
-          <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
-          <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
-        </button>
-      </div>
-      <div class="relative">
-        <input class="field pr-9"
-               type="password"
-               name="new_password"
-               placeholder="New password"
-               required>
-        <button type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
-                onclick="togglePasswordVisibility(this)">
-          <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
-          <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
-        </button>
-      </div>
-      <div class="relative">
-        <input class="field pr-9"
-               type="password"
-               name="confirm_password"
-               placeholder="Confirm new password"
-               required>
-        <button type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
-                onclick="togglePasswordVisibility(this)">
-          <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
-          <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
-        </button>
-      </div>
-      <div class="flex items-center gap-2">
-        <button type="submit" class="add-btn mt-0">Update password</button>
-        <button type="button"
-                class="btn-secondary"
-                onclick="cancelAddRow('password-form', 'password-form-trigger', 'password-form')">Cancel</button>
-      </div>
     </form>
   </div>
 </div>

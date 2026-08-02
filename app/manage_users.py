@@ -1,5 +1,4 @@
 import argparse
-import getpass
 import sys
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -7,57 +6,17 @@ from typing import Any
 from sqlalchemy import select
 
 from app import crud, models
-from app.auth import hash_password
 from app.database import SessionLocal
-
-MIN_PASSWORD_LENGTH = 12
-
-
-def _validate_password(password: str) -> None:
-    if len(password) < MIN_PASSWORD_LENGTH:
-        print(
-            f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
 
 
 def create(email: str) -> None:
-    password = getpass.getpass("Password: ")
-    confirm = getpass.getpass("Confirm password: ")
-    if password != confirm:
-        print("Passwords don't match.", file=sys.stderr)
-        raise SystemExit(1)
-    _validate_password(password)
-
     db = SessionLocal()
     try:
         if crud.get_user_by_email(db, email) is not None:
             print(f"A user with email {email!r} already exists.", file=sys.stderr)
             raise SystemExit(1)
-        user = crud.create_user(db, email, hash_password(password))
-        print(f"Created user {user.email!r} (id={user.id}).")
-    finally:
-        db.close()
-
-
-def set_password(email: str) -> None:
-    password = getpass.getpass("New password: ")
-    confirm = getpass.getpass("Confirm new password: ")
-    if password != confirm:
-        print("Passwords don't match.", file=sys.stderr)
-        raise SystemExit(1)
-    _validate_password(password)
-
-    db = SessionLocal()
-    try:
-        user = crud.get_user_by_email(db, email)
-        if user is None:
-            print(f"No user with email {email!r}.", file=sys.stderr)
-            raise SystemExit(1)
-        user.hashed_password = hash_password(password)
-        db.commit()
-        print(f"Password updated for {user.email!r}.")
+        user = crud.create_user(db, email)
+        print(f"Created user {user.email!r} (id={user.id}). Sign in via Google/GitHub to use it.")
     finally:
         db.close()
 
@@ -109,13 +68,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Manage finance-tracker user accounts.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    create_parser = subparsers.add_parser("create", help="Create a new user account.")
-    create_parser.add_argument("email")
-
-    set_password_parser = subparsers.add_parser(
-        "set-password", help="Change an existing user's password."
+    create_parser = subparsers.add_parser(
+        "create", help="Create a new user account (to be claimed via OAuth login)."
     )
-    set_password_parser.add_argument("email")
+    create_parser.add_argument("email")
 
     assign_orphans_parser = subparsers.add_parser(
         "assign-orphans",
@@ -139,8 +95,6 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "create":
         create(args.email)
-    elif args.command == "set-password":
-        set_password(args.email)
     elif args.command == "assign-orphans":
         assign_orphans(args.email)
     elif args.command == "create-key":

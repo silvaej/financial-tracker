@@ -2,7 +2,7 @@ import json
 import math
 import secrets
 import zoneinfo
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, or_, select
@@ -67,21 +67,18 @@ class OwnershipError(Exception):
     """Raised when a referenced row doesn't belong to the acting user."""
 
 
-def _owned(db: Session, model: type[Any], id_: int, user_id: int) -> Any:
+def _owned(db: Session, model: type[Any], id_: int, user_id: int | None) -> Any:
     return db.scalar(select(model).where(model.id == id_, model.user_id == user_id))
 
 
 def _require_owned(
-    db: Session, model: type[Any], id_: int | None, user_id: int, label: str
+    db: Session, model: type[Any], id_: int | None, user_id: int | None, label: str
 ) -> None:
     if id_ is not None and _owned(db, model, id_, user_id) is None:
         raise OwnershipError(f"{label} not found.")
 
 
 # --- Users --------------------------------------------------------------------
-
-LOGIN_MAX_ATTEMPTS = 5
-LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
 
 # (code, label) pairs for the Account page's currency <select>.
 CURRENCY_OPTIONS: tuple[tuple[str, str], ...] = (
@@ -123,30 +120,35 @@ def get_user_by_email(db: Session, email: str) -> models.User | None:
     return db.scalar(select(models.User).where(models.User.email == email))
 
 
-def create_user(db: Session, email: str, hashed_password: str) -> models.User:
-    user = models.User(email=email, hashed_password=hashed_password)
+def create_user(db: Session, email: str) -> models.User:
+    user = models.User(email=email)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
 
-def register_failed_login(db: Session, user: models.User) -> None:
-    user.failed_login_attempts += 1
-    if user.failed_login_attempts >= LOGIN_MAX_ATTEMPTS:
-        user.locked_until = datetime.now(UTC) + LOGIN_LOCKOUT_DURATION
+def get_oauth_identity(
+    db: Session, provider: str, provider_user_id: str
+) -> models.OAuthIdentity | None:
+    return db.scalar(
+        select(models.OAuthIdentity).where(
+            models.OAuthIdentity.provider == provider,
+            models.OAuthIdentity.provider_user_id == provider_user_id,
+        )
+    )
+
+
+def create_oauth_identity(
+    db: Session, user: models.User, provider: str, provider_user_id: str, email: str
+) -> models.OAuthIdentity:
+    identity = models.OAuthIdentity(
+        user_id=user.id, provider=provider, provider_user_id=provider_user_id, email=email
+    )
+    db.add(identity)
     db.commit()
-
-
-def register_successful_login(db: Session, user: models.User) -> None:
-    user.failed_login_attempts = 0
-    user.locked_until = None
-    db.commit()
-
-
-def update_password(db: Session, user: models.User, hashed_password: str) -> None:
-    user.hashed_password = hashed_password
-    db.commit()
+    db.refresh(identity)
+    return identity
 
 
 def update_profile(
@@ -268,12 +270,12 @@ def redeem_signup_key(db: Session, key: models.SignupKey) -> None:
 # --- Channels ---------------------------------------------------------------
 
 
-def list_channels(db: Session, user_id: int) -> list[models.Channel]:
+def list_channels(db: Session, user_id: int | None) -> list[models.Channel]:
     stmt = select(models.Channel).where(models.Channel.user_id == user_id)
     return list(db.scalars(stmt.order_by(models.Channel.name)))
 
 
-def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int) -> models.Channel:
+def create_channel(db: Session, data: schemas.ChannelCreate, user_id: int | None) -> models.Channel:
     channel = models.Channel(
         name=data.name,
         color=data.color,
@@ -412,7 +414,7 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
 # --- Payout periods ----------------------------------------------------------
 
 
-def list_payout_periods(db: Session, user_id: int) -> list[models.PayoutPeriod]:
+def list_payout_periods(db: Session, user_id: int | None) -> list[models.PayoutPeriod]:
     stmt = (
         select(models.PayoutPeriod)
         .where(models.PayoutPeriod.user_id == user_id)
@@ -422,7 +424,7 @@ def list_payout_periods(db: Session, user_id: int) -> list[models.PayoutPeriod]:
 
 
 def create_payout_period(
-    db: Session, data: schemas.PayoutPeriodCreate, user_id: int
+    db: Session, data: schemas.PayoutPeriodCreate, user_id: int | None
 ) -> models.PayoutPeriod:
     _require_owned(db, models.Channel, data.receiving_channel_id, user_id, "Receiving channel")
     max_order = db.scalar(
@@ -475,7 +477,7 @@ def list_expenses(db: Session, user_id: int, q: str | None = None) -> list[model
     return list(db.scalars(stmt))
 
 
-def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int) -> models.Expense:
+def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int | None) -> models.Expense:
     _require_owned(db, models.PayoutPeriod, data.payout_period_id, user_id, "Payout period")
     _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
     expense = models.Expense(**data.model_dump(), user_id=user_id)
@@ -484,7 +486,7 @@ def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int) -> mo
     # is still unset (steps 1/2 already require a channel + payout period to
     # exist), so adding it is exactly the "all three prerequisites now exist"
     # completion condition -- see compute_onboarding_step().
-    user = get_user(db, user_id)
+    user = get_user(db, user_id) if user_id is not None else None
     if user is not None and user.onboarding_completed_at is None:
         user.onboarding_completed_at = datetime.now(UTC)
     db.commit()
@@ -556,7 +558,7 @@ def delete_transfer(db: Session, transfer_id: int, user_id: int) -> None:
 
 
 def list_goal_contributions(
-    db: Session, payout_period_id: int, user_id: int
+    db: Session, payout_period_id: int, user_id: int | None
 ) -> list[models.GoalContribution]:
     stmt = select(models.GoalContribution).where(
         models.GoalContribution.payout_period_id == payout_period_id,
@@ -565,7 +567,7 @@ def list_goal_contributions(
     return list(db.scalars(stmt))
 
 
-def _recompute_goal_allocated(db: Session, goal_id: int, user_id: int) -> None:
+def _recompute_goal_allocated(db: Session, goal_id: int, user_id: int | None) -> None:
     total = (
         db.scalar(
             select(func.sum(models.GoalContribution.amount)).where(
@@ -718,7 +720,7 @@ def _layered_canvas_positions(
 
 
 def save_canvas(
-    db: Session, payout_period_id: int, data: schemas.CanvasSaveIn, user_id: int
+    db: Session, payout_period_id: int, data: schemas.CanvasSaveIn, user_id: int | None
 ) -> str | None:
     """Replace a payout period's placements/transfers/goal contributions to match
     a client's staged canvas edits, in one transaction. Returns an error message
@@ -945,7 +947,7 @@ def list_assets(db: Session, user_id: int) -> list[models.Asset]:
     return list(db.scalars(stmt))
 
 
-def create_asset(db: Session, data: schemas.AssetCreate, user_id: int) -> models.Asset:
+def create_asset(db: Session, data: schemas.AssetCreate, user_id: int | None) -> models.Asset:
     _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
     asset = models.Asset(**data.model_dump(), user_id=user_id)
     db.add(asset)
@@ -987,12 +989,12 @@ def assets_page_data(db: Session, user_id: int) -> dict:
 # --- Goals -----------------------------------------------------------------
 
 
-def list_goals(db: Session, user_id: int) -> list[models.Goal]:
+def list_goals(db: Session, user_id: int | None) -> list[models.Goal]:
     stmt = select(models.Goal).where(models.Goal.user_id == user_id).order_by(models.Goal.id)
     return list(db.scalars(stmt))
 
 
-def create_goal(db: Session, data: schemas.GoalCreate, user_id: int) -> models.Goal:
+def create_goal(db: Session, data: schemas.GoalCreate, user_id: int | None) -> models.Goal:
     _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
     goal = models.Goal(**data.model_dump(), user_id=user_id)
     db.add(goal)
@@ -1118,7 +1120,7 @@ def list_credit_lines(db: Session, user_id: int) -> list[models.CreditLine]:
 
 
 def create_credit_line(
-    db: Session, data: schemas.CreditLineCreate, user_id: int
+    db: Session, data: schemas.CreditLineCreate, user_id: int | None
 ) -> models.CreditLine:
     _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
     credit_line = models.CreditLine(**data.model_dump(), user_id=user_id)
