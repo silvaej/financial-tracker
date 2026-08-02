@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create account — Finance Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  </head>
+  <body class="font-sans text-ink bg-paper">
+    <div class="min-h-screen flex items-center justify-center p-4">
+      <div class="auth-shell">
+        {% with tagline = "You're setting up a new ledger — channels, payouts and bills, wired together." %}
+          {% include "partials/auth_visual.html" %}
+        {% endwith %}
+        <div class="auth-form-pane">
+          <div>
+            <div class="page-title">Create your account</div>
+            <div class="page-sub">Access is invite-only. Ask whoever runs this ledger for a key.</div>
+          </div>
+          {% if error %}<p class="text-sm text-rust">{{ error }}</p>{% endif %}
+          <form method="post" action="/signup" class="flex flex-col gap-5">
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ request.session.csrf_token }}">
+            <div class="auth-field-group">
+              <div>
+                <input class="field font-mono"
+                       type="text"
+                       name="invite_key"
+                       placeholder="LEDGER-7F3K-9QXZ"
+                       required
+                       autofocus>
+                <div class="auth-key-hint">Single-use, issued by the operator via the CLI.</div>
+              </div>
+              <input class="field" type="email" name="email" placeholder="Email" required>
+              <input class="field"
+                     type="password"
+                     name="password"
+                     placeholder="Password"
+                     required>
+              <input class="field"
+                     type="password"
+                     name="confirm_password"
+                     placeholder="Confirm password"
+                     required>
+            </div>
+            <button type="submit" class="add-btn">Create account</button>
+          </form>
+          <div class="auth-footer-line">
+            Already have an account? <a class="text-accent font-semibold" href="/login">Log in</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

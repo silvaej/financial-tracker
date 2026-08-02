@@ -34,3 +34,12 @@ def test_set_password_rejects_short_password_before_touching_db(
         manage_users.set_password("someone@example.com")
 
     assert "at least 12 characters" in capsys.readouterr().err
+
+
+def test_create_key_rejects_zero_max_uses_before_touching_db(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        manage_users.create_key(max_uses=0, expires_days=None)
+
+    assert "at least 1" in capsys.readouterr().err

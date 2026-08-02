@@ -1,5 +1,6 @@
 import json
 import math
+import secrets
 import zoneinfo
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -173,6 +174,49 @@ def set_avatar(db: Session, user: models.User, data: bytes, mimetype: str) -> No
 def clear_avatar(db: Session, user: models.User) -> None:
     user.avatar_data = None
     user.avatar_mimetype = None
+    db.commit()
+
+
+# --- Signup keys --------------------------------------------------------------
+
+# Excludes 0/O and 1/I to avoid ambiguity when an operator reads a key aloud
+# or a user retypes it by hand.
+_SIGNUP_KEY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def generate_signup_key_value() -> str:
+    groups = ["".join(secrets.choice(_SIGNUP_KEY_ALPHABET) for _ in range(4)) for _ in range(2)]
+    return "LEDGER-" + "-".join(groups)
+
+
+def create_signup_key(
+    db: Session, max_uses: int = 1, expires_at: datetime | None = None
+) -> models.SignupKey:
+    key = models.SignupKey(
+        key=generate_signup_key_value(), max_uses=max_uses, expires_at=expires_at
+    )
+    db.add(key)
+    db.commit()
+    db.refresh(key)
+    return key
+
+
+def get_active_signup_key(db: Session, key_value: str) -> models.SignupKey | None:
+    key = db.scalar(select(models.SignupKey).where(models.SignupKey.key == key_value))
+    if key is None or key.use_count >= key.max_uses:
+        return None
+    expires_at = key.expires_at
+    if expires_at is not None:
+        if expires_at.tzinfo is None:
+            # SQLite (used in tests) doesn't persist tzinfo on DateTime(timezone=True) columns.
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
+            return None
+    return key
+
+
+def redeem_signup_key(db: Session, key: models.SignupKey) -> None:
+    key.use_count += 1
     db.commit()
 
 

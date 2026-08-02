@@ -1,9 +1,11 @@
 from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
-from app import auth, crud
+from app import auth, crud, models
 from app.auth import get_current_user, hash_password
 from app.main import app
 from tests.conftest import TestingSessionLocal
@@ -24,6 +26,15 @@ def _create_user(email: str, password: str) -> int:
     try:
         user = crud.create_user(db, email, hash_password(password))
         return user.id
+    finally:
+        db.close()
+
+
+def _create_signup_key(max_uses: int = 1, expires_at: datetime | None = None) -> str:
+    db = TestingSessionLocal()
+    try:
+        key = crud.create_signup_key(db, max_uses=max_uses, expires_at=expires_at)
+        return key.key
     finally:
         db.close()
 
@@ -100,6 +111,183 @@ def test_logout_clears_session(real_client: TestClient) -> None:
 
     real_client.post("/logout")
 
+    response = real_client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_signup_form_redirects_when_already_logged_in(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    real_client.post("/login", data={"email": "alice@example.com", "password": "correct-horse"})
+
+    response = real_client.get("/signup", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+
+
+def test_signup_success_creates_account_logs_in_and_redeems_key(
+    real_client: TestClient,
+) -> None:
+    key = _create_signup_key()
+
+    response = real_client.post(
+        "/signup",
+        data={
+            "invite_key": key,
+            "email": "newuser@example.com",
+            "password": "a-long-enough-password",
+            "confirm_password": "a-long-enough-password",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+    assert real_client.get("/").status_code == 200
+
+    db = TestingSessionLocal()
+    try:
+        user = crud.get_user_by_email(db, "newuser@example.com")
+        assert user is not None
+        key_row = db.scalar(select(models.SignupKey).where(models.SignupKey.key == key))
+        assert key_row is not None
+        assert key_row.use_count == 1
+    finally:
+        db.close()
+
+
+def test_signup_rejects_invalid_key(real_client: TestClient) -> None:
+    response = real_client.post(
+        "/signup",
+        data={
+            "invite_key": "LEDGER-NOPE-NOPE",
+            "email": "newuser@example.com",
+            "password": "a-long-enough-password",
+            "confirm_password": "a-long-enough-password",
+        },
+    )
+    assert response.status_code == 401
+    assert "invalid or has expired" in response.text
+
+
+def test_signup_rejects_expired_key(real_client: TestClient) -> None:
+    key = _create_signup_key(expires_at=datetime.now(UTC) - timedelta(days=1))
+
+    response = real_client.post(
+        "/signup",
+        data={
+            "invite_key": key,
+            "email": "newuser@example.com",
+            "password": "a-long-enough-password",
+            "confirm_password": "a-long-enough-password",
+        },
+    )
+    assert response.status_code == 401
+    assert "invalid or has expired" in response.text
+
+
+def test_signup_rejects_exhausted_key(real_client: TestClient) -> None:
+    key = _create_signup_key(max_uses=1)
+    real_client.post(
+        "/signup",
+        data={
+            "invite_key": key,
+            "email": "first@example.com",
+            "password": "a-long-enough-password",
+            "confirm_password": "a-long-enough-password",
+        },
+    )
+
+    response = real_client.post(
+        "/signup",
+        data={
+            "invite_key": key,
+            "email": "second@example.com",
+            "password": "a-long-enough-password",
+            "confirm_password": "a-long-enough-password",
+        },
+    )
+    assert response.status_code == 401
+    assert "invalid or has expired" in response.text
+
+
+def test_signup_rejects_duplicate_email(real_client: TestClient) -> None:
+    _create_user("alice@example.com", "correct-horse")
+    key = _create_signup_key()
+
+    response = real_client.post(
+        "/signup",
+        data={
+            "invite_key": key,
+            "email": "alice@example.com",
+            "password": "a-long-enough-password",
+            "confirm_password": "a-long-enough-password",
+        },
+    )
+    assert response.status_code == 400
+    assert "already registered" in response.text
+
+
+def test_signup_rejects_password_mismatch(real_client: TestClient) -> None:
+    key = _create_signup_key()
+
+    response = real_client.post(
+        "/signup",
+        data={
+            "invite_key": key,
+            "email": "newuser@example.com",
+            "password": "a-long-enough-password",
+            "confirm_password": "something-else-entirely",
+        },
+    )
+    assert response.status_code == 400
+    assert "Passwords" in response.text and "match" in response.text
+
+
+def test_signup_rejects_short_password(real_client: TestClient) -> None:
+    key = _create_signup_key()
+
+    response = real_client.post(
+        "/signup",
+        data={
+            "invite_key": key,
+            "email": "newuser@example.com",
+            "password": "short",
+            "confirm_password": "short",
+        },
+    )
+    assert response.status_code == 400
+    assert "at least" in response.text
+
+
+def test_keep_signed_in_survives_the_default_idle_timeout(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com", "correct-horse")
+
+    monkeypatch.setattr(auth.time, "time", lambda: 1000.0)
+    real_client.post(
+        "/login",
+        data={"email": "alice@example.com", "password": "correct-horse", "keep_signed_in": "on"},
+    )
+
+    past_default_idle = 1000.0 + auth.SESSION_IDLE_TIMEOUT_SECONDS + 1
+    monkeypatch.setattr(auth.time, "time", lambda: past_default_idle)
+    assert real_client.get("/").status_code == 200
+
+
+def test_keep_signed_in_still_expires_after_its_own_absolute_cap(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com", "correct-horse")
+
+    monkeypatch.setattr(auth.time, "time", lambda: 1000.0)
+    real_client.post(
+        "/login",
+        data={"email": "alice@example.com", "password": "correct-horse", "keep_signed_in": "on"},
+    )
+
+    past_keep_signed_in_cap = 1000.0 + auth.KEEP_SIGNED_IN_ABSOLUTE_TIMEOUT_SECONDS + 1
+    monkeypatch.setattr(auth.time, "time", lambda: past_keep_signed_in_cap)
     response = real_client.get("/", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"

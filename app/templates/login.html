@@ -5,33 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Log in — Finance Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
           rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
   </head>
-  <body class="font-sans text-ink bg-ink">
-    <div class="flex h-screen items-center justify-center">
-      <div class="card w-full max-w-sm mx-4">
-        <div class="page-title mb-4">Ledger</div>
-        {% if error %}<p class="text-sm text-rust mb-4">{{ error }}</p>{% endif %}
-        <form method="post" action="/login" class="flex flex-col gap-3">
-          <input type="hidden"
-                 name="csrf_token"
-                 value="{{ request.session.csrf_token }}">
-          <input class="field"
-                 type="email"
-                 name="email"
-                 placeholder="Email"
-                 required
-                 autofocus>
-          <input class="field"
-                 type="password"
-                 name="password"
-                 placeholder="Password"
-                 required>
-          <button type="submit" class="add-btn mt-2">Log in</button>
-        </form>
+  <body class="font-sans text-ink bg-paper">
+    {% import "macros.html" as macros %}
+    <div class="min-h-screen flex items-center justify-center p-4">
+      <div class="auth-shell">
+        {% with tagline = "See exactly where this payout is going before it moves." %}
+          {% include "partials/auth_visual.html" %}
+        {% endwith %}
+        <div class="auth-form-pane">
+          <div>
+            <div class="page-title">Log in</div>
+            <div class="page-sub">Welcome back — pick up where you left off.</div>
+          </div>
+          {% if error %}<p class="text-sm text-rust">{{ error }}</p>{% endif %}
+          <form method="post" action="/login" class="flex flex-col gap-5">
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ request.session.csrf_token }}">
+            <div class="auth-field-group">
+              <input class="field"
+                     type="email"
+                     name="email"
+                     placeholder="Email"
+                     required
+                     autofocus>
+              <div class="relative">
+                <input class="field pr-9"
+                       type="password"
+                       name="password"
+                       placeholder="Password"
+                       required>
+                <button type="button"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
+                        onclick="togglePasswordVisibility(this)">
+                  <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
+                  <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
+                </button>
+              </div>
+              <label class="checkbox-row">
+                <input type="checkbox" name="keep_signed_in">
+                <span>
+                  <span class="checkbox-copy">Keep me signed in</span>
+                  <span class="checkbox-help">Stay signed in on this device for 30 days.</span>
+                </span>
+              </label>
+            </div>
+            <button type="submit" class="add-btn">Log in</button>
+          </form>
+          <div class="auth-footer-line">
+            New here? You'll need an invite key —
+            <a class="text-accent font-semibold" href="/signup">create an account</a>
+          </div>
+        </div>
       </div>
     </div>
+    <script src="{{ url_for('static', path='js/password-toggle.js') }}"></script>
   </body>
 </html>

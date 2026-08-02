@@ -31,6 +31,7 @@ def login(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    keep_signed_in: bool = Form(False),
     db: Session = Depends(get_db),
 ) -> Response:
     user = crud.get_user_by_email(db, email)
@@ -62,6 +63,55 @@ def login(
             request, "login.html", {"error": "Invalid email or password."}, status_code=401
         )
     crud.register_successful_login(db, user)
+    start_session(request, user.id, keep_signed_in=keep_signed_in)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@router.get("/signup")
+def signup_form(request: Request) -> Response:
+    if request.session.get("user_id") is not None:
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(request, "signup.html", {})
+
+
+@router.post("/signup")
+def signup(
+    request: Request,
+    invite_key: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db),
+) -> Response:
+    signup_key = crud.get_active_signup_key(db, invite_key.strip())
+    if signup_key is None:
+        return templates.TemplateResponse(
+            request,
+            "signup.html",
+            {"error": "That invite key is invalid or has expired."},
+            status_code=401,
+        )
+    if crud.get_user_by_email(db, email) is not None:
+        return templates.TemplateResponse(
+            request, "signup.html", {"error": "That email is already registered."}, status_code=400
+        )
+    if password != confirm_password:
+        return templates.TemplateResponse(
+            request, "signup.html", {"error": "Passwords don't match."}, status_code=400
+        )
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return templates.TemplateResponse(
+            request,
+            "signup.html",
+            {
+                "error": f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.",
+            },
+            status_code=400,
+        )
+
+    user = crud.create_user(db, email, hash_password(password))
+    crud.redeem_signup_key(db, signup_key)
+    logger.info("New account created via signup key: %r", email)
     start_session(request, user.id)
     return RedirectResponse(url="/", status_code=303)
 
