@@ -67,6 +67,22 @@
   --color-rust-soft: rgba(229, 115, 115, 0.16);
 }
 
+/* Tells the browser which native form-control chrome to use -- without this,
+   a <select>'s open option-list popup always renders with light/OS-default
+   styling regardless of this app's own dark theme, since that popup is
+   native browser UI, not something our CSS paints. Mirrors the same
+   system-preference-vs-manual-override precedence as the palette tokens
+   above: default to following the OS, but let data-theme win either way. */
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 @layer components {
   .rail {
     @apply w-52 shrink-0 bg-card border-r border-line flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
@@ -257,6 +273,15 @@
   }
   .field {
     @apply w-full min-w-0 rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
+  }
+  /* Belt-and-suspenders alongside the color-scheme declarations above --
+     color-scheme drives the popup's own chrome (background, scrollbar), but
+     browser support/behavior for that on the *option rows themselves*
+     varies, so pin their background/text explicitly too. */
+  .field option,
+  .field optgroup {
+    background-color: var(--color-card);
+    color: var(--color-ink);
   }
   .field-mono {
     @apply font-mono text-right;
