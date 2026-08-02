@@ -262,6 +262,21 @@
     @apply font-mono text-right;
   }
 
+  /* htmx adds this class to whichever element triggered a request (or its
+     hx-indicator, if one's set) for the request's duration -- no per-element
+     opt-in needed, so this alone covers every hx-get/post/delete trigger
+     app-wide, including the standalone login/signup pages. */
+  .htmx-request {
+    @apply opacity-60 pointer-events-none;
+  }
+  .add-btn.htmx-request::after,
+  .btn-secondary.htmx-request::after,
+  .provider-btn.htmx-request::after,
+  .icon-btn.htmx-request::after {
+    content: "";
+    @apply inline-block w-3 h-3 ml-1.5 rounded-full border-2 border-current border-t-transparent align-[-2px] animate-spin;
+  }
+
   .badge {
     @apply inline-flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0 overflow-hidden leading-none;
   }
