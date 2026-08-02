@@ -194,7 +194,7 @@
     @apply border-l-[3px] border-l-accent;
   }
   .section-title {
-    @apply font-semibold text-base mb-3 flex items-center justify-between;
+    @apply font-semibold text-base mb-3 flex items-center justify-between flex-wrap gap-2;
   }
   .pill {
     @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide;

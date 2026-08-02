@@ -380,18 +380,18 @@
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not payout_periods else (' section-onboarding-active' if onboarding_step == 3 else '') }}">
     <div class="section-title">
       <span>Recurring expenses<span class="pill">{{ expenses|length }} items</span></span>
+      <input id="expense-search"
+             class="field w-full sm:w-48"
+             type="search"
+             name="q"
+             value="{{ q }}"
+             placeholder="Filter by name&hellip;"
+             hx-preserve
+             hx-get="/expenses"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#expenses-page"
+             hx-swap="outerHTML">
     </div>
-    <input id="expense-search"
-           class="field w-48 mb-3"
-           type="search"
-           name="q"
-           value="{{ q }}"
-           placeholder="Filter by name&hellip;"
-           hx-preserve
-           hx-get="/expenses"
-           hx-trigger="keyup changed delay:300ms, search"
-           hx-target="#expenses-page"
-           hx-swap="outerHTML">
     <form id="add-expense-form"
           hx-post="/expenses"
           hx-target="#expenses-page"
