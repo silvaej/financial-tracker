@@ -235,6 +235,22 @@
         evt.detail.headers["X-CSRF-Token"] = csrfToken;
       });
 
+      // htmx's own .htmx-request loading-state class only lands on the
+      // element carrying the hx-* attributes -- for the add/edit forms all
+      // over this app whose submit button lives outside the <form> itself
+      // (via a form="..." attribute), that's an invisible <form>, not the
+      // visible button the user actually clicked. Mirror the class onto any
+      // externally-associated [form="..."] elements too, so the CSS
+      // treatment in input.css reaches what the user is looking at.
+      function syncFormIndicator(evt, add) {
+        const el = evt.detail.elt;
+        if (el.tagName === "FORM" && el.id) {
+          document.querySelectorAll(`[form="${el.id}"]`).forEach((btn) => btn.classList.toggle("htmx-request", add));
+        }
+      }
+      document.body.addEventListener("htmx:beforeRequest", (evt) => syncFormIndicator(evt, true));
+      document.body.addEventListener("htmx:afterRequest", (evt) => syncFormIndicator(evt, false));
+
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
       const lightIcons = document.querySelectorAll(".js-theme-icon-light");
       const darkIcons = document.querySelectorAll(".js-theme-icon-dark");
@@ -457,6 +473,9 @@
         if (visible) {
           const toSelect = row.querySelector('select[name="to_channel_id"]');
           if (toSelect) prefillTransferAmount(toSelect);
+          // Bring the newly-revealed row into view smoothly instead of
+          // letting the page's height jump and the scrollbar pop abruptly.
+          row.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
       }
 
