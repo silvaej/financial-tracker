@@ -430,14 +430,6 @@
         if (trigger) trigger.classList.remove("hidden");
       }
 
-      function togglePasswordVisibility(buttonEl) {
-        const input = buttonEl.parentElement.querySelector("input");
-        const showing = input.type === "text";
-        input.type = showing ? "password" : "text";
-        buttonEl.querySelector(".pw-icon-show").classList.toggle("hidden", !showing);
-        buttonEl.querySelector(".pw-icon-hide").classList.toggle("hidden", showing);
-      }
-
       function closeAllPresetPopovers() {
         document.querySelectorAll(".preset-popover").forEach((p) => p.classList.add("hidden"));
         document
@@ -516,6 +508,7 @@
         }
       });
     </script>
+    <script src="{{ url_for('static', path='js/password-toggle.js') }}"></script>
     <script src="{{ url_for('static', path='js/cashflow.js') }}?v=20"></script>
     {% block extra_scripts %}
     {% endblock extra_scripts %}

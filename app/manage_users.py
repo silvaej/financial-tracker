@@ -1,6 +1,7 @@
 import argparse
 import getpass
 import sys
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -88,6 +89,22 @@ def assign_orphans(email: str) -> None:
         db.close()
 
 
+def create_key(max_uses: int, expires_days: int | None) -> None:
+    if max_uses < 1:
+        print("--max-uses must be at least 1.", file=sys.stderr)
+        raise SystemExit(1)
+    expires_at = datetime.now(UTC) + timedelta(days=expires_days) if expires_days else None
+
+    db = SessionLocal()
+    try:
+        key = crud.create_signup_key(db, max_uses=max_uses, expires_at=expires_at)
+        print(f"Signup key: {key.key}")
+        print(f"Max uses: {key.max_uses}")
+        print(f"Expires: {key.expires_at.isoformat() if key.expires_at else 'never'}")
+    finally:
+        db.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Manage finance-tracker user accounts.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -106,6 +123,19 @@ def main() -> None:
     )
     assign_orphans_parser.add_argument("email")
 
+    create_key_parser = subparsers.add_parser(
+        "create-key", help="Create an invite key for /signup."
+    )
+    create_key_parser.add_argument(
+        "--max-uses", type=int, default=1, help="How many accounts this key can create (default 1)."
+    )
+    create_key_parser.add_argument(
+        "--expires-days",
+        type=int,
+        default=None,
+        help="Key expires this many days from now (default: never).",
+    )
+
     args = parser.parse_args()
     if args.command == "create":
         create(args.email)
@@ -113,6 +143,8 @@ def main() -> None:
         set_password(args.email)
     elif args.command == "assign-orphans":
         assign_orphans(args.email)
+    elif args.command == "create-key":
+        create_key(args.max_uses, args.expires_days)
 
 
 if __name__ == "__main__":
