@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ request.session.csrf_token }}">
     <title>Log in — Finance Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
@@ -22,39 +23,25 @@
             <div class="page-sub">Welcome back — pick up where you left off.</div>
           </div>
           {% if error %}<p class="text-sm text-rust">{{ error }}</p>{% endif %}
-          <form method="post" action="/login" class="flex flex-col gap-5">
-            <input type="hidden"
-                   name="csrf_token"
-                   value="{{ request.session.csrf_token }}">
-            <div class="auth-field-group">
-              <input class="field"
-                     type="email"
-                     name="email"
-                     placeholder="Email"
-                     required
-                     autofocus>
-              <div class="relative">
-                <input class="field pr-9"
-                       type="password"
-                       name="password"
-                       placeholder="Password"
-                       required>
-                <button type="button"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink cursor-pointer"
-                        onclick="togglePasswordVisibility(this)">
-                  <span class="pw-icon-show">{{ macros.icon_eye() }}</span>
-                  <span class="pw-icon-hide hidden">{{ macros.icon_eye_off() }}</span>
-                </button>
-              </div>
-              <label class="checkbox-row">
-                <input type="checkbox" name="keep_signed_in">
-                <span>
-                  <span class="checkbox-copy">Keep me signed in</span>
-                  <span class="checkbox-help">Stay signed in on this device for 30 days.</span>
-                </span>
-              </label>
+          <form method="get" class="flex flex-col gap-5">
+            <input type="hidden" name="intent" value="login">
+            <div class="provider-stack">
+              <button type="submit" formaction="/auth/google/start" class="provider-btn">
+                {{ macros.icon_google() }}
+                Continue with Google
+              </button>
+              <button type="submit" formaction="/auth/github/start" class="provider-btn">
+                {{ macros.icon_github() }}
+                Continue with GitHub
+              </button>
             </div>
-            <button type="submit" class="add-btn">Log in</button>
+            <label class="checkbox-row">
+              <input type="checkbox" name="keep_signed_in">
+              <span>
+                <span class="checkbox-copy">Keep me signed in</span>
+                <span class="checkbox-help">Stay signed in on this device for 30 days.</span>
+              </span>
+            </label>
           </form>
           <div class="auth-footer-line">
             New here? You'll need an invite key —
@@ -63,6 +50,5 @@
         </div>
       </div>
     </div>
-    <script src="{{ url_for('static', path='js/password-toggle.js') }}"></script>
   </body>
 </html>

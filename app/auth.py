@@ -1,6 +1,5 @@
 import time
 
-import bcrypt
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
@@ -23,14 +22,6 @@ SESSION_COOKIE_MAX_AGE_SECONDS = KEEP_SIGNED_IN_ABSOLUTE_TIMEOUT_SECONDS
 
 class NotAuthenticated(Exception):
     """Raised when a route requires a logged-in user but the session has none."""
-
-
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-
-def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 def start_session(request: Request, user_id: int, keep_signed_in: bool = False) -> None:

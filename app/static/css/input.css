@@ -657,6 +657,15 @@
   .auth-key-hint {
     @apply text-xs text-ink-soft mt-1;
   }
+  .provider-stack {
+    @apply flex flex-col gap-2.5;
+  }
+  .provider-btn {
+    @apply flex items-center justify-center gap-2.5 w-full rounded-md border border-line px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-paper-dim cursor-pointer;
+  }
+  .provider-btn:disabled {
+    @apply opacity-45 cursor-not-allowed hover:bg-transparent;
+  }
 }
 
 @media (max-width: 640px) {

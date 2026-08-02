@@ -5,10 +5,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import crud
-from app.auth import get_current_user, hash_password
+from app.auth import get_current_user
 from app.csrf import csrf_protect
 from app.main import app
 from tests.conftest import TestingSessionLocal
+from tests.conftest import oauth_login as _oauth_login
 
 
 @pytest.fixture
@@ -24,17 +25,16 @@ def real_client() -> Generator[TestClient, None, None]:
             app.dependency_overrides[dep] = original
 
 
-def _login(client: TestClient) -> None:
+def _login(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     db = TestingSessionLocal()
     try:
-        crud.create_user(db, "alice@example.com", hash_password("correct-horse"))
+        crud.create_user(db, "alice@example.com")
     finally:
         db.close()
-    token = _extract_token(client.get("/login").text)
-    response = client.post(
-        "/login",
-        data={"email": "alice@example.com", "password": "correct-horse", "csrf_token": token},
-        follow_redirects=False,
+    # /auth/*/start and /callback are GET (safe methods), so this login path
+    # itself never needs a CSRF token -- only the POST assertions below do.
+    response = _oauth_login(
+        client, monkeypatch, email="alice@example.com", provider_user_id="g-alice"
     )
     assert response.status_code == 303
 
@@ -47,38 +47,35 @@ def _extract_token(html: str) -> str:
     return match.group(1)
 
 
-def test_login_without_csrf_token_is_rejected(real_client: TestClient) -> None:
-    db = TestingSessionLocal()
-    try:
-        crud.create_user(db, "alice@example.com", hash_password("correct-horse"))
-    finally:
-        db.close()
-    real_client.get("/login")
-
-    response = real_client.post(
-        "/login", data={"email": "alice@example.com", "password": "correct-horse"}
-    )
+def test_logout_without_csrf_token_is_rejected(real_client: TestClient) -> None:
+    response = real_client.post("/logout")
 
     assert response.status_code == 403
 
 
-def test_login_with_valid_csrf_token_succeeds(real_client: TestClient) -> None:
-    _login(real_client)
+def test_logout_with_valid_csrf_header_succeeds(real_client: TestClient) -> None:
+    token = _extract_token(real_client.get("/login").text)
 
-    home = real_client.get("/")
-    assert home.status_code == 200
+    response = real_client.post("/logout", follow_redirects=False, headers={"X-CSRF-Token": token})
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
 
 
-def test_post_without_csrf_header_is_rejected(real_client: TestClient) -> None:
-    _login(real_client)
+def test_post_without_csrf_header_is_rejected(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _login(real_client, monkeypatch)
 
     response = real_client.post("/channels", data={"name": "BPI", "color": "#B8122B"})
 
     assert response.status_code == 403
 
 
-def test_post_with_wrong_csrf_header_is_rejected(real_client: TestClient) -> None:
-    _login(real_client)
+def test_post_with_wrong_csrf_header_is_rejected(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _login(real_client, monkeypatch)
 
     response = real_client.post(
         "/channels",
@@ -89,8 +86,10 @@ def test_post_with_wrong_csrf_header_is_rejected(real_client: TestClient) -> Non
     assert response.status_code == 403
 
 
-def test_post_with_valid_csrf_header_succeeds(real_client: TestClient) -> None:
-    _login(real_client)
+def test_post_with_valid_csrf_header_succeeds(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _login(real_client, monkeypatch)
     token = _extract_token(real_client.get("/").text)
 
     response = real_client.post(

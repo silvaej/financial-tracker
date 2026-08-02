@@ -23,6 +23,7 @@ from app.routers import (
     export,
     goal_contributions,
     goals,
+    oauth,
     onboarding,
     overview,
     payout_periods,
@@ -39,7 +40,13 @@ app.add_middleware(
     secret_key=settings.secret_key,
     session_cookie="ft_session",
     max_age=SESSION_COOKIE_MAX_AGE_SECONDS,
-    same_site="strict",
+    # "strict" would drop this cookie on the redirect an OAuth provider sends
+    # back to /auth/<provider>/callback (a cross-site top-level navigation),
+    # breaking authlib's state/nonce check every time -- "lax" is still sent
+    # on top-level GET redirects but not cross-site subresource/form
+    # requests, and app/csrf.py's own token check doesn't rely on SameSite
+    # anyway, so this doesn't weaken CSRF protection.
+    same_site="lax",
     https_only=os.environ.get("VERCEL") == "1",
 )
 
@@ -54,6 +61,7 @@ def not_authenticated_handler(request: Request, exc: NotAuthenticated) -> Respon
 
 
 app.include_router(auth.router)
+app.include_router(oauth.router)
 app.include_router(channels.router)
 app.include_router(payout_periods.router)
 app.include_router(expenses.router)

@@ -1,16 +1,22 @@
 import logging
-import math
-from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import crud, models
-from app.auth import get_current_user, hash_password, start_session, verify_password
+from app.auth import get_current_user
 from app.database import get_db
 from app.image_uploads import read_image_upload
-from app.manage_users import MIN_PASSWORD_LENGTH
 from app.templating import templates
 
 router = APIRouter(tags=["auth"])
@@ -23,97 +29,43 @@ MAX_AVATAR_BYTES = 300 * 1024
 def login_form(request: Request) -> Response:
     if request.session.get("user_id") is not None:
         return RedirectResponse(url="/", status_code=303)
-    return templates.TemplateResponse(request, "login.html", {})
+    error = request.query_params.get("oauth_error")
+    return templates.TemplateResponse(request, "login.html", {"error": error} if error else {})
 
 
-@router.post("/login")
-def login(
-    request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
-    keep_signed_in: bool = Form(False),
-    db: Session = Depends(get_db),
-) -> Response:
-    user = crud.get_user_by_email(db, email)
-    locked_until = user.locked_until if user is not None else None
-    if locked_until is not None and locked_until.tzinfo is None:
-        # SQLite (used in tests) doesn't persist tzinfo on DateTime(timezone=True) columns.
-        locked_until = locked_until.replace(tzinfo=UTC)
-
-    if locked_until is not None and locked_until > datetime.now(UTC):
-        logger.warning("Login blocked for locked-out account %r from %s", email, request.client)
-        remaining_minutes = max(
-            1, math.ceil((locked_until - datetime.now(UTC)).total_seconds() / 60)
-        )
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {
-                "error": f"Too many failed attempts. Try again in {remaining_minutes} minute"
-                f"{'s' if remaining_minutes != 1 else ''}."
-            },
-            status_code=429,
-        )
-
-    if user is None or not verify_password(password, user.hashed_password):
-        if user is not None:
-            crud.register_failed_login(db, user)
-            logger.warning("Failed login for %r from %s", email, request.client)
-        return templates.TemplateResponse(
-            request, "login.html", {"error": "Invalid email or password."}, status_code=401
-        )
-    crud.register_successful_login(db, user)
-    start_session(request, user.id, keep_signed_in=keep_signed_in)
-    return RedirectResponse(url="/", status_code=303)
+def _key_check_context(db: Session, invite_key: str) -> dict[str, object]:
+    invite_key = invite_key.strip()
+    key_valid = False
+    key_error = None
+    if invite_key:
+        if crud.get_active_signup_key(db, invite_key) is not None:
+            key_valid = True
+        else:
+            key_error = "That invite key is invalid or has expired."
+    return {"invite_key": invite_key, "key_valid": key_valid, "key_error": key_error}
 
 
 @router.get("/signup")
-def signup_form(request: Request) -> Response:
+def signup_form(request: Request, invite_key: str = "", db: Session = Depends(get_db)) -> Response:
     if request.session.get("user_id") is not None:
         return RedirectResponse(url="/", status_code=303)
-    return templates.TemplateResponse(request, "signup.html", {})
+    error = request.query_params.get("oauth_error")
+    # Lets an operator hand someone a pre-filled link (/signup?invite_key=...)
+    # instead of the key itself -- pre-fills and pre-validates the field the
+    # same way blurring it would.
+    context = _key_check_context(db, invite_key)
+    if error:
+        context["error"] = error
+    return templates.TemplateResponse(request, "signup.html", context)
 
 
-@router.post("/signup")
-def signup(
-    request: Request,
-    invite_key: str = Form(...),
-    email: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
-    db: Session = Depends(get_db),
+@router.get("/signup/check-key")
+def check_signup_key(
+    request: Request, invite_key: str = "", db: Session = Depends(get_db)
 ) -> Response:
-    signup_key = crud.get_active_signup_key(db, invite_key.strip())
-    if signup_key is None:
-        return templates.TemplateResponse(
-            request,
-            "signup.html",
-            {"error": "That invite key is invalid or has expired."},
-            status_code=401,
-        )
-    if crud.get_user_by_email(db, email) is not None:
-        return templates.TemplateResponse(
-            request, "signup.html", {"error": "That email is already registered."}, status_code=400
-        )
-    if password != confirm_password:
-        return templates.TemplateResponse(
-            request, "signup.html", {"error": "Passwords don't match."}, status_code=400
-        )
-    if len(password) < MIN_PASSWORD_LENGTH:
-        return templates.TemplateResponse(
-            request,
-            "signup.html",
-            {
-                "error": f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.",
-            },
-            status_code=400,
-        )
-
-    user = crud.create_user(db, email, hash_password(password))
-    crud.redeem_signup_key(db, signup_key)
-    logger.info("New account created via signup key: %r", email)
-    start_session(request, user.id)
-    return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(
+        request, "partials/signup_key_section.html", _key_check_context(db, invite_key)
+    )
 
 
 @router.post("/logout")
@@ -142,40 +94,6 @@ def account_form(
     request: Request, current_user: models.User = Depends(get_current_user)
 ) -> Response:
     return _account_response(request, _account_context())
-
-
-@router.post("/account/password")
-def change_password(
-    request: Request,
-    current_password: str = Form(...),
-    new_password: str = Form(...),
-    confirm_password: str = Form(...),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-) -> Response:
-    if not verify_password(current_password, current_user.hashed_password):
-        return _account_response(
-            request,
-            _account_context(password_error="Current password is incorrect."),
-            status_code=401,
-        )
-    if new_password != confirm_password:
-        return _account_response(
-            request,
-            _account_context(password_error="New passwords don't match."),
-            status_code=400,
-        )
-    if len(new_password) < MIN_PASSWORD_LENGTH:
-        return _account_response(
-            request,
-            _account_context(
-                password_error=f"New password must be at least {MIN_PASSWORD_LENGTH} "
-                "characters long.",
-            ),
-            status_code=400,
-        )
-    crud.update_password(db, current_user, hash_password(new_password))
-    return _account_response(request, _account_context(password_success=True))
 
 
 @router.post("/account/profile")

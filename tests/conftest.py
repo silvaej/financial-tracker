@@ -4,14 +4,19 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 from collections.abc import Generator
 from datetime import UTC, datetime
+from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
 
 from app import models
+from app import oauth as oauth_module
 from app.auth import get_current_user
 from app.csrf import csrf_protect
 from app.database import Base, get_db
@@ -67,7 +72,6 @@ def _reset_db() -> Generator[None, None, None]:
         models.User(
             id=TEST_USER_ID,
             email="test@example.com",
-            hashed_password="x",
             onboarding_completed_at=datetime.now(UTC),
         )
     )
@@ -80,3 +84,75 @@ def _reset_db() -> Generator[None, None, None]:
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+class _FakeOAuthResponse:
+    """Stands in for an httpx.Response -- only .json() is ever used."""
+
+    def __init__(self, data: Any) -> None:
+        self._data = data
+
+    def json(self) -> Any:
+        return self._data
+
+
+class _FakeOAuthClient:
+    """Stands in for authlib's StarletteOAuth2App -- no real network calls."""
+
+    def __init__(
+        self, token: dict[str, Any], get_responses: dict[str, _FakeOAuthResponse] | None = None
+    ) -> None:
+        self._token = token
+        self._get_responses = get_responses or {}
+
+    async def authorize_redirect(self, request: Request, redirect_uri: str) -> RedirectResponse:
+        return RedirectResponse(url=redirect_uri, status_code=302)
+
+    async def authorize_access_token(self, request: Request) -> dict[str, Any]:
+        return self._token
+
+    async def get(self, url: str, token: Any = None) -> _FakeOAuthResponse:
+        return self._get_responses[url]
+
+
+def _fake_oauth_client_for(
+    provider: str, email: str | None, provider_user_id: str, email_verified: bool
+) -> _FakeOAuthClient:
+    if provider == "google":
+        userinfo = {"sub": provider_user_id, "email": email, "email_verified": email_verified}
+        return _FakeOAuthClient({"userinfo": userinfo})
+    emails = [{"email": email, "primary": True, "verified": email_verified}] if email else []
+    return _FakeOAuthClient(
+        {},
+        get_responses={
+            "user": _FakeOAuthResponse({"id": provider_user_id}),
+            "user/emails": _FakeOAuthResponse(emails),
+        },
+    )
+
+
+def oauth_login(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    email: str | None,
+    provider_user_id: str,
+    provider: str = "google",
+    invite_key: str = "",
+    keep_signed_in: bool = False,
+    email_verified: bool = True,
+    intent: str = "login",
+) -> httpx.Response:
+    """Drives a client through /auth/<provider>/start + /callback with a faked
+    provider exchange -- see app/routers/oauth.py. Reused by every test that
+    needs a real (session-cookie based) login without hitting a real provider.
+    `intent` mirrors the hidden form field login.html/signup.html send."""
+    fake_client = _fake_oauth_client_for(provider, email, provider_user_id, email_verified)
+    monkeypatch.setattr(oauth_module.oauth, "create_client", lambda name: fake_client)
+
+    client.get(
+        f"/auth/{provider}/start",
+        params={"invite_key": invite_key, "keep_signed_in": keep_signed_in, "intent": intent},
+        follow_redirects=False,
+    )
+    return client.get(f"/auth/{provider}/callback", follow_redirects=False)
