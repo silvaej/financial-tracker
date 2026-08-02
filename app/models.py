@@ -38,6 +38,9 @@ class User(Base):
     )
     timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notify_cash_flow_warnings: Mapped[bool] = mapped_column(default=True)
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class Channel(Base):

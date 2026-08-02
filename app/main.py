@@ -23,6 +23,7 @@ from app.routers import (
     export,
     goal_contributions,
     goals,
+    onboarding,
     overview,
     payout_periods,
     transfers,
@@ -64,6 +65,7 @@ app.include_router(credit.router)
 app.include_router(overview.router)
 app.include_router(cashflow.router)
 app.include_router(export.router)
+app.include_router(onboarding.router)
 
 PLACEHOLDER_SECTIONS: dict[str, str] = {}
 
@@ -82,7 +84,7 @@ def index(
     request: Request,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
-) -> HTMLResponse:
+) -> Response:
     return overview.index(request, db, current_user)
 
 
