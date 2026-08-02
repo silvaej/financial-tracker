@@ -6,7 +6,39 @@
       <div class="page-sub">Channels, payout periods, and recurring bills</div>
     </div>
   </div>
-  <div class="section">
+  {% if onboarding_step %}
+    <div class="onboard-banner">
+      <div class="onboard-progress">
+        <div class="onboard-progress-seg{{ ' done' if onboarding_step >= 1 else '' }}"></div>
+        <div class="onboard-progress-seg{{ ' done' if onboarding_step >= 2 else '' }}"></div>
+        <div class="onboard-progress-seg{{ ' done' if onboarding_step >= 3 else '' }}"></div>
+      </div>
+      <div class="onboard-banner-text">
+        {% if onboarding_step == 1 %}
+          <div class="onboard-step-label">Step 1 of 3</div>
+          <div class="onboard-step-copy">Add a channel — any account money moves through, like a bank or e-wallet.</div>
+        {% elif onboarding_step == 2 %}
+          <div class="onboard-step-label">Step 2 of 3</div>
+          <div class="onboard-step-copy">
+            Set up when income arrives and how much lands in {{ onboarding_latest_channel.name }}.
+          </div>
+        {% else %}
+          <div class="onboard-step-label">Step 3 of 3 &middot; optional</div>
+          <div class="onboard-step-copy">
+            Add a recurring bill against {{ onboarding_latest_channel.name }}, like rent or a subscription.
+          </div>
+        {% endif %}
+      </div>
+      <button type="button"
+              class="onboard-skip{{ ' onboard-skip-emphasized' if onboarding_step == 3 else '' }}"
+              hx-post="/onboarding/skip"
+              hx-target="#expenses-page"
+              hx-swap="outerHTML">
+        {{ "Skip — I'll add bills later" if onboarding_step == 3 else "Skip setup" }}
+      </button>
+    </div>
+  {% endif %}
+  <div class="section{{ ' section-onboarding-active' if onboarding_step == 1 else '' }}">
     <div class="section-title">Channels<span class="pill">{{ channels|length }} total</span></div>
     <form id="add-channel-form"
           hx-post="/channels"
@@ -118,9 +150,10 @@
     </div>
     <button type="button"
             id="add-channel-trigger"
-            class="add-btn w-20 justify-center"
+            class="add-btn w-20 justify-center{{ ' hidden' if onboarding_step == 1 else '' }}"
             onclick="toggleAddRow('add-channel-row', this)">+ Add</button>
-    <div id="add-channel-row" class="hidden items-center gap-2 flex-wrap mt-3">
+    <div id="add-channel-row"
+         class="{{ 'flex' if onboarding_step == 1 else 'hidden' }} items-center gap-2 flex-wrap mt-3">
       <div class="preset-popover-wrap">
         <button type="button"
                 class="preset-trigger"
@@ -190,7 +223,7 @@
       </div>
     </div>
   </div>
-  <div class="section{{ ' opacity-50 pointer-events-none' if not channels }}">
+  <div class="section{{ ' opacity-50 pointer-events-none' if not channels else (' section-onboarding-active' if onboarding_step == 2 else '') }}">
     <div class="section-title">Payout periods<span class="pill">{{ payout_periods|length }} total</span></div>
     <form id="add-payout-form"
           hx-post="/payout-periods"
@@ -293,13 +326,14 @@
             <td colspan="4">
               <button type="button"
                       id="add-payout-trigger"
-                      class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed"
+                      class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 2 else '' }}"
                       {{ "disabled" if not channels }}
                       onclick="toggleAddRow('add-payout-row', this)">+ Add
               </button>
             </td>
           </tr>
-          <tr id="add-payout-row" class="hidden">
+          <tr id="add-payout-row"
+              class="{{ '' if onboarding_step == 2 else 'hidden' }}">
             <td data-label="Label">
               <input class="field"
                      type="text"
@@ -322,7 +356,12 @@
             <td class="text-right" data-label="Receiving channel">
               <select class="field" name="receiving_channel_id" form="add-payout-form">
                 <option value="">No channel</option>
-                {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
+                {% for channel in channels %}
+                  <option value="{{ channel.id }}"
+                          {{ "selected" if onboarding_step == 2 and onboarding_latest_channel and channel.id == onboarding_latest_channel.id else "" }}>
+                    {{ channel.name }}
+                  </option>
+                {% endfor %}
               </select>
             </td>
             <td>
@@ -338,7 +377,7 @@
       </table>
     </div>
   </div>
-  <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not payout_periods }}">
+  <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not payout_periods else (' section-onboarding-active' if onboarding_step == 3 else '') }}">
     <div class="section-title">
       <span>Recurring expenses<span class="pill">{{ expenses|length }} items</span></span>
     </div>
@@ -400,13 +439,14 @@
             <td colspan="5">
               <button type="button"
                       id="add-expense-trigger"
-                      class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed"
+                      class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 3 else '' }}"
                       {{ "disabled" if not channels or not payout_periods }}
                       onclick="toggleAddRow('add-expense-row', this)">+ Add
               </button>
             </td>
           </tr>
-          <tr id="add-expense-row" class="hidden">
+          <tr id="add-expense-row"
+              class="{{ '' if onboarding_step == 3 else 'hidden' }}">
             <td class="led-inline led-inline-2" data-label="Name">
               <input class="field"
                      type="text"
@@ -421,13 +461,21 @@
                       form="add-expense-form"
                       required>
                 {% for period in payout_periods %}
-                  <option value="{{ period.id }}">{{ period.label }}</option>
+                  <option value="{{ period.id }}"
+                          {{ "selected" if onboarding_step == 3 and onboarding_latest_payout_period and period.id == onboarding_latest_payout_period.id else "" }}>
+                    {{ period.label }}
+                  </option>
                 {% endfor %}
               </select>
             </td>
             <td class="led-inline led-inline-2" data-label="Channel">
               <select class="field" name="channel_id" form="add-expense-form" required>
-                {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
+                {% for channel in channels %}
+                  <option value="{{ channel.id }}"
+                          {{ "selected" if onboarding_step == 3 and channel.id == onboarding_default_expense_channel_id else "" }}>
+                    {{ channel.name }}
+                  </option>
+                {% endfor %}
               </select>
             </td>
             <td class="num led-inline led-inline-2" data-label="Amount">

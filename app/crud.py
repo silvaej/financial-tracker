@@ -177,6 +177,51 @@ def clear_avatar(db: Session, user: models.User) -> None:
     db.commit()
 
 
+# --- Onboarding ---------------------------------------------------------------
+
+
+def _has_any_expenses(db: Session, user_id: int) -> bool:
+    stmt = select(models.Expense.id).where(models.Expense.user_id == user_id).limit(1)
+    return db.scalar(stmt) is not None
+
+
+def compute_onboarding_step(
+    user: models.User,
+    channels: list[models.Channel],
+    payout_periods: list[models.PayoutPeriod],
+    has_expenses: bool,
+) -> int | None:
+    """1/2/3 for the active onboarding step, or None once onboarding is
+    finished (explicitly skipped, or all three prerequisites now exist --
+    see create_expense()'s auto-complete). Never re-derived from data once
+    finished, so e.g. later deleting a channel doesn't resurrect the banner."""
+    if user.onboarding_completed_at is not None:
+        return None
+    if not channels:
+        return 1
+    if not payout_periods:
+        return 2
+    if not has_expenses:
+        return 3
+    return None
+
+
+def needs_onboarding(db: Session, user: models.User) -> bool:
+    if user.onboarding_completed_at is not None:
+        return False
+    channels = list_channels(db, user.id)
+    if not channels:
+        return True
+    if not list_payout_periods(db, user.id):
+        return True
+    return not _has_any_expenses(db, user.id)
+
+
+def skip_onboarding(db: Session, user: models.User) -> None:
+    user.onboarding_completed_at = datetime.now(UTC)
+    db.commit()
+
+
 # --- Signup keys --------------------------------------------------------------
 
 # Excludes 0/O and 1/I to avoid ambiguity when an operator reads a key aloud
@@ -435,6 +480,13 @@ def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int) -> mo
     _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
     expense = models.Expense(**data.model_dump(), user_id=user_id)
     db.add(expense)
+    # This expense is necessarily the user's first once onboarding_completed_at
+    # is still unset (steps 1/2 already require a channel + payout period to
+    # exist), so adding it is exactly the "all three prerequisites now exist"
+    # completion condition -- see compute_onboarding_step().
+    user = get_user(db, user_id)
+    if user is not None and user.onboarding_completed_at is None:
+        user.onboarding_completed_at = datetime.now(UTC)
     db.commit()
     db.refresh(expense)
     return expense
@@ -1156,13 +1208,40 @@ def channel_presets_by_group() -> dict[str, list[dict[str, str]]]:
 
 
 def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
+    channels = list_channels(db, user_id)
+    payout_periods = list_payout_periods(db, user_id)
+    user = get_user(db, user_id)
+    onboarding_step = (
+        compute_onboarding_step(user, channels, payout_periods, _has_any_expenses(db, user_id))
+        if user is not None
+        else None
+    )
+    # Sensible defaults for the onboarding steps' pre-opened add-rows --
+    # channels/periods have no created_at, so "latest" is just highest id.
+    onboarding_latest_channel = max(channels, key=lambda c: c.id) if channels else None
+    onboarding_latest_payout_period = (
+        max(payout_periods, key=lambda p: p.id) if payout_periods else None
+    )
+    # Step 3's default expense channel: whichever channel the latest payout
+    # period actually deposits into (it already "has the money"), falling
+    # back to the latest channel if that period has no receiving channel set.
+    onboarding_default_expense_channel_id = None
+    if onboarding_latest_payout_period is not None:
+        onboarding_default_expense_channel_id = (
+            onboarding_latest_payout_period.receiving_channel_id
+            or (onboarding_latest_channel.id if onboarding_latest_channel else None)
+        )
     return {
-        "channels": list_channels(db, user_id),
+        "channels": channels,
         "channel_types": CHANNEL_TYPES,
         "channel_preset_groups": channel_presets_by_group(),
-        "payout_periods": list_payout_periods(db, user_id),
+        "payout_periods": payout_periods,
         "expenses": list_expenses(db, user_id, q),
         "q": q or "",
+        "onboarding_step": onboarding_step,
+        "onboarding_latest_channel": onboarding_latest_channel,
+        "onboarding_latest_payout_period": onboarding_latest_payout_period,
+        "onboarding_default_expense_channel_id": onboarding_default_expense_channel_id,
     }
 
 

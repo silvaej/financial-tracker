@@ -164,11 +164,49 @@
   .section {
     @apply bg-card border border-line rounded-lg px-5 py-5 mb-5;
   }
+  /* Marks whichever .section the onboarding banner (see .onboard-banner)
+     is currently pointing at -- same left-accent-border language .tab-active
+     already uses for "this is the one you want" in the rail nav. */
+  .section-onboarding-active {
+    @apply border-l-[3px] border-l-accent;
+  }
   .section-title {
     @apply font-semibold text-base mb-3 flex items-center justify-between;
   }
   .pill {
     @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide;
+  }
+
+  /* First-login guided setup banner on the Expenses page (see
+     crud.compute_onboarding_step) -- deliberately built from the same
+     accent/pill language as the rest of the page rather than a new alert
+     style, since this is progress framing, not a warning. */
+  .onboard-banner {
+    @apply flex items-center gap-4 flex-wrap bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 mb-5;
+  }
+  .onboard-progress {
+    @apply flex gap-1.5 w-28 shrink-0;
+  }
+  .onboard-progress-seg {
+    @apply h-1 flex-1 rounded-full bg-accent/25;
+  }
+  .onboard-progress-seg.done {
+    @apply bg-accent;
+  }
+  .onboard-banner-text {
+    @apply flex-1 min-w-[200px];
+  }
+  .onboard-step-label {
+    @apply text-[10.5px] font-bold uppercase tracking-wide text-accent mb-0.5;
+  }
+  .onboard-step-copy {
+    @apply text-sm text-ink;
+  }
+  .onboard-skip {
+    @apply bg-transparent border-0 text-ink-soft text-xs font-semibold cursor-pointer whitespace-nowrap hover:text-ink hover:underline;
+  }
+  .onboard-skip-emphasized {
+    @apply text-ink underline;
   }
   .pill-gold {
     @apply bg-gold-soft text-gold;

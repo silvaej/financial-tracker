@@ -3,6 +3,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 from collections.abc import Generator
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -57,7 +58,19 @@ app.dependency_overrides[csrf_protect] = _override_csrf_protect
 def _reset_db() -> Generator[None, None, None]:
     Base.metadata.create_all(engine)
     db = TestingSessionLocal()
-    db.add(models.User(id=TEST_USER_ID, email="test@example.com", hashed_password="x"))
+    # Onboarding already "complete" -- this fixture's user backs nearly every
+    # test in the suite, most of which have nothing to do with onboarding and
+    # would otherwise get redirected out of Overview by needs_onboarding().
+    # Tests that actually exercise onboarding (tests/test_auth.py) create
+    # their own fresh user via crud.create_user() instead of this fixture.
+    db.add(
+        models.User(
+            id=TEST_USER_ID,
+            email="test@example.com",
+            hashed_password="x",
+            onboarding_completed_at=datetime.now(UTC),
+        )
+    )
     db.commit()
     db.close()
     yield
