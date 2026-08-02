@@ -272,7 +272,16 @@
       const icon = document.getElementById("collapse-icon");
       const labels = () => document.querySelectorAll(".tab-label");
 
-      function applyCollapsed(collapsed) {
+      // Tracks the in-flight "hide after fade" timeout so a second toggle
+      // fired before the first one finishes can cancel it -- otherwise the
+      // stale timeout fires *after* the second toggle has already set the
+      // opposite state, forcing display:none back on regardless of the
+      // current (correct) opacity/collapsed state. Reproduces by toggling
+      // twice within 150ms: labels end up permanently hidden even though
+      // the rail is expanded.
+      let fadeHideTimeout = null;
+
+      function applyCollapsed(collapsed, { animate = true } = {}) {
         rail.classList.toggle("w-52", !collapsed);
         rail.classList.toggle("w-16", collapsed);
         railHead.classList.toggle("flex-col", collapsed);
@@ -280,29 +289,42 @@
         railHead.classList.toggle("justify-between", !collapsed);
         icon.textContent = collapsed ? "›" : "‹";
 
+        clearTimeout(fadeHideTimeout);
+
         // Fade .tab-label/.rail-brand out *before* hiding them, and only
         // hide once faded -- instantly toggling `display` here (the old
         // behavior) snapped label text in/out of layout while .rail's own
         // 200ms width transition was still running, causing a flicker as
-        // text reflowed/wrapped mid-animation.
+        // text reflowed/wrapped mid-animation. Skipped on initial page load
+        // (animate=false) so a collapsed-by-default rail doesn't flash
+        // labels visible-then-fading before its first paint.
         const fadeTargets = [railBrand, ...labels()];
         if (collapsed) {
-          fadeTargets.forEach((el) => el.classList.add("opacity-0"));
-          setTimeout(() => {
-            fadeTargets.forEach((el) => { el.style.display = "none"; });
-          }, 150);
+          if (animate) {
+            fadeTargets.forEach((el) => el.classList.add("opacity-0"));
+            fadeHideTimeout = setTimeout(() => {
+              fadeTargets.forEach((el) => { el.style.display = "none"; });
+            }, 150);
+          } else {
+            fadeTargets.forEach((el) => {
+              el.classList.add("opacity-0");
+              el.style.display = "none";
+            });
+          }
         } else {
           fadeTargets.forEach((el) => { el.style.display = ""; });
-          // Force a reflow so the browser registers `display` being restored
-          // before opacity changes -- otherwise there's nothing to fade in
-          // from and the label just pops back in instantly.
-          void rail.offsetWidth;
+          if (animate) {
+            // Force a reflow so the browser registers `display` being
+            // restored before opacity changes -- otherwise there's nothing
+            // to fade in from and the label just pops back in instantly.
+            void rail.offsetWidth;
+          }
           fadeTargets.forEach((el) => el.classList.remove("opacity-0"));
         }
       }
 
       const stored = localStorage.getItem("railCollapsed") === "true";
-      applyCollapsed(stored);
+      applyCollapsed(stored, { animate: false });
 
       document.getElementById("collapse-toggle").addEventListener("click", () => {
         const collapsed = !rail.classList.contains("w-16");
