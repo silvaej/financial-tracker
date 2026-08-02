@@ -294,9 +294,27 @@
         railHead.classList.toggle("flex-col", collapsed);
         railHead.classList.toggle("gap-2", collapsed);
         railHead.classList.toggle("justify-between", !collapsed);
-        railBrand.style.display = collapsed ? "none" : "";
-        labels().forEach((el) => { el.style.display = collapsed ? "none" : ""; });
         icon.textContent = collapsed ? "›" : "‹";
+
+        // Fade .tab-label/.rail-brand out *before* hiding them, and only
+        // hide once faded -- instantly toggling `display` here (the old
+        // behavior) snapped label text in/out of layout while .rail's own
+        // 200ms width transition was still running, causing a flicker as
+        // text reflowed/wrapped mid-animation.
+        const fadeTargets = [railBrand, ...labels()];
+        if (collapsed) {
+          fadeTargets.forEach((el) => el.classList.add("opacity-0"));
+          setTimeout(() => {
+            fadeTargets.forEach((el) => { el.style.display = "none"; });
+          }, 150);
+        } else {
+          fadeTargets.forEach((el) => { el.style.display = ""; });
+          // Force a reflow so the browser registers `display` being restored
+          // before opacity changes -- otherwise there's nothing to fade in
+          // from and the label just pops back in instantly.
+          void rail.offsetWidth;
+          fadeTargets.forEach((el) => el.classList.remove("opacity-0"));
+        }
       }
 
       const stored = localStorage.getItem("railCollapsed") === "true";

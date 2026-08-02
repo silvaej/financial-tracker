@@ -67,6 +67,22 @@
   --color-rust-soft: rgba(229, 115, 115, 0.16);
 }
 
+/* Tells the browser which native form-control chrome to use -- without this,
+   a <select>'s open option-list popup always renders with light/OS-default
+   styling regardless of this app's own dark theme, since that popup is
+   native browser UI, not something our CSS paints. Mirrors the same
+   system-preference-vs-manual-override precedence as the palette tokens
+   above: default to following the OS, but let data-theme win either way. */
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 @layer components {
   .rail {
     @apply w-52 shrink-0 bg-card border-r border-line flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
@@ -75,7 +91,7 @@
     @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-line;
   }
   .rail-brand {
-    @apply flex items-center gap-2.5 min-w-0;
+    @apply flex items-center gap-2.5 min-w-0 transition-opacity duration-150;
   }
   .rail-greeting {
     @apply font-serif font-semibold text-sm text-ink truncate;
@@ -88,6 +104,13 @@
   }
   .tab-active {
     @apply bg-accent/10 text-accent border-l-accent font-semibold;
+  }
+  .tab-label {
+    /* Faded out (not display:none'd) via JS *before* the rail's own 200ms
+       width transition starts, and only removed from layout after it -- see
+       applyCollapsed() in base.html. Keeps label text from instantly
+       reflowing/wrapping while the rail is still animating narrower. */
+    @apply transition-opacity duration-150;
   }
 
   /* Bottom tab bar -- the mobile replacement for .rail. Hidden by default;
@@ -171,7 +194,7 @@
     @apply border-l-[3px] border-l-accent;
   }
   .section-title {
-    @apply font-semibold text-base mb-3 flex items-center justify-between;
+    @apply font-semibold text-base mb-3 flex items-center justify-between flex-wrap gap-2;
   }
   .pill {
     @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide;
@@ -257,6 +280,15 @@
   }
   .field {
     @apply w-full min-w-0 rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
+  }
+  /* Belt-and-suspenders alongside the color-scheme declarations above --
+     color-scheme drives the popup's own chrome (background, scrollbar), but
+     browser support/behavior for that on the *option rows themselves*
+     varies, so pin their background/text explicitly too. */
+  .field option,
+  .field optgroup {
+    background-color: var(--color-card);
+    color: var(--color-ink);
   }
   .field-mono {
     @apply font-mono text-right;
