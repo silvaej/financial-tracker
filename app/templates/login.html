@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ request.session.csrf_token }}">
+    <title>Log in — Finance Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  </head>
+  <body class="font-sans text-ink bg-paper">
+    {% import "macros.html" as macros %}
+    <div class="min-h-screen flex items-center justify-center p-4">
+      <div class="auth-shell">
+        {% with tagline = "See exactly where this payout is going before it moves." %}
+          {% include "partials/auth_visual.html" %}
+        {% endwith %}
+        <div class="auth-form-pane">
+          <div>
+            <div class="page-title">Log in</div>
+            <div class="page-sub">Welcome back — pick up where you left off.</div>
+          </div>
+          {% if error %}<p class="text-sm text-rust">{{ error }}</p>{% endif %}
+          <form method="get" class="flex flex-col gap-5">
+            <input type="hidden" name="intent" value="login">
+            <div class="provider-stack">
+              <button type="submit" formaction="/auth/google/start" class="provider-btn">
+                {{ macros.icon_google() }}
+                Continue with Google
+              </button>
+              <button type="submit" formaction="/auth/github/start" class="provider-btn">
+                {{ macros.icon_github() }}
+                Continue with GitHub
+              </button>
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" name="keep_signed_in">
+              <span>
+                <span class="checkbox-copy">Keep me signed in</span>
+                <span class="checkbox-help">Stay signed in on this device for 30 days.</span>
+              </span>
+            </label>
+          </form>
+          <div class="auth-footer-line">
+            New here? You'll need an invite key —
+            <a class="text-accent font-semibold" href="/signup">create an account</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

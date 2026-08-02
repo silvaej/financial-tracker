@@ -13,48 +13,146 @@
 }
 
 @theme {
-  --color-ink: #1c2b2b;
-  --color-ink-soft: #4b5d5d;
-  --color-paper: #fafafa;
-  --color-paper-dim: #ececec;
+  --color-ink: #14181f;
+  --color-ink-soft: #6b7280;
+  --color-paper: #f4f5f8;
+  --color-paper-dim: #eceef2;
   --color-card: #ffffff;
-  --color-line: #dcdcdc;
-  --color-accent: #2f6d4f;
-  --color-gold: #b6872f;
-  --color-gold-soft: #f1e2bc;
-  --color-rust: #a83f28;
-  --color-rust-soft: #f0dcd2;
-  --font-serif: "Fraunces", serif;
+  --color-line: #e3e6ec;
+  --color-accent: #2f56e8;
+  --color-gold: #a5720f;
+  --color-gold-soft: #fbf0d8;
+  --color-rust: #c53d3d;
+  --color-rust-soft: #fbe8e8;
+  /* Not a display face any more -- flat/fintech direction dropped the serif
+     look entirely, but .page-title/.rail-greeting still use the font-serif
+     utility, so this token is repointed to the same sans stack as body text
+     rather than touching every template that references it. */
+  --font-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
+}
+
+/* Dark-mode token overrides -- @theme above only feeds Tailwind's utility
+   generator (bg-accent, text-ink-soft, etc.), so re-pointing those same
+   custom-property names here recolors every existing utility class
+   app-wide with zero template changes. Kept in two blocks (system
+   preference + explicit override) so a user's manual toggle always wins
+   over prefers-color-scheme, in both directions. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-ink: #e7e9ee;
+    --color-ink-soft: #939ba8;
+    --color-paper: #0b0d12;
+    --color-paper-dim: #161a22;
+    --color-card: #12151c;
+    --color-line: #242833;
+    --color-accent: #7291ff;
+    --color-gold: #dba63f;
+    --color-gold-soft: rgba(219, 166, 63, 0.16);
+    --color-rust: #e57373;
+    --color-rust-soft: rgba(229, 115, 115, 0.16);
+  }
+}
+:root[data-theme="dark"] {
+  --color-ink: #e7e9ee;
+  --color-ink-soft: #939ba8;
+  --color-paper: #0b0d12;
+  --color-paper-dim: #161a22;
+  --color-card: #12151c;
+  --color-line: #242833;
+  --color-accent: #7291ff;
+  --color-gold: #dba63f;
+  --color-gold-soft: rgba(219, 166, 63, 0.16);
+  --color-rust: #e57373;
+  --color-rust-soft: rgba(229, 115, 115, 0.16);
+}
+
+/* Tells the browser which native form-control chrome to use -- without this,
+   a <select>'s open option-list popup always renders with light/OS-default
+   styling regardless of this app's own dark theme, since that popup is
+   native browser UI, not something our CSS paints. Mirrors the same
+   system-preference-vs-manual-override precedence as the palette tokens
+   above: default to following the OS, but let data-theme win either way. */
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 @layer components {
   .rail {
-    @apply w-52 shrink-0 bg-ink flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
+    @apply w-52 shrink-0 bg-card border-r border-line flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
   }
   .rail-head {
-    @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-white/20;
+    @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-line;
   }
   .rail-brand {
-    @apply flex items-center gap-2.5 min-w-0;
+    @apply flex items-center gap-2.5 min-w-0 transition-opacity duration-150;
   }
-  .rail-logo {
-    @apply flex items-center justify-center w-8 h-8 rounded-lg bg-accent font-serif font-bold text-base text-white shrink-0;
-  }
-  .rail-wordmark {
-    @apply font-serif font-semibold text-lg text-white leading-tight min-w-0;
-  }
-  .rail-wordmark small {
-    @apply block font-sans font-normal text-[11px] text-white/70 mt-0.5 uppercase tracking-wide;
+  .rail-greeting {
+    @apply font-serif font-semibold text-sm text-ink truncate;
   }
   .tab {
-    @apply flex items-center gap-2.5 text-sm font-medium text-white/75 px-5 py-2.5 border-l-[3px] border-transparent hover:bg-white/10 hover:text-white transition-colors;
+    @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors;
   }
   .tab-icon {
     @apply w-5 h-5 shrink-0;
   }
   .tab-active {
-    @apply bg-white/15 text-white border-l-accent;
+    @apply bg-accent/10 text-accent border-l-accent font-semibold;
+  }
+  .tab-label {
+    /* Faded out (not display:none'd) via JS *before* the rail's own 200ms
+       width transition starts, and only removed from layout after it -- see
+       applyCollapsed() in base.html. Keeps label text from instantly
+       reflowing/wrapping while the rail is still animating narrower. */
+    @apply transition-opacity duration-150;
+  }
+
+  /* Bottom tab bar -- the mobile replacement for .rail. Hidden by default;
+     the max-width:640px block below flips it to `flex` and hides .rail. */
+  .tabbar {
+    @apply hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-line;
+  }
+  .tabbar-item {
+    @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold text-ink-soft;
+  }
+  .tabbar-item-active {
+    @apply text-accent;
+  }
+  .tabbar-icon {
+    @apply w-5 h-5 shrink-0;
+  }
+
+  /* "More" sheet -- holds the rail items that don't fit in the tabbar's 5
+     slots (Credit, Assets, Account, theme toggle, log out). */
+  .sheet-overlay {
+    @apply hidden fixed inset-0 z-40 items-end bg-black/50;
+  }
+  .sheet {
+    @apply w-full bg-card border-t border-line rounded-t-2xl pt-2.5 pb-1.5;
+  }
+  .sheet-handle {
+    @apply w-9 h-1 bg-line rounded-full mx-auto mb-1.5;
+  }
+  .sheet-item {
+    @apply flex items-center gap-3 px-5 py-3 text-sm font-semibold text-ink w-full text-left bg-transparent cursor-pointer;
+  }
+  .sheet-item svg {
+    @apply w-[18px] h-[18px] text-ink-soft shrink-0;
+  }
+  .sheet-item-logout {
+    @apply text-rust;
+  }
+  .sheet-item-logout svg {
+    @apply text-rust;
+  }
+  .sheet-divider {
+    @apply h-px bg-line my-1;
   }
 
   .page {
@@ -74,7 +172,7 @@
   }
 
   .card {
-    @apply bg-card rounded-lg px-4 py-3.5 shadow-sm;
+    @apply bg-card border border-line rounded-lg px-4 py-3.5;
   }
   .card-label {
     @apply text-[11px] uppercase tracking-wide text-ink-soft font-semibold mb-1.5;
@@ -87,13 +185,51 @@
   }
 
   .section {
-    @apply bg-card rounded-xl px-5 py-5 shadow-sm mb-5;
+    @apply bg-card border border-line rounded-lg px-5 py-5 mb-5;
+  }
+  /* Marks whichever .section the onboarding banner (see .onboard-banner)
+     is currently pointing at -- same left-accent-border language .tab-active
+     already uses for "this is the one you want" in the rail nav. */
+  .section-onboarding-active {
+    @apply border-l-[3px] border-l-accent;
   }
   .section-title {
-    @apply font-serif font-semibold text-base mb-3 flex items-center justify-between;
+    @apply font-semibold text-base mb-3 flex items-center justify-between flex-wrap gap-2;
   }
   .pill {
-    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/15 text-accent tracking-wide;
+    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide;
+  }
+
+  /* First-login guided setup banner on the Expenses page (see
+     crud.compute_onboarding_step) -- deliberately built from the same
+     accent/pill language as the rest of the page rather than a new alert
+     style, since this is progress framing, not a warning. */
+  .onboard-banner {
+    @apply flex items-center gap-4 flex-wrap bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 mb-5;
+  }
+  .onboard-progress {
+    @apply flex gap-1.5 w-28 shrink-0;
+  }
+  .onboard-progress-seg {
+    @apply h-1 flex-1 rounded-full bg-accent/25;
+  }
+  .onboard-progress-seg.done {
+    @apply bg-accent;
+  }
+  .onboard-banner-text {
+    @apply flex-1 min-w-[200px];
+  }
+  .onboard-step-label {
+    @apply text-[10.5px] font-bold uppercase tracking-wide text-accent mb-0.5;
+  }
+  .onboard-step-copy {
+    @apply text-sm text-ink;
+  }
+  .onboard-skip {
+    @apply bg-transparent border-0 text-ink-soft text-xs font-semibold cursor-pointer whitespace-nowrap hover:text-ink hover:underline;
+  }
+  .onboard-skip-emphasized {
+    @apply text-ink underline;
   }
   .pill-gold {
     @apply bg-gold-soft text-gold;
@@ -106,13 +242,31 @@
     @apply w-full min-w-max table-fixed text-[13.5px] border-collapse;
   }
   .led th {
-    @apply text-left text-[11px] uppercase tracking-wide text-ink-soft font-semibold px-2.5 py-1.5 border-b-2 border-ink;
+    @apply text-left text-[11px] uppercase tracking-wide text-ink-soft font-semibold px-2.5 py-1.5 border-b border-line;
   }
   .led td {
-    @apply px-2.5 py-1.5 border-b border-paper-dim align-middle;
+    @apply px-2.5 py-1.5 border-b border-line align-middle;
   }
   .num {
     @apply font-mono text-right;
+  }
+
+  /* Card-grid layout for repeating entities (Goals, Credit lines) shown as
+     individual units instead of table rows -- each .item-card is expected to
+     contain the same inline view/edit-toggle markup a .led row would, just
+     reflowed. */
+  .item-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+  .item-card {
+    @apply bg-paper-dim border border-line rounded-lg px-4 py-4;
+  }
+  .item-card-head {
+    @apply flex items-baseline justify-between gap-2 mb-2.5;
+  }
+  .item-card-title {
+    @apply text-sm font-semibold text-ink;
   }
 
   .icon-btn {
@@ -127,12 +281,36 @@
   .field {
     @apply w-full min-w-0 rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
   }
+  /* Belt-and-suspenders alongside the color-scheme declarations above --
+     color-scheme drives the popup's own chrome (background, scrollbar), but
+     browser support/behavior for that on the *option rows themselves*
+     varies, so pin their background/text explicitly too. */
+  .field option,
+  .field optgroup {
+    background-color: var(--color-card);
+    color: var(--color-ink);
+  }
   .field-mono {
     @apply font-mono text-right;
   }
 
+  /* htmx adds this class to whichever element triggered a request (or its
+     hx-indicator, if one's set) for the request's duration -- no per-element
+     opt-in needed, so this alone covers every hx-get/post/delete trigger
+     app-wide, including the standalone login/signup pages. */
+  .htmx-request {
+    @apply opacity-60 pointer-events-none;
+  }
+  .add-btn.htmx-request::after,
+  .btn-secondary.htmx-request::after,
+  .provider-btn.htmx-request::after,
+  .icon-btn.htmx-request::after {
+    content: "";
+    @apply inline-block w-3 h-3 ml-1.5 rounded-full border-2 border-current border-t-transparent align-[-2px] animate-spin;
+  }
+
   .badge {
-    @apply inline-flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0;
+    @apply inline-flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0 overflow-hidden leading-none;
   }
   .badge-md {
     @apply w-[18px] h-[18px] text-[7.5px];
@@ -140,9 +318,66 @@
   .badge-sm {
     @apply w-[15px] h-[15px] text-[6.5px];
   }
+  .badge-lg {
+    @apply w-[26px] h-[26px] text-[9.5px];
+  }
+  .badge-xl {
+    @apply w-[72px] h-[72px] text-2xl;
+  }
+
+  .preset-popover-wrap {
+    @apply relative;
+  }
+  .preset-trigger {
+    @apply inline-flex items-center gap-1.5 text-xs font-semibold text-ink px-3 py-1.5 rounded-lg border border-line bg-card cursor-pointer hover:border-accent transition-colors;
+  }
+  .preset-trigger svg {
+    @apply w-3 h-3 opacity-70;
+  }
+  .preset-trigger-chev {
+    @apply w-2 h-2 transition-transform duration-150;
+  }
+  .preset-trigger-open .preset-trigger-chev {
+    @apply rotate-180;
+  }
+  .preset-popover {
+    @apply absolute left-0 top-full mt-2 z-20 w-80 max-h-80 overflow-y-auto bg-card border border-line rounded-xl shadow-lg p-3;
+    animation: preset-popover-in 0.14s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  @keyframes preset-popover-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97) translateY(-3px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .preset-popover {
+      animation: none;
+    }
+  }
+  .preset-group-label {
+    @apply text-[10px] uppercase tracking-wide text-ink-soft font-bold mt-2.5 mb-1.5 mx-0.5 first:mt-0;
+  }
+  .preset-grid {
+    @apply grid grid-cols-3 gap-1.5;
+  }
+  .preset-tile {
+    @apply flex flex-col items-center gap-1.5 bg-paper-dim border border-transparent rounded-lg px-1 py-2.5 cursor-pointer hover:border-accent hover:bg-accent/10 hover:-translate-y-px transition-all;
+  }
+  .preset-tile-name {
+    @apply text-[10.5px] font-semibold text-ink text-center leading-tight truncate max-w-full;
+  }
 
   .bar-track {
-    @apply h-2 bg-paper-dim rounded-full overflow-hidden;
+    /* A relative darken (rather than a fixed bg-* token) so the empty
+       track stays visible against whichever surface it sits on --
+       bg-card on desktop, bg-paper-dim inside .item-card and the mobile
+       .led card reflow -- without needing a per-context override. */
+    @apply h-2 bg-ink/10 rounded-full overflow-hidden;
   }
   .bar-fill {
     @apply h-full rounded-full bg-accent;
@@ -157,31 +392,353 @@
   .warn-red {
     @apply bg-rust-soft text-rust;
   }
+  /* Clips to ~2 rows of chips by default; .warn-more only reveals itself
+     (via the .has-overflow modifier, set by JS once it measures actual
+     overflow) when there really is a 3rd+ row hidden. */
+  .warn-banner-wrap {
+    @apply relative mb-3;
+  }
+  .warn-banner {
+    @apply flex flex-wrap gap-2 overflow-hidden;
+    max-height: 4rem;
+  }
+  .has-overflow .warn-banner {
+    @apply pr-9;
+  }
+  .warn-fade {
+    @apply absolute bottom-0 right-8 w-10 pointer-events-none;
+    height: 1.75rem;
+    background: linear-gradient(to right, transparent, var(--color-card));
+    display: none;
+  }
+  .has-overflow .warn-fade {
+    display: block;
+  }
+  .warn-more {
+    @apply absolute bottom-0 right-0 flex items-center justify-center w-7 h-7 rounded-full bg-card border border-line text-ink-soft text-xs font-bold shadow-sm hover:text-ink hover:border-accent no-underline;
+    display: none;
+  }
+  .has-overflow .warn-more {
+    display: flex;
+  }
+
+  .toolbox {
+    @apply flex flex-wrap items-center gap-2 mb-3 p-2.5 rounded-lg border border-dashed border-line bg-paper-dim/40;
+  }
+  .toolbox-item {
+    @apply flex items-center gap-1.5 bg-card rounded-full pl-1.5 pr-3 py-1 shadow-sm cursor-grab select-none;
+  }
+  .toolbox-item:active {
+    @apply cursor-grabbing;
+  }
+  .toolbox-item-goal {
+    @apply border border-gold pl-3;
+  }
+
+  .canvas {
+    @apply relative w-full min-h-[520px] rounded-lg border border-line overflow-hidden touch-none;
+    background-color: var(--color-paper);
+    background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+    background-size: 18px 18px;
+    cursor: grab;
+  }
+  .canvas.canvas-panning {
+    cursor: grabbing;
+  }
+  .canvas-inner {
+    @apply absolute inset-0;
+    transform-origin: 0 0;
+  }
+  .canvas-node {
+    @apply absolute bg-card border border-line rounded-lg px-4 py-3.5 w-40 cursor-grab select-none z-10;
+    border-left: 3px solid var(--rail, var(--color-accent));
+  }
+  .canvas-node-remove {
+    @apply absolute -right-1.5 -top-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-card border border-line text-ink-soft text-[10px] leading-none cursor-pointer z-20 hover:bg-rust hover:text-white hover:border-rust;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease;
+  }
+  .canvas-node:hover .canvas-node-remove,
+  .canvas-node-remove:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @media (hover: none) {
+    .canvas-node-remove {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+  .canvas-node:active {
+    @apply cursor-grabbing;
+  }
+  .canvas-node-connect-hover {
+    cursor: crosshair;
+  }
+  .canvas-node-goal {
+    border-left-style: dashed;
+    border-left-color: var(--color-gold);
+  }
+  /* The base .canvas-node rule paints its own card look directly on the
+     element (background/shadow/padding/rail) -- the expense variant needs
+     that stripped off so the card visual can live on an inner wrapper
+     instead, keeping this node's hover popup (a sibling, positioned outside
+     the card's own box) unclipped. */
+  .canvas-node-expense {
+    @apply w-32 bg-transparent shadow-none p-0 cursor-grab;
+    border-left: none;
+  }
+  .canvas-node-expense:active {
+    @apply cursor-grabbing;
+  }
+  .canvas-node-expense-card {
+    @apply bg-card border border-line rounded-lg px-3 py-2.5;
+    border-left: 3px solid var(--color-rust);
+    opacity: 0.85;
+    transition: opacity 0.15s ease;
+  }
+  .canvas-node-expense:hover .canvas-node-expense-card {
+    opacity: 1;
+  }
+  .canvas-expense-detail {
+    @apply absolute left-1/2 bottom-full mb-2.5 w-52 bg-card rounded-lg shadow-lg px-3 py-2.5 z-30;
+    transform: translateX(-50%) translateY(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease;
+  }
+  .canvas-node-expense:hover .canvas-expense-detail {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .canvas-expense-detail::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--color-card);
+  }
+  .canvas-expense-detail-title {
+    @apply text-[10px] uppercase tracking-wide text-ink-soft font-semibold mb-1.5 pb-1.5 border-b border-line;
+  }
+  .canvas-expense-detail ul {
+    @apply flex flex-col gap-1 max-h-40 overflow-y-auto;
+  }
+  .canvas-expense-detail li {
+    @apply flex items-center justify-between gap-3 text-[11px] text-ink;
+  }
+  .canvas-expense-detail li .num {
+    @apply font-mono;
+  }
+  .canvas-node-warn {
+    box-shadow: 0 0 0 4px var(--color-rust-soft);
+  }
+  .canvas-node-warn-badge {
+    @apply absolute -left-1.5 -top-1.5 w-4 h-4 items-center justify-center rounded-full bg-rust text-white z-20;
+    display: none;
+  }
+  .canvas-node-warn .canvas-node-warn-badge {
+    display: flex;
+  }
+  .canvas-node-warn-badge svg {
+    @apply w-2.5 h-2.5;
+  }
+  .canvas-node-drop-target {
+    @apply ring-2 ring-accent ring-offset-2 ring-offset-paper-dim;
+  }
+  .canvas-node-unconnected {
+    outline: 2px dashed var(--color-rust);
+    outline-offset: 2px;
+  }
+  .canvas-node-balance-pending {
+    @apply text-[11px] italic text-ink-soft;
+  }
+  .canvas-node-progress {
+    @apply mt-1.5;
+  }
+  .canvas-node-progress .bar-track {
+    @apply h-1;
+  }
+  .canvas-edges {
+    @apply absolute inset-0 w-full h-full pointer-events-none z-0;
+    /* SVG defaults to overflow:hidden -- without this, edges to nodes
+       placed beyond this element's own (unscaled) box get clipped even
+       though the node divs themselves aren't. */
+    overflow: visible;
+  }
+  .canvas-edge-line {
+    @apply stroke-accent;
+    stroke-width: 2;
+    stroke-dasharray: 1 6;
+    stroke-linecap: round;
+    animation: canvas-edge-flow 0.7s linear infinite;
+  }
+  @keyframes canvas-edge-flow {
+    to {
+      stroke-dashoffset: -14;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .canvas-edge-line {
+      animation: none;
+    }
+  }
+  .canvas-edge-line[data-edge-id^="goal-contribution-"] {
+    @apply stroke-gold;
+  }
+  .canvas-edge-line[data-edge-id^="expense-"] {
+    @apply stroke-rust;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .canvas-edge-label {
+    @apply absolute flex items-center gap-0.5 bg-card/80 rounded-full px-1.5 py-px text-[9.5px] font-mono shadow-sm z-10 opacity-80 hover:opacity-100 hover:bg-card transition-opacity;
+    transform: translate(-50%, -50%);
+  }
+  .canvas-edge-label .icon-btn {
+    @apply p-0.5;
+  }
+  .canvas-edge-label .field {
+    @apply w-14 py-0 text-[10px];
+  }
+  .canvas-save-bar {
+    @apply flex items-center justify-between gap-3 mt-3;
+  }
+  .canvas-save-status {
+    @apply text-xs text-ink-soft;
+  }
+  .canvas-save-status-dirty {
+    @apply text-gold font-semibold;
+  }
+  .add-btn:disabled {
+    @apply opacity-40 cursor-not-allowed hover:brightness-100;
+  }
+  .btn-secondary:disabled {
+    @apply opacity-40 cursor-not-allowed hover:bg-transparent;
+  }
+  .canvas-save-bar .add-btn,
+  .canvas-save-bar .btn-secondary {
+    @apply mt-0;
+  }
+
+  .canvas-zoom-control {
+    @apply absolute right-3 bottom-3 z-20 flex items-center bg-card border border-line rounded-lg shadow-sm overflow-hidden;
+  }
+  .canvas-zoom-btn {
+    @apply flex items-center justify-center w-7 h-7 text-ink-soft hover:bg-paper-dim hover:text-ink cursor-pointer;
+  }
+  .canvas-zoom-btn svg {
+    @apply w-3 h-3;
+  }
+  .canvas-zoom-level {
+    @apply flex items-center justify-center w-11 h-7 text-[11px] font-mono font-semibold text-ink-soft border-l border-r border-line hover:bg-paper-dim hover:text-ink cursor-pointer select-none;
+  }
+  .canvas-recenter-btn {
+    @apply absolute left-3 bottom-3 z-20 flex items-center justify-center w-7 h-7 bg-card border border-line rounded-lg shadow-sm text-ink-soft hover:text-accent hover:border-accent cursor-pointer;
+  }
+  .canvas-recenter-btn svg {
+    @apply w-3.5 h-3.5;
+  }
+
+  /* Login / signup -- standalone pages (see login.html/signup.html, neither
+     extends base.html), so these don't share the authenticated app's rail
+     nav or #page-content wrapper. */
+  .auth-shell {
+    @apply w-full max-w-4xl mx-auto bg-card border border-line rounded-2xl overflow-hidden grid;
+    grid-template-columns: 1.05fr 1fr;
+  }
+  .auth-visual {
+    @apply bg-paper-dim border-r border-line p-8 flex flex-col justify-between;
+  }
+  .auth-visual-eyebrow {
+    @apply text-[10.5px] font-bold uppercase tracking-wide text-ink-soft mb-3.5;
+  }
+  .auth-visual-copy {
+    @apply text-sm text-ink leading-relaxed mt-4;
+  }
+  .ledger-preview {
+    @apply flex flex-col gap-2.5;
+  }
+  .ledger-row {
+    @apply flex items-center justify-between gap-2.5 bg-card border border-line rounded-lg px-3 py-2.5;
+  }
+  .ledger-row-name {
+    @apply flex items-center gap-2 text-[13px] font-semibold text-ink;
+  }
+  .ledger-row-amount {
+    @apply font-mono text-[13px] font-semibold;
+  }
+  .ledger-connector {
+    @apply flex items-center gap-1.5 pl-5 text-[11px] text-ink-soft;
+  }
+  .ledger-connector svg {
+    @apply w-3 h-3;
+  }
+  .auth-form-pane {
+    @apply p-8 sm:p-10 flex flex-col justify-center gap-5;
+  }
+  .auth-field-group {
+    @apply flex flex-col gap-3.5;
+  }
+  .checkbox-row {
+    @apply flex items-start gap-2.5;
+  }
+  .checkbox-row input {
+    @apply mt-0.5 w-3.5 h-3.5 shrink-0 accent-accent;
+  }
+  .checkbox-copy {
+    @apply text-sm text-ink;
+  }
+  .checkbox-help {
+    @apply block text-xs text-ink-soft mt-0.5;
+  }
+  .auth-footer-line {
+    @apply text-sm text-ink-soft text-center;
+  }
+  .auth-key-hint {
+    @apply text-xs text-ink-soft mt-1;
+  }
+  .provider-stack {
+    @apply flex flex-col gap-2.5;
+  }
+  .provider-btn {
+    @apply flex items-center justify-center gap-2.5 w-full rounded-md border border-line px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-paper-dim cursor-pointer;
+  }
+  .provider-btn:disabled {
+    @apply opacity-45 cursor-not-allowed hover:bg-transparent;
+  }
 }
 
 @media (max-width: 640px) {
+  /* The left rail is replaced outright by the bottom .tabbar on mobile
+     (rather than shrunk to icon-only) -- there's no room for a sidebar once
+     content needs to stack into cards. */
   .rail {
-    width: 4rem !important;
-  }
-  .rail .rail-wordmark,
-  .rail .tab-label {
     display: none !important;
   }
-  .rail-head {
-    flex-direction: column;
-    gap: 0.5rem;
-    justify-content: center !important;
+  .tabbar {
+    display: flex;
   }
-  /* Width is forced above regardless of the collapsed/expanded JS state, so
-     the toggle button has no effect on mobile — hide it rather than leave a
-     dead control. */
-  #collapse-toggle {
-    display: none !important;
+  .sheet-overlay.flex {
+    display: flex;
+  }
+  .page {
+    padding-bottom: 4.5rem;
   }
 
-  /* Keep inputs at >=16px so iOS Safari doesn't auto-zoom the page on focus. */
-  .field {
-    font-size: 16px;
+  /* The ledger-preview brand pane has nothing interactive in it, so it's
+     dropped rather than stacked above the form on narrow viewports. */
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
+  .auth-visual {
+    display: none;
   }
 
   /* Bigger tap targets for the text/icon action buttons. */
@@ -192,5 +749,142 @@
   .btn-secondary {
     padding-block: 0.625rem;
     padding-inline: 0.875rem;
+  }
+
+  /* Ledger tables reflow into stacked cards instead of scrolling
+     horizontally -- each <tr> becomes a card and each <td> a label/value
+     row, with the label pulled from data-label so no template markup needs
+     duplicating between a "table" and "card" version. */
+  .table-wrap {
+    overflow-x: visible;
+  }
+  .led,
+  .led thead,
+  .led tbody,
+  .led tfoot,
+  .led tr,
+  .led th,
+  .led td {
+    display: block;
+    width: auto;
+    /* .led's base rule sets min-w-max (desktop column widths) -- without
+       overriding it here, the table keeps its full desktop intrinsic
+       width even in block layout, pushing edit-mode inputs off-screen. */
+    min-width: 0;
+  }
+  .led thead {
+    display: none;
+  }
+  /* This block's rules are unlayered, so they beat Tailwind's own layered
+     utilities (e.g. .hidden) regardless of specificity -- without this,
+     a hidden "add row" <tr> would force itself back to display:block. */
+  .led tr.hidden {
+    display: none !important;
+  }
+  /* Grid (not flex) deliberately -- a flex row with mixed 100%/0%-basis
+     children lets 0%-basis items slip onto the same line as a preceding
+     100%-basis one instead of wrapping (their hypothetical size
+     contributes 0 to the line-fit check). Grid's auto-placement always
+     starts the next item on a fresh row once a full-width (1/-1) item
+     has claimed the current one. */
+  .led tbody tr {
+    display: grid;
+    /* A fine-grained 6-column track lets both a 2-up group (Channels'
+       Name/Type, spanning 3 tracks each) and a 3-up group (Goals'
+       Target/Allocated/Months, spanning 2 tracks each) split their row
+       evenly -- see .led-inline-2/.led-inline-3 below. */
+    grid-template-columns: repeat(6, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.3rem;
+    background: var(--color-paper-dim);
+    border: 1px solid var(--color-line);
+    border-radius: 0.6rem;
+    padding: 0.65rem 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  /* A row's edit/delete (and, once toggled, save/cancel) icon buttons
+     live in a dedicated .led-actions cell (see templates) so they can be
+     pinned flush right in their own strip above the rest of the card's
+     content (including the first cell's "NAME"-style label) instead of
+     trailing at the bottom in source order. The extra top padding on the
+     row reserves that strip so the pinned icons never overlap the
+     content below. Both the view-state and edit-state child are
+     icon-only, so both pin to the same spot -- whichever is visible. */
+  .led tbody tr:has(.led-actions) {
+    position: relative;
+    padding-top: 2.75rem;
+  }
+  .led td.led-actions [class*="view-"],
+  .led td.led-actions [class*="edit-"] {
+    position: absolute;
+    top: 0.8rem;
+    right: 1.25rem;
+  }
+  .led td {
+    grid-column: 1 / -1;
+    border-bottom: none;
+    padding: 0;
+    text-align: left;
+  }
+  .led td:empty {
+    display: none;
+  }
+  /* Cells marked .led-inline (see templates -- e.g. Goals' Target/
+     Allocated/Months, Channels' Name/Type) sit side by side on one line
+     instead of each taking the full row, with a divider along the
+     bottom of the group. Pair with .led-inline-2 or .led-inline-3 to say
+     how many cells share that line. */
+  .led td.led-inline {
+    border-bottom: 1px solid var(--color-line);
+    padding-bottom: 0.6rem;
+  }
+  .led td.led-inline-2 {
+    grid-column: span 3;
+  }
+  .led td.led-inline-3 {
+    grid-column: span 2;
+  }
+  /* Labelled cells stack the label above the value -- block layout (rather
+     than a same-line label:value flex row) since some cells (Goals'
+     Progress column, a channel's edit form) hold several stacked elements,
+     not a single scalar value. */
+  .led td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-ink-soft);
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+  }
+  .led tfoot tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-weight: 600;
+    padding: 0.5rem 0.2rem 0;
+  }
+  /* Money edit/add inputs (Income, Amount, Limit, Used, Target,
+     Allocated) sit in a "justify-end" flex row so their currency
+     symbol + value hug the right edge of a desktop table column. On
+     mobile's stacked cards every other field is full-width and
+     left-aligned, so a right-hugging money input's left edge floats
+     out of line with the label above it. Left-align it and let the
+     input grow to fill the row instead, matching the other fields. */
+  .led td.num > .flex {
+    justify-content: flex-start;
+  }
+  .led td.num > .flex input {
+    flex: 1;
+  }
+  /* A lone "+ Add" trigger row shouldn't get the same card
+     background/border/padding as a real data row -- override
+     .led tbody tr (above) back to a plain block. */
+  .led tbody tr.tr-add-btn {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
   }
 }

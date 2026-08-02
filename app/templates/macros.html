@@ -1,8 +1,17 @@
 {% macro channel_badge(channel, size=18) %}
-  {% set words = channel.name.split() %}
-  {% set initials = (words[0][0] ~ (words[1][0] if words|length > 1 else "")) | upper %}
-  <span class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }}"
-        style="background: {{ channel.color }}">{{ initials }}</span>
+  {% if channel.logo_data %}
+    <img class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }} object-cover"
+         src="/channels/{{ channel.id }}/logo"
+         alt="{{ channel.name }} logo">
+  {% elif channel.badge_label %}
+    <span class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }}"
+          style="background: {{ channel.color }}">{{ channel.badge_label }}</span>
+  {% else %}
+    {% set words = channel.name.split() %}
+    {% set initials = (words[0][0] ~ (words[1][0] if words|length > 1 else "")) | upper %}
+    <span class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }}"
+          style="background: {{ channel.color }}">{{ initials }}</span>
+  {% endif %}
 {% endmacro %}
 {% macro channel_name(channel, max_len=18) %}
   <span title="{{ channel.name }}">{{ channel.name|truncate(max_len, True, '…') }}</span>
@@ -10,12 +19,105 @@
 {% macro channel_label(channel, size=15, max_len=18) %}
   {{ channel_badge(channel, size) }} {{ channel_name(channel, max_len) }}
 {% endmacro %}
+{% macro user_avatar(user, size='md') %}
+  {% set size_class = 'badge-xl' if size == 'xl' else ('badge-sm' if size == 'sm' else 'badge-md') %}
+  {% if user and user.avatar_data %}
+    <img class="badge {{ size_class }} object-cover"
+         src="/account/avatar"
+         alt="{{ user.display_name or user.email }}">
+  {% else %}
+    {% set name = user.display_name if user and user.display_name else (user.email.split('@')[0] if user else '') %}
+    {% set words = name.split() %}
+    {% set initials = ((words[0][0] ~ (words[1][0] if words|length > 1 else '')) if words else '?') | upper %}
+    <span class="badge {{ size_class }} bg-accent">{{ initials }}</span>
+  {% endif %}
+{% endmacro %}
 {% macro empty_row(colspan, label) %}
   <tr>
     <td colspan="{{ colspan }}"
         class="text-center text-ink-soft text-sm py-3">------------ No {{ label }} yet ------------</td>
   </tr>
 {% endmacro %}
+{% macro empty_state(label) %}
+  <div class="text-center text-ink-soft text-sm py-6">No {{ label }} yet</div>
+{% endmacro %}
 {% macro peso(amount) -%}
-  {{- '-' if amount < 0 else '' }}&#8369;{{ "{:,.2f}".format(amount|abs) }}
+  {{- '-' if amount < 0 else '' }}{{ currency_symbol }}{{ "{:,.2f}".format(amount|abs) }}
 {%- endmacro %}
+{% macro icon_edit() %}
+  <svg class="w-3.5 h-3.5"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
+  </svg>
+{% endmacro %}
+{% macro icon_delete() %}
+  <svg class="w-3.5 h-3.5"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+  </svg>
+{% endmacro %}
+{% macro icon_save() %}
+  <svg class="w-3.5 h-3.5"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+  </svg>
+{% endmacro %}
+{% macro icon_cancel() %}
+  <svg class="w-3.5 h-3.5"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+{% endmacro %}
+{% macro icon_eye() %}
+  <svg class="w-4 h-4"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+  </svg>
+{% endmacro %}
+{% macro icon_eye_off() %}
+  <svg class="w-4 h-4"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+  </svg>
+{% endmacro %}
+{% macro icon_check() %}
+  <svg class="w-3.5 h-3.5"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+  </svg>
+{% endmacro %}
+{% macro icon_google() %}
+  <svg class="w-[18px] h-[18px]" viewBox="0 0 18 18">
+    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.85 2.09-1.81 2.73v2.27h2.92c1.71-1.57 2.69-3.89 2.69-6.64z" />
+    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.27c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H.96v2.33C2.44 15.98 5.48 18 9 18z" />
+    <path fill="#FBBC05" d="M3.97 10.7c-.18-.54-.28-1.11-.28-1.7s.1-1.16.28-1.7V4.97H.96A8.996 8.996 0 000 9c0 1.45.35 2.83.96 4.03l3.01-2.33z" />
+    <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.97l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" />
+  </svg>
+{% endmacro %}
+{% macro icon_github() %}
+  <svg class="w-[18px] h-[18px]" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+  </svg>
+{% endmacro %}

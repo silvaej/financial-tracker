@@ -1,0 +1,46 @@
+{% import "macros.html" as macros %}
+<div id="signup-key-section" class="flex flex-col gap-5">
+  <div class="auth-field-group">
+    <div>
+      <div class="relative">
+        <input class="field font-mono pr-8"
+               type="text"
+               name="invite_key"
+               value="{{ invite_key or '' }}"
+               placeholder="XXXX-XXXX-XXXX"
+               required
+               autofocus
+               hx-get="/signup/check-key"
+               hx-trigger="blur"
+               hx-target="#signup-key-section"
+               hx-swap="outerHTML">
+        {% if key_valid %}
+          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-accent">{{ macros.icon_check() }}</span>
+        {% elif key_error %}
+          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-rust cursor-help"
+                title="{{ key_error }}">{{ macros.icon_cancel() }}</span>
+        {% endif %}
+      </div>
+      <div class="text-xs text-rust h-4 leading-4 mt-0.5">{{ key_error or "" }}</div>
+      <div class="auth-key-hint">
+        Single-use, issued by the operator via the CLI. Enter it, then continue with a provider below.
+      </div>
+    </div>
+  </div>
+  <div class="provider-stack">
+    <button type="submit"
+            formaction="/auth/google/start"
+            class="provider-btn"
+            {{ "disabled" if not key_valid else "" }}>
+      {{ macros.icon_google() }}
+      Continue with Google
+    </button>
+    <button type="submit"
+            formaction="/auth/github/start"
+            class="provider-btn"
+            {{ "disabled" if not key_valid else "" }}>
+      {{ macros.icon_github() }}
+      Continue with GitHub
+    </button>
+  </div>
+</div>

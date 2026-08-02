@@ -1,4 +1,23 @@
+import re
+
 from fastapi.testclient import TestClient
+
+
+def _create_channel(client: TestClient, name: str) -> str:
+    response = client.post("/channels", data={"name": name, "color": "#8a8a8a"})
+    match = re.search(rf'value="{re.escape(name)}">.*?/channels/(\d+)"', response.text, re.DOTALL)
+    assert match is not None
+    return match.group(1)
+
+
+def _create_payout_period(client: TestClient, label: str, income: str, channel_id: str) -> str:
+    response = client.post(
+        "/payout-periods",
+        data={"label": label, "income_amount": income, "receiving_channel_id": channel_id},
+    )
+    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    assert matches
+    return matches[-1]
 
 
 def test_overview_empty_state(client: TestClient) -> None:
@@ -6,6 +25,43 @@ def test_overview_empty_state(client: TestClient) -> None:
     assert response.status_code == 200
     assert "No goals yet" in response.text
     assert "No credit lines yet" in response.text
+    assert "Upcoming" not in response.text
+
+
+def test_overview_upcoming_expenses_banner(client: TestClient) -> None:
+    channel = client.post("/channels", data={"name": "Payroll", "color": "#8a8a8a"})
+    channel_id = re.search(r'/channels/(\d+)"', channel.text)
+    assert channel_id is not None
+    channel_id_str = channel_id.group(1)
+
+    period = client.post("/payout-periods", data={"label": "15th", "income_amount": "32000"})
+    period_id = re.search(r"/payout-periods/(\d+)", period.text)
+    assert period_id is not None
+    period_id_str = period_id.group(1)
+
+    client.post(
+        "/expenses",
+        data={
+            "name": "Meralco",
+            "amount": "2500.50",
+            "payout_period_id": period_id_str,
+            "channel_id": channel_id_str,
+        },
+    )
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Upcoming — 15th" in response.text
+    assert "Meralco" in response.text
+    assert "2,500.50" in response.text
+
+
+def test_overview_no_upcoming_banner_without_payout_periods(client: TestClient) -> None:
+    client.post("/assets", data={"name": "Some Asset", "amount": "100"})
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Upcoming" not in response.text
 
 
 def test_overview_kpi_totals(client: TestClient) -> None:
@@ -32,9 +88,37 @@ def test_overview_net_worth_negative_uses_neg_class(client: TestClient) -> None:
 
 
 def test_overview_shows_funded_pill_for_completed_goal(client: TestClient) -> None:
-    client.post(
+    channel = client.post("/channels", data={"name": "Savings", "color": "#8a8a8a"})
+    channel_id = re.search(r'/channels/(\d+)"', channel.text)
+    assert channel_id is not None
+    channel_id_str = channel_id.group(1)
+
+    period = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_id = re.search(r"/payout-periods/(\d+)", period.text)
+    assert period_id is not None
+    period_id_str = period_id.group(1)
+
+    goal = client.post(
         "/goals",
-        data={"name": "Fully Funded", "target": "1000", "allocated": "1000", "months": "1"},
+        data={
+            "name": "Fully Funded",
+            "target": "1000",
+            "months": "1",
+            "channel_id": channel_id_str,
+        },
+    )
+    goal_id = re.search(r'/goals/(\d+)"', goal.text)
+    assert goal_id is not None
+    goal_id_str = goal_id.group(1)
+
+    client.post(
+        "/goal-contributions",
+        data={
+            "goal_id": goal_id_str,
+            "channel_id": channel_id_str,
+            "payout_period_id": period_id_str,
+            "amount": "1000",
+        },
     )
 
     response = client.get("/overview")
@@ -44,9 +128,7 @@ def test_overview_shows_funded_pill_for_completed_goal(client: TestClient) -> No
 
 
 def test_overview_does_not_show_funded_pill_for_incomplete_goal(client: TestClient) -> None:
-    client.post(
-        "/goals", data={"name": "In Progress", "target": "1000", "allocated": "250", "months": "1"}
-    )
+    client.post("/goals", data={"name": "In Progress", "target": "1000", "months": "1"})
 
     response = client.get("/overview")
     assert response.status_code == 200
@@ -69,6 +151,29 @@ def test_overview_shows_warn_pill_for_over_limit_credit(client: TestClient) -> N
     assert response.status_code == 200
     assert "warn-red" in response.text
     assert "Over limit" in response.text
+
+
+def test_overview_shows_no_cash_flow_warnings_section_when_none(client: TestClient) -> None:
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Cash flow warnings" not in response.text
+
+
+def test_overview_surfaces_unfunded_channel_warning(client: TestClient) -> None:
+    a = _create_channel(client, "Channel A")
+    b = _create_channel(client, "Channel B")
+    period_id = _create_payout_period(client, "15th", "0", a)
+
+    client.post(
+        "/expenses",
+        data={"name": "B bill", "amount": "500", "payout_period_id": period_id, "channel_id": b},
+    )
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Cash flow warnings" in response.text
+    assert "Channel B goes negative on the 15th" in response.text
+    assert "warn-red" in response.text
 
 
 def test_unknown_section_still_404s(client: TestClient) -> None:

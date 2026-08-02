@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.crud import create_channel
 from app.seed import seed_if_empty
-from tests.conftest import TestingSessionLocal
+from tests.conftest import TEST_USER_ID, TestingSessionLocal
 
 
 @pytest.fixture
@@ -34,27 +34,37 @@ def _counts(db: Session) -> dict[str, int]:
 
 
 def test_seed_populates_all_tables_when_empty(db: Session) -> None:
-    seed_if_empty(db)
+    seed_if_empty(db, TEST_USER_ID)
 
     counts = _counts(db)
     assert all(count > 0 for count in counts.values()), counts
 
 
 def test_seed_is_a_no_op_on_second_call(db: Session) -> None:
-    seed_if_empty(db)
+    seed_if_empty(db, TEST_USER_ID)
     first_counts = _counts(db)
 
-    seed_if_empty(db)
+    seed_if_empty(db, TEST_USER_ID)
     second_counts = _counts(db)
 
     assert first_counts == second_counts
 
 
 def test_seed_leaves_existing_channels_alone(db: Session) -> None:
-    create_channel(db, schemas.ChannelCreate(name="My Own Bank"))
+    create_channel(db, schemas.ChannelCreate(name="My Own Bank"), TEST_USER_ID)
 
-    seed_if_empty(db)
+    seed_if_empty(db, TEST_USER_ID)
 
     channel_names = {c.name for c in db.query(models.Channel).all()}
     assert channel_names == {"My Own Bank"}
     assert db.query(models.PayoutPeriod).count() == 0
+
+
+def test_seed_with_no_user_creates_orphaned_rows(db: Session) -> None:
+    seed_if_empty(db, None)
+
+    channels = db.query(models.Channel).all()
+    assert channels, "expected seeded channels"
+    assert all(c.user_id is None for c in channels)
+    periods = db.query(models.PayoutPeriod).all()
+    assert periods and all(p.user_id is None for p in periods)
