@@ -457,6 +457,9 @@
         if (visible) {
           const toSelect = row.querySelector('select[name="to_channel_id"]');
           if (toSelect) prefillTransferAmount(toSelect);
+          // Bring the newly-revealed row into view smoothly instead of
+          // letting the page's height jump and the scrollbar pop abruptly.
+          row.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
       }
 
