@@ -46,6 +46,43 @@ def test_create_and_delete_expense(client: TestClient) -> None:
     assert "Groceries" not in response.text
 
 
+def test_create_expense_with_due_day(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Rent",
+            "amount": "12000",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+            "due_day": "5",
+        },
+    )
+    assert create.status_code == 200
+    assert "Rent" in create.text
+    # The Due column should render the day-of-month next to the expense.
+    assert re.search(r'data-label="Due">\s*5\s*<', create.text) is not None
+
+
+def test_create_expense_without_due_day_leaves_it_blank(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    assert create.status_code == 200
+    assert "Groceries" in create.text
+
+
 def test_expenses_filter_by_name(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     period_id = _create_payout_period(client, "15th", channel_id)

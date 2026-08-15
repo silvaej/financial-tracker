@@ -16,6 +16,10 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
     )
 
 
+def _parse_due_day(raw: str) -> int | None:
+    return int(raw) if raw else None
+
+
 @router.get("")
 def index(
     request: Request,
@@ -38,6 +42,7 @@ def create_expense(
     amount: float = Form(...),
     payout_period_id: int = Form(...),
     channel_id: int = Form(...),
+    due_day: str = Form(""),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
@@ -45,7 +50,11 @@ def create_expense(
         crud.create_expense(
             db,
             schemas.ExpenseCreate(
-                name=name, amount=amount, payout_period_id=payout_period_id, channel_id=channel_id
+                name=name,
+                amount=amount,
+                payout_period_id=payout_period_id,
+                channel_id=channel_id,
+                due_day=_parse_due_day(due_day),
             ),
             current_user.id,
         )

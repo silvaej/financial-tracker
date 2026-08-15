@@ -403,6 +403,7 @@
           <col class="min-w-28">
           <col class="w-24">
           <col class="w-40">
+          <col class="w-16">
           <col class="w-24">
           <col class="w-36">
         </colgroup>
@@ -411,6 +412,7 @@
             <th>Name</th>
             <th>Payout</th>
             <th>Channel</th>
+            <th>Due</th>
             <th class="text-right">Amount</th>
             <th></th>
           </tr>
@@ -421,6 +423,7 @@
               <td class="led-inline led-inline-2" data-label="Name">{{ expense.name }}</td>
               <td class="led-inline led-inline-2" data-label="Payout">{{ expense.payout_period.label }}</td>
               <td class="led-inline led-inline-2" data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+              <td class="led-inline led-inline-2" data-label="Due">{{ expense.due_day or "—" }}</td>
               <td class="num led-inline led-inline-2" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               <td class="led-actions">
                 <button class="icon-btn"
@@ -433,10 +436,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(5, 'expenses') }}
+            {{ macros.empty_row(6, 'expenses') }}
           {% endfor %}
           <tr class="tr-add-btn">
-            <td colspan="5">
+            <td colspan="6">
               <button type="button"
                       id="add-expense-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 3 else '' }}"
@@ -477,6 +480,15 @@
                   </option>
                 {% endfor %}
               </select>
+            </td>
+            <td class="led-inline led-inline-2" data-label="Due">
+              <input class="field field-mono w-16"
+                     type="number"
+                     min="1"
+                     max="31"
+                     name="due_day"
+                     form="add-expense-form"
+                     placeholder="Day">
             </td>
             <td class="num led-inline led-inline-2" data-label="Amount">
               <div class="flex items-center justify-end gap-1">

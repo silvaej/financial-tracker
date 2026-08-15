@@ -1185,7 +1185,10 @@ def overview_page_data(db: Session, user_id: int) -> dict:
     total_liabilities = sum(float(c.used) for c in credit_lines)
     period = next_payout_period(db, user_id)
     upcoming_expenses = (
-        [e for e in list_expenses(db, user_id) if e.payout_period_id == period.id]
+        sorted(
+            (e for e in list_expenses(db, user_id) if e.payout_period_id == period.id),
+            key=lambda e: (e.due_day is None, e.due_day),
+        )
         if period is not None
         else []
     )
