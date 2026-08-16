@@ -331,6 +331,53 @@ def test_oauth_login_auto_links_existing_email_without_key(
         db.close()
 
 
+def test_oauth_login_auto_links_email_with_different_casing(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #71: an operator-created account
+    ("Alice@Example.com", however they happened to type it) must still
+    auto-link when the OAuth provider returns a differently-cased but
+    equivalent verified email -- otherwise this silently creates a second
+    account for the same mailbox instead of linking to the existing one."""
+    user_id = _create_user("Alice@Example.com")
+
+    response = _oauth_login(
+        real_client, monkeypatch, email="alice@example.com", provider_user_id="g-alice"
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+
+    db = TestingSessionLocal()
+    try:
+        identity = crud.get_oauth_identity(db, "google", "g-alice")
+        assert identity is not None
+        assert identity.user_id == user_id
+        # No duplicate account for the same mailbox under a different casing.
+        assert db.query(models.User).filter(models.User.email == "alice@example.com").count() == 1
+    finally:
+        db.close()
+
+
+def test_create_user_stores_email_lowercase() -> None:
+    db = TestingSessionLocal()
+    try:
+        user = crud.create_user(db, "Bob@Example.COM")
+        assert user.email == "bob@example.com"
+    finally:
+        db.close()
+
+
+def test_get_user_by_email_is_case_insensitive() -> None:
+    db = TestingSessionLocal()
+    try:
+        user = crud.create_user(db, "carol@example.com")
+        found = crud.get_user_by_email(db, "CAROL@Example.com")
+        assert found is not None
+        assert found.id == user.id
+    finally:
+        db.close()
+
+
 def test_oauth_login_links_second_provider_to_same_account(
     real_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
