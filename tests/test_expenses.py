@@ -139,6 +139,43 @@ def test_create_expense_rejects_whitespace_only_name(client: TestClient) -> None
     assert response.status_code == 422
 
 
+def test_mark_expense_paid_and_unpaid(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Rent",
+            "amount": "12000",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    # A brand-new expense starts unpaid.
+    assert re.search(rf'expenses/{expense_id}/paid"[^>]*(?<!checked)>', create.text) is not None
+
+    paid = client.patch(f"/expenses/{expense_id}/paid", data={"paid": "on"})
+    assert paid.status_code == 200
+    assert re.search(rf'expenses/{expense_id}/paid"[^>]*checked>', paid.text) is not None
+
+    # Unchecking a checkbox omits it from the submitted form entirely --
+    # mirrors real browser behavior (see the round_up_to_hundred checkbox
+    # pattern elsewhere in this app).
+    unpaid = client.patch(f"/expenses/{expense_id}/paid", data={})
+    assert unpaid.status_code == 200
+    assert re.search(rf'expenses/{expense_id}/paid"[^>]*checked>', unpaid.text) is None
+
+
+def test_mark_expense_paid_requires_ownership(client: TestClient) -> None:
+    response = client.patch("/expenses/999999/paid", data={"paid": "on"})
+    assert response.status_code == 404
+
+
 def test_expenses_filter_by_name(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     period_id = _create_payout_period(client, "15th", channel_id)

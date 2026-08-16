@@ -116,6 +116,12 @@ class Expense(Base):
     payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
     due_day: Mapped[int | None] = mapped_column(nullable=True)
+    # A simple manually-maintained marker ("did I pay this bill"), not tied
+    # to a specific cycle -- Expense rows are perpetual templates with no
+    # dated-cycle concept (see issue #84), so this doesn't auto-reset at the
+    # start of a new payout period; the user checks it off, then unchecks it
+    # themselves next cycle. See issue #85.
+    paid: Mapped[bool] = mapped_column(default=False)
 
     payout_period: Mapped[PayoutPeriod] = relationship()
     channel: Mapped[Channel] = relationship()
