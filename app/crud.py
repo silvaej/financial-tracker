@@ -121,11 +121,14 @@ def get_user(db: Session, user_id: int) -> models.User | None:
 
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
-    return db.scalar(select(models.User).where(models.User.email == email))
+    # Case-insensitive: an OAuth provider's verified email casing isn't
+    # guaranteed to match how the user (or an operator via manage_users.py)
+    # originally typed it -- see issue #71.
+    return db.scalar(select(models.User).where(models.User.email == email.strip().lower()))
 
 
 def create_user(db: Session, email: str) -> models.User:
-    user = models.User(email=email)
+    user = models.User(email=email.strip().lower())
     db.add(user)
     db.commit()
     db.refresh(user)

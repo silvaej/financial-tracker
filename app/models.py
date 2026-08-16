@@ -1,6 +1,15 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    LargeBinary,
+    Numeric,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -38,6 +47,13 @@ class User(Base):
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+    # Plain unique=True above only rejects byte-identical duplicates -- app
+    # code always normalizes email to lowercase before read/write (see
+    # crud.get_user_by_email/create_user), but this functional index is a
+    # DB-level backstop against any write path that forgets to (a raw SQL
+    # script, a future admin tool, etc.) -- see issue #71.
+    __table_args__ = (Index("ix_users_email_lower", func.lower(email), unique=True),)
 
 
 class OAuthIdentity(Base):
