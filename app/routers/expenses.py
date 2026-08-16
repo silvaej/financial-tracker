@@ -78,6 +78,21 @@ def update_expense_paid(
     return _render_page(request, db, current_user.id)
 
 
+@router.patch("/{expense_id}/active")
+def update_expense_active(
+    request: Request,
+    expense_id: int,
+    active: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    try:
+        crud.set_expense_active(db, expense_id, current_user.id, active)
+    except crud.OwnershipError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _render_page(request, db, current_user.id)
+
+
 @router.delete("/{expense_id}")
 def delete_expense(
     request: Request,
