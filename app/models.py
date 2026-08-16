@@ -235,3 +235,54 @@ class Asset(Base):
     channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
 
     channel: Mapped[Channel | None] = relationship()
+
+
+class PayoutCycle(Base):
+    """A locked, dated snapshot of one occurrence of a PayoutPeriod -- see
+    issue #84. PayoutPeriod itself stays a perpetual, always-editable
+    template (per CLAUDE.md's Domain section); closing a cycle here doesn't
+    touch or clear the period's live transfers/expenses, it just records
+    what channel_balances() computed at that moment so a later edit to the
+    live template can't silently overwrite the only record that ever
+    existed. Deliberately no FK to Channel for the receiving channel (see
+    PayoutCycleBalance below) -- a snapshot is a historical fact and
+    shouldn't block deleting a channel used only in old history, or need
+    updating if that channel is later renamed/recolored."""
+
+    __tablename__ = "payout_cycles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    label: Mapped[str] = mapped_column(String(50), nullable=False)
+    closed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    income_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    receiving_channel_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    payout_period: Mapped[PayoutPeriod] = relationship()
+
+
+class PayoutCycleBalance(Base):
+    """One channel's snapshotted activity within a closed PayoutCycle.
+    channel_name/channel_color are denormalized (not a Channel FK) for the
+    same reason as PayoutCycle.receiving_channel_name above. `net` is the
+    channel's full running balance (as crud.channel_balances() computed it
+    at closure time, including carry-in from prior periods); `income`/
+    `transfers_net`/`expenses_total` describe only this cycle's own
+    activity and generally won't sum to `net` on their own -- both are
+    useful, so both are kept rather than picking one."""
+
+    __tablename__ = "payout_cycle_balances"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payout_cycle_id: Mapped[int] = mapped_column(ForeignKey("payout_cycles.id"), nullable=False)
+    channel_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    channel_color: Mapped[str] = mapped_column(String(7), nullable=False)
+    income: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    transfers_net: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    expenses_total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    net: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+
+    payout_cycle: Mapped[PayoutCycle] = relationship()

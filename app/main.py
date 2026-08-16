@@ -32,6 +32,7 @@ from app.routers import (
     oauth,
     onboarding,
     overview,
+    payout_cycles,
     payout_periods,
     transfers,
 )
@@ -141,6 +142,7 @@ app.include_router(auth.router)
 app.include_router(oauth.router)
 app.include_router(channels.router)
 app.include_router(payout_periods.router)
+app.include_router(payout_cycles.router)
 app.include_router(expenses.router)
 app.include_router(transfers.router)
 app.include_router(goal_contributions.router)
