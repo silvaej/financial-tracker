@@ -151,3 +151,8 @@ class CreditLineUpdate(BaseModel):
     limit: float = Field(gt=0)
     used: float = Field(ge=0)
     channel_id: int | None = None
+
+
+class SignupKeyCreate(BaseModel):
+    max_uses: int = Field(default=1, ge=1)
+    expires_days: int | None = Field(default=None, ge=1)

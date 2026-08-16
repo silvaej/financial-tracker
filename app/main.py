@@ -20,6 +20,7 @@ from app.csrf import csrf_protect
 from app.database import get_db
 from app.rate_limit import limiter
 from app.routers import (
+    admin,
     assets,
     auth,
     cashflow,
@@ -153,6 +154,7 @@ app.include_router(overview.router)
 app.include_router(cashflow.router)
 app.include_router(export.router)
 app.include_router(onboarding.router)
+app.include_router(admin.router)
 
 PLACEHOLDER_SECTIONS: dict[str, str] = {}
 

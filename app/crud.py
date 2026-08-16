@@ -3,7 +3,7 @@ import logging
 import math
 import secrets
 import zoneinfo
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, NamedTuple
 
 from sqlalchemy import func, or_, select
@@ -1690,4 +1690,162 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
         "channels": channels,
         "goals": goal_entries,
         "payout_data": payout_data,
+    }
+
+
+# --- Admin --------------------------------------------------------------------
+# See issue #65. Gated by require_admin (app/auth.py), not a per-crud-call
+# check -- these functions operate across *all* users deliberately (an
+# admin's whole job here is cross-user visibility/hygiene), unlike every
+# other crud.py function which scopes to one user_id.
+
+# Same table set app/manage_users.py's assign-orphans CLI command handles --
+# it now imports this constant rather than keeping its own separate copy,
+# so the two can't drift apart.
+ORPHANABLE_MODELS: tuple[type[Any], ...] = (
+    models.Channel,
+    models.PayoutPeriod,
+    models.Expense,
+    models.Transfer,
+    models.Goal,
+    models.CreditLine,
+    models.Asset,
+    models.PayoutCycle,
+)
+
+
+def list_users_for_admin(db: Session) -> list[dict[str, Any]]:
+    users = list(db.scalars(select(models.User).order_by(models.User.created_at.desc())))
+    rows = []
+    for user in users:
+        providers = sorted(
+            {
+                identity.provider
+                for identity in db.scalars(
+                    select(models.OAuthIdentity).where(models.OAuthIdentity.user_id == user.id)
+                )
+            }
+        )
+        channel_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(models.Channel)
+                .where(models.Channel.user_id == user.id)
+            )
+            or 0
+        )
+        expense_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(models.Expense)
+                .where(models.Expense.user_id == user.id)
+            )
+            or 0
+        )
+        rows.append(
+            {
+                "user": user,
+                "providers": providers,
+                "channel_count": channel_count,
+                "expense_count": expense_count,
+            }
+        )
+    return rows
+
+
+def delete_user_and_data(db: Session, user_id: int) -> None:
+    """Delete a user and every row they own, in FK-dependency order (children
+    before parents -- there's no ON DELETE CASCADE at the DB level, FKs
+    default to RESTRICT, so deleting parents first would fail). There was
+    previously no way to do this at all, CLI or otherwise -- see issue #65."""
+    cycle_ids = list(
+        db.scalars(select(models.PayoutCycle.id).where(models.PayoutCycle.user_id == user_id))
+    )
+    if cycle_ids:
+        db.query(models.PayoutCycleBalance).filter(
+            models.PayoutCycleBalance.payout_cycle_id.in_(cycle_ids)
+        ).delete(synchronize_session=False)
+    for model in (
+        models.GoalContribution,
+        models.ChannelPlacement,
+        models.GoalPlacement,
+        models.Transfer,
+        models.Expense,
+        models.PayoutCycle,
+        models.Goal,
+        models.CreditLine,
+        models.Asset,
+        models.PayoutPeriod,
+        models.Channel,
+        models.OAuthIdentity,
+    ):
+        db.query(model).filter_by(user_id=user_id).delete()
+    db.query(models.User).filter_by(id=user_id).delete()
+    db.commit()
+
+
+def list_signup_keys(db: Session) -> list[models.SignupKey]:
+    return list(db.scalars(select(models.SignupKey).order_by(models.SignupKey.created_at.desc())))
+
+
+def signup_key_status(key: models.SignupKey) -> Literal["active", "exhausted", "expired"]:
+    if key.use_count >= key.max_uses:
+        return "exhausted"
+    expires_at = key.expires_at
+    if expires_at is not None:
+        if expires_at.tzinfo is None:
+            # SQLite (used in tests) doesn't persist tzinfo on DateTime(timezone=True) columns.
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
+            return "expired"
+    return "active"
+
+
+def revoke_signup_key(db: Session, key_id: int) -> None:
+    db.query(models.SignupKey).filter_by(id=key_id).delete()
+    db.commit()
+
+
+def orphan_counts(db: Session) -> list[tuple[str, int]]:
+    return [
+        (
+            model.__tablename__,
+            db.scalar(select(func.count()).select_from(model).where(model.user_id.is_(None))) or 0,
+        )
+        for model in ORPHANABLE_MODELS
+    ]
+
+
+def assign_orphans_for_table(db: Session, table_name: str, target_user_id: int) -> int:
+    model = next((m for m in ORPHANABLE_MODELS if m.__tablename__ == table_name), None)
+    if model is None:
+        raise ValueError(f"Unknown orphanable table: {table_name!r}")
+    rows = db.scalars(select(model).where(model.user_id.is_(None))).all()
+    for row in rows:
+        row.user_id = target_user_id
+    db.commit()
+    return len(rows)
+
+
+def admin_page_data(db: Session) -> dict[str, Any]:
+    total_users = db.scalar(select(func.count()).select_from(models.User)) or 0
+    week_ago = datetime.now(UTC) - timedelta(days=7)
+    recent_signups = (
+        db.scalar(
+            select(func.count()).select_from(models.User).where(models.User.created_at >= week_ago)
+        )
+        or 0
+    )
+    signup_keys = list_signup_keys(db)
+    counts = orphan_counts(db)
+    return {
+        "users": list_users_for_admin(db),
+        "signup_keys": [(key, signup_key_status(key)) for key in signup_keys],
+        "orphan_counts": counts,
+        "stats": {
+            "total_users": total_users,
+            "recent_signups": recent_signups,
+            "active_keys": sum(1 for k in signup_keys if signup_key_status(k) == "active"),
+            "orphan_total": sum(count for _, count in counts),
+        },
     }

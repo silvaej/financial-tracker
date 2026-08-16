@@ -1,9 +1,10 @@
 import time
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app import models
+from app.config import settings
 from app.database import get_db
 
 # Absolute cap on a session's lifetime since login, regardless of activity.
@@ -62,3 +63,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> models.
     # threading it through each router's own render context.
     request.state.user = user
     return user
+
+
+def require_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
+    """Gates /admin -- see issue #65. 404, not 403: a non-admin shouldn't be
+    able to tell the admin area exists at all, same spirit as
+    crud._owned()'s deliberately-indistinguishable "doesn't exist" vs
+    "not yours"."""
+    if current_user.email not in settings.admin_email_set:
+        raise HTTPException(status_code=404)
+    return current_user
