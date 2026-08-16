@@ -46,3 +46,42 @@ def test_update_payout_period_income(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert "2000" in response.text
+
+
+def test_delete_empty_payout_period_succeeds(client: TestClient) -> None:
+    create = client.post(
+        "/payout-periods",
+        data={"label": "Empty Period", "income_amount": "0", "receiving_channel_id": ""},
+    )
+    match = re.search(r"/payout-periods/(\d+)", create.text)
+    assert match is not None
+    period_id = match.group(1)
+
+    response = client.delete(f"/payout-periods/{period_id}")
+    assert response.status_code == 200
+    assert "Empty Period" not in response.text
+
+
+def test_delete_payout_period_in_use_by_expense_is_rejected(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    create = client.post(
+        "/payout-periods",
+        data={"label": "15th", "income_amount": "1000", "receiving_channel_id": channel_id},
+    )
+    match = re.search(r"/payout-periods/(\d+)", create.text)
+    assert match is not None
+    period_id = match.group(1)
+
+    client.post(
+        "/expenses",
+        data={
+            "name": "Rent",
+            "amount": "5000",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+
+    response = client.delete(f"/payout-periods/{period_id}")
+    assert response.status_code == 409
+    assert "still used" in response.json()["detail"]

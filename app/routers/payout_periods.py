@@ -75,5 +75,8 @@ def delete_payout_period(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
-    crud.delete_payout_period(db, payout_period_id, current_user.id)
+    try:
+        crud.delete_payout_period(db, payout_period_id, current_user.id)
+    except crud.PayoutPeriodInUseError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _render_page(request, db, current_user.id)
