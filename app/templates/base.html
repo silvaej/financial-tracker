@@ -215,7 +215,10 @@
     </div>
     <div id="confirm-modal"
          class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
-      <div class="card w-full max-w-sm mx-4">
+      <div class="card w-full max-w-sm mx-4"
+           role="dialog"
+           aria-modal="true"
+           aria-describedby="confirm-modal-message">
         <p id="confirm-modal-message" class="text-sm text-ink mb-4"></p>
         <div class="flex justify-end gap-2">
           <button type="button" id="confirm-modal-cancel" class="btn-secondary">Cancel</button>
@@ -225,7 +228,10 @@
     </div>
     <div id="alert-modal"
          class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
-      <div class="card w-full max-w-sm mx-4">
+      <div class="card w-full max-w-sm mx-4"
+           role="dialog"
+           aria-modal="true"
+           aria-describedby="alert-modal-message">
         <p id="alert-modal-message" class="text-sm text-ink mb-4"></p>
         <div class="flex justify-end">
           <button type="button" id="alert-modal-ok" class="add-btn mt-0">OK</button>
@@ -381,6 +387,54 @@
         if (evt.key === "Escape") closeMoreSheet();
       });
 
+      // Shared focus-trap/restore behavior for the confirm/alert modals --
+      // see #77. Neither modal previously had dialog semantics (no Escape,
+      // no role=dialog, no focus trap), unlike the more-sheet/preset-popover
+      // patterns above which at least close on Escape.
+      let modalReturnFocus = null;
+
+      function focusableIn(container) {
+        return Array.from(
+          container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        ).filter((el) => !el.disabled && el.offsetParent !== null);
+      }
+
+      function openModal(modal) {
+        modalReturnFocus = document.activeElement;
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+        const focusable = focusableIn(modal);
+        if (focusable.length) focusable[0].focus();
+      }
+
+      function closeModal(modal) {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        if (modalReturnFocus) {
+          modalReturnFocus.focus();
+          modalReturnFocus = null;
+        }
+      }
+
+      function isModalOpen(modal) {
+        return !modal.classList.contains("hidden");
+      }
+
+      function trapModalTab(evt, modal) {
+        if (evt.key !== "Tab") return;
+        const focusable = focusableIn(modal);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (evt.shiftKey && document.activeElement === first) {
+          evt.preventDefault();
+          last.focus();
+        } else if (!evt.shiftKey && document.activeElement === last) {
+          evt.preventDefault();
+          first.focus();
+        }
+      }
+
       const confirmModal = document.getElementById("confirm-modal");
       const confirmMessage = document.getElementById("confirm-modal-message");
       const confirmOkBtn = document.getElementById("confirm-modal-confirm");
@@ -388,8 +442,7 @@
       let pendingConfirm = null;
 
       function closeConfirmModal() {
-        confirmModal.classList.add("hidden");
-        confirmModal.classList.remove("flex");
+        closeModal(confirmModal);
         pendingConfirm = null;
       }
 
@@ -398,8 +451,7 @@
         evt.preventDefault();
         confirmMessage.textContent = evt.detail.question;
         pendingConfirm = evt.detail.issueRequest;
-        confirmModal.classList.remove("hidden");
-        confirmModal.classList.add("flex");
+        openModal(confirmModal);
       });
 
       confirmOkBtn.addEventListener("click", () => {
@@ -419,20 +471,28 @@
       const alertOkBtn = document.getElementById("alert-modal-ok");
 
       function closeAlertModal() {
-        alertModal.classList.add("hidden");
-        alertModal.classList.remove("flex");
+        closeModal(alertModal);
       }
 
       function showAlert(message) {
         alertMessage.textContent = message;
-        alertModal.classList.remove("hidden");
-        alertModal.classList.add("flex");
+        openModal(alertModal);
       }
 
       alertOkBtn.addEventListener("click", closeAlertModal);
 
       alertModal.addEventListener("click", (evt) => {
         if (evt.target === alertModal) closeAlertModal();
+      });
+
+      document.addEventListener("keydown", (evt) => {
+        if (isModalOpen(confirmModal)) {
+          if (evt.key === "Escape") closeConfirmModal();
+          else trapModalTab(evt, confirmModal);
+        } else if (isModalOpen(alertModal)) {
+          if (evt.key === "Escape") closeAlertModal();
+          else trapModalTab(evt, alertModal);
+        }
       });
 
       document.body.addEventListener("htmx:responseError", (evt) => {
