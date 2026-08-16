@@ -73,15 +73,21 @@
                       hx-swap="outerHTML"
                       hx-encoding="multipart/form-data"
                       class="edit-channel-{{ channel.id }} hidden items-center gap-2 flex-wrap">
-                  <input class="field" type="text" name="name" value="{{ channel.name }}">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Name"
+                         value="{{ channel.name }}">
                   <input class="w-10 h-8 rounded border border-line cursor-pointer"
                          type="color"
                          name="color"
+                         aria-label="Color"
                          value="{{ channel.color }}">
                   <input class="field text-xs"
                          type="file"
                          name="logo"
-                         accept="image/png,image/jpeg,image/webp,image/gif">
+                         accept="image/png,image/jpeg,image/webp,image/gif"
+                         aria-label="Logo">
                   {% if channel.logo_data %}
                     <button type="button"
                             class="icon-btn hover:bg-rust-soft hover:text-rust"
@@ -103,7 +109,8 @@
                 <div class="edit-channel-{{ channel.id }} hidden items-center gap-1">
                   <select class="field"
                           name="channel_type"
-                          form="channel-edit-form-{{ channel.id }}">
+                          form="channel-edit-form-{{ channel.id }}"
+                          aria-label="Type">
                     <option value="">No type</option>
                     {% for ct in channel_types %}
                       <option value="{{ ct }}"
@@ -197,14 +204,19 @@
              name="name"
              form="add-channel-form"
              placeholder="Channel name"
+             aria-label="Channel name"
              oninput="this.form.elements.badge_label.value = ''"
              required>
       <input class="w-10 h-8 rounded border border-line cursor-pointer"
              type="color"
              name="color"
              form="add-channel-form"
-             value="#8a8a8a">
-      <select class="field w-40" name="channel_type" form="add-channel-form">
+             value="#8a8a8a"
+             aria-label="Color">
+      <select class="field w-40"
+              name="channel_type"
+              form="add-channel-form"
+              aria-label="Type">
         <option value="">No type</option>
         {% for ct in channel_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
       </select>
@@ -213,7 +225,8 @@
              name="logo"
              form="add-channel-form"
              accept="image/png,image/jpeg,image/webp,image/gif"
-             title="Optional custom logo image (overrides the preset badge)">
+             title="Optional custom logo image (overrides the preset badge)"
+             aria-label="Logo">
       <input type="hidden" name="badge_label" form="add-channel-form">
       <div class="flex items-center gap-2">
         <button class="add-btn mt-0" type="submit" form="add-channel-form">Add</button>
@@ -266,6 +279,7 @@
                          step="0.01"
                          name="income_amount"
                          form="edit-payout-form-{{ period.id }}"
+                         aria-label="Income"
                          value="{{ period.income_amount }}">
                 </div>
               </td>
@@ -280,7 +294,8 @@
                 <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
                   <select class="field"
                           name="receiving_channel_id"
-                          form="edit-payout-form-{{ period.id }}">
+                          form="edit-payout-form-{{ period.id }}"
+                          aria-label="Receiving channel">
                     <option value="">No channel</option>
                     {% for channel in channels %}
                       <option value="{{ channel.id }}"
@@ -340,6 +355,7 @@
                      name="label"
                      form="add-payout-form"
                      placeholder="e.g. 15th"
+                     aria-label="Label"
                      required>
             </td>
             <td class="num" data-label="Income">
@@ -350,11 +366,15 @@
                        step="0.01"
                        name="income_amount"
                        form="add-payout-form"
-                       placeholder="Income">
+                       placeholder="Income"
+                       aria-label="Income">
               </div>
             </td>
             <td class="text-right" data-label="Receiving channel">
-              <select class="field" name="receiving_channel_id" form="add-payout-form">
+              <select class="field"
+                      name="receiving_channel_id"
+                      form="add-payout-form"
+                      aria-label="Receiving channel">
                 <option value="">No channel</option>
                 {% for channel in channels %}
                   <option value="{{ channel.id }}"
@@ -386,6 +406,7 @@
              name="q"
              value="{{ q }}"
              placeholder="Filter by name&hellip;"
+             aria-label="Filter expenses by name"
              hx-preserve
              hx-get="/expenses"
              hx-trigger="keyup changed delay:300ms, search"
@@ -456,12 +477,14 @@
                      name="name"
                      form="add-expense-form"
                      placeholder="Expense name"
+                     aria-label="Expense name"
                      required>
             </td>
             <td class="led-inline led-inline-2" data-label="Payout">
               <select class="field"
                       name="payout_period_id"
                       form="add-expense-form"
+                      aria-label="Payout period"
                       required>
                 {% for period in payout_periods %}
                   <option value="{{ period.id }}"
@@ -472,7 +495,11 @@
               </select>
             </td>
             <td class="led-inline led-inline-2" data-label="Channel">
-              <select class="field" name="channel_id" form="add-expense-form" required>
+              <select class="field"
+                      name="channel_id"
+                      form="add-expense-form"
+                      aria-label="Channel"
+                      required>
                 {% for channel in channels %}
                   <option value="{{ channel.id }}"
                           {{ "selected" if onboarding_step == 3 and channel.id == onboarding_default_expense_channel_id else "" }}>
@@ -488,7 +515,8 @@
                      max="31"
                      name="due_day"
                      form="add-expense-form"
-                     placeholder="Day">
+                     placeholder="Day"
+                     aria-label="Due day">
             </td>
             <td class="num led-inline led-inline-2" data-label="Amount">
               <div class="flex items-center justify-end gap-1">
@@ -499,6 +527,7 @@
                        name="amount"
                        form="add-expense-form"
                        placeholder="Amount"
+                       aria-label="Amount"
                        required>
               </div>
             </td>
