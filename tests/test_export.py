@@ -94,3 +94,24 @@ def test_export_empty_data_returns_header_only(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.text.strip() == "Name,Color,Type"
+
+
+def test_export_channels_csv_sanitizes_formula_injection(client: TestClient) -> None:
+    """Regression test for #74: a channel named starting with =, +, -, or @
+    would otherwise trigger formula execution when the exported CSV is
+    opened in Excel/Google Sheets."""
+    _create_channel(client, "=1+1", "#8a8a8a")
+    _create_channel(client, "+1234", "#111111")
+    _create_channel(client, "-1234", "#222222")
+    _create_channel(client, "@SUM(A1:A1)", "#333333")
+
+    response = client.get("/export/channels.csv")
+
+    assert response.status_code == 200
+    assert "'=1+1" in response.text
+    assert "'+1234" in response.text
+    assert "'-1234" in response.text
+    assert "'@SUM(A1:A1)" in response.text
+    # The raw, unprefixed forms must not appear anywhere in the output.
+    assert "\n=1+1" not in response.text
+    assert ",=1+1" not in response.text

@@ -11,11 +11,25 @@ from app.database import get_db
 router = APIRouter(prefix="/export", tags=["export"])
 
 
+_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@")
+
+
+def _sanitize_cell(value: object) -> object:
+    # A user-controlled name/label starting with =, +, -, or @ triggers
+    # formula execution when the exported CSV is opened in Excel/Google
+    # Sheets -- prefixing with a leading apostrophe (the standard mitigation)
+    # forces spreadsheet apps to treat it as literal text. Only string cells
+    # can carry this risk; amounts are always numbers. See issue #74.
+    if isinstance(value, str) and value.startswith(_FORMULA_TRIGGER_CHARS):
+        return f"'{value}"
+    return value
+
+
 def _csv_response(rows: list[list[object]], header: list[str], filename: str) -> Response:
     buffer = StringIO()
     writer = csv.writer(buffer)
     writer.writerow(header)
-    writer.writerows(rows)
+    writer.writerows([_sanitize_cell(cell) for cell in row] for row in rows)
     return Response(
         content=buffer.getvalue(),
         media_type="text/csv",
