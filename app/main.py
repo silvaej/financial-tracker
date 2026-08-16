@@ -70,8 +70,14 @@ def schema_validation_error_handler(request: Request, exc: ValidationError) -> R
     # so FastAPI's own automatic RequestValidationError -> 422 handling never
     # kicks in for a gt=0/min_length violation raised inside a route body --
     # without this handler it would surface as an unhandled 500 instead.
-    # Mirrors FastAPI's default RequestValidationError response shape.
-    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": exc.errors()}))
+    #
+    # `detail` must be a plain string, not FastAPI's default list-of-dicts
+    # shape: base.html's global `htmx:responseError` listener does
+    # `alertMessage.textContent = data.detail` for every error path in this
+    # app (see OwnershipError -> 404, ChannelInUseError -> 409, both plain
+    # strings) -- assigning an array there would render as "[object Object]".
+    message = "; ".join(f"{err['loc'][-1]}: {err['msg']}" for err in exc.errors())
+    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": message}))
 
 
 app.include_router(auth.router)

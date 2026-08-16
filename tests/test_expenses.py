@@ -100,6 +100,29 @@ def test_create_expense_rejects_zero_or_negative_amount(client: TestClient) -> N
         assert response.status_code == 422
 
 
+def test_validation_error_detail_is_a_plain_string_not_a_list(client: TestClient) -> None:
+    # base.html's global htmx:responseError listener does
+    # `alertMessage.textContent = data.detail` for every error path in this
+    # app -- if `detail` were pydantic's default list-of-dicts shape instead
+    # of a plain string, the user-facing alert would render "[object Object]".
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+
+    response = client.post(
+        "/expenses",
+        data={
+            "name": "Groceries",
+            "amount": "-50",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert isinstance(detail, str)
+    assert "amount" in detail
+
+
 def test_create_expense_rejects_whitespace_only_name(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     period_id = _create_payout_period(client, "15th", channel_id)
