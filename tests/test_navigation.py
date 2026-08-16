@@ -43,3 +43,17 @@ def test_plain_account_request_returns_full_page(client: TestClient) -> None:
     assert 'id="account-page"' in response.text
     assert "<html" in response.text
     assert 'id="rail"' in response.text
+
+
+def test_rail_nav_items_have_accessible_names(client: TestClient) -> None:
+    """Regression test for #76: the rail's .tab-label spans are hidden via
+    JS while the rail is collapsed, so each nav item/theme-toggle/logout
+    button needs its own aria-label to keep an accessible name regardless of
+    collapsed state."""
+    response = client.get("/")
+    text = response.text
+
+    for label in ("Overview", "Expenses", "Cash Flow", "Goals", "Credit", "Assets", "Account"):
+        assert f'aria-label="{label}"' in text
+    assert 'aria-label="Dark mode"' in text
+    assert 'aria-label="Log out"' in text
