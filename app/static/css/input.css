@@ -97,7 +97,7 @@
     @apply font-serif font-semibold text-sm text-ink truncate;
   }
   .tab {
-    @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors;
+    @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .tab-icon {
     @apply w-5 h-5 shrink-0;
@@ -119,7 +119,7 @@
     @apply hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-line;
   }
   .tabbar-item {
-    @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold text-ink-soft;
+    @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold text-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .tabbar-item-active {
     @apply text-accent;
@@ -140,7 +140,7 @@
     @apply w-9 h-1 bg-line rounded-full mx-auto mb-1.5;
   }
   .sheet-item {
-    @apply flex items-center gap-3 px-5 py-3 text-sm font-semibold text-ink w-full text-left bg-transparent cursor-pointer;
+    @apply flex items-center gap-3 px-5 py-3 text-sm font-semibold text-ink w-full text-left bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .sheet-item svg {
     @apply w-[18px] h-[18px] text-ink-soft shrink-0;
@@ -197,7 +197,7 @@
     @apply font-semibold text-base mb-3 flex items-center justify-between flex-wrap gap-2;
   }
   .pill {
-    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide;
+    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
 
   /* First-login guided setup banner on the Expenses page (see
@@ -270,13 +270,13 @@
   }
 
   .icon-btn {
-    @apply inline-flex items-center p-1 rounded text-ink-soft hover:bg-rust-soft hover:text-rust cursor-pointer;
+    @apply inline-flex items-center p-1 rounded text-ink-soft hover:bg-rust-soft hover:text-rust cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .add-btn {
-    @apply inline-flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:brightness-90 cursor-pointer mt-2;
+    @apply inline-flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:brightness-90 cursor-pointer mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .btn-secondary {
-    @apply inline-flex items-center text-ink-soft text-xs font-semibold px-3 py-1.5 rounded-md border border-line hover:bg-paper-dim cursor-pointer;
+    @apply inline-flex items-center text-ink-soft text-xs font-semibold px-3 py-1.5 rounded-md border border-line hover:bg-paper-dim cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .field {
     @apply w-full min-w-0 rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
@@ -708,7 +708,7 @@
     @apply flex flex-col gap-2.5;
   }
   .provider-btn {
-    @apply flex items-center justify-center gap-2.5 w-full rounded-md border border-line px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-paper-dim cursor-pointer;
+    @apply flex items-center justify-center gap-2.5 w-full rounded-md border border-line px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-paper-dim cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .provider-btn:disabled {
     @apply opacity-45 cursor-not-allowed hover:bg-transparent;
