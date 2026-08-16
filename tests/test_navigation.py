@@ -57,3 +57,16 @@ def test_rail_nav_items_have_accessible_names(client: TestClient) -> None:
         assert f'aria-label="{label}"' in text
     assert 'aria-label="Dark mode"' in text
     assert 'aria-label="Log out"' in text
+
+
+def test_confirm_and_alert_modals_have_dialog_semantics(client: TestClient) -> None:
+    """Regression test for #77: the confirm/alert modals -- used for every
+    destructive-delete confirmation and error alert app-wide -- previously
+    had no role=dialog/aria-modal at all."""
+    text = client.get("/").text
+
+    assert 'id="confirm-modal-message"' in text
+    assert 'role="dialog"' in text
+    assert 'aria-modal="true"' in text
+    assert 'aria-describedby="confirm-modal-message"' in text
+    assert 'aria-describedby="alert-modal-message"' in text
