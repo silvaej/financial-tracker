@@ -82,6 +82,16 @@ def _require_owned(
         raise OwnershipError(f"{label} not found.")
 
 
+def _delete_owned(db: Session, model: type[Any], id_: int, user_id: int | None) -> None:
+    """Delete-if-owned for entities with no extra cleanup/validation on
+    delete (contrast delete_channel/delete_payout_period's in-use checks or
+    delete_goal's child cleanup, which stay bespoke)."""
+    row = _owned(db, model, id_, user_id)
+    if row is not None:
+        db.delete(row)
+        db.commit()
+
+
 # --- Users --------------------------------------------------------------------
 
 # (code, label) pairs for the Account page's currency <select>.
@@ -531,10 +541,7 @@ def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int | None
 
 
 def delete_expense(db: Session, expense_id: int, user_id: int) -> None:
-    expense = _owned(db, models.Expense, expense_id, user_id)
-    if expense is not None:
-        db.delete(expense)
-        db.commit()
+    _delete_owned(db, models.Expense, expense_id, user_id)
 
 
 # --- Transfers ------------------------------------------------------------------
@@ -584,10 +591,7 @@ def update_transfer(
 
 
 def delete_transfer(db: Session, transfer_id: int, user_id: int) -> None:
-    transfer = _owned(db, models.Transfer, transfer_id, user_id)
-    if transfer is not None:
-        db.delete(transfer)
-        db.commit()
+    _delete_owned(db, models.Transfer, transfer_id, user_id)
 
 
 # --- Goal contributions -------------------------------------------------------
@@ -1050,10 +1054,7 @@ def update_asset(
 
 
 def delete_asset(db: Session, asset_id: int, user_id: int) -> None:
-    asset = _owned(db, models.Asset, asset_id, user_id)
-    if asset is not None:
-        db.delete(asset)
-        db.commit()
+    _delete_owned(db, models.Asset, asset_id, user_id)
 
 
 def assets_page_data(db: Session, user_id: int) -> dict:
@@ -1225,10 +1226,7 @@ def update_credit_line(
 
 
 def delete_credit_line(db: Session, credit_line_id: int, user_id: int) -> None:
-    credit_line = _owned(db, models.CreditLine, credit_line_id, user_id)
-    if credit_line is not None:
-        db.delete(credit_line)
-        db.commit()
+    _delete_owned(db, models.CreditLine, credit_line_id, user_id)
 
 
 def credit_utilization(credit_line: models.CreditLine) -> dict:
