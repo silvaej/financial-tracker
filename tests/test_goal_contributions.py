@@ -68,6 +68,48 @@ def test_create_goal_contribution_updates_goal_allocated(client: TestClient) -> 
     assert "30%" in goals_page.text
 
 
+def test_create_goal_contribution_rejects_zero_or_negative_amount(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Savings")
+    period_id = _create_payout_period(client, "15th")
+    goal_id = _create_goal(client, "Emergency Fund", "1000")
+
+    for amount in ("0", "-300"):
+        response = client.post(
+            "/goal-contributions",
+            data={
+                "goal_id": goal_id,
+                "channel_id": channel_id,
+                "payout_period_id": period_id,
+                "amount": amount,
+            },
+        )
+        assert response.status_code == 422
+
+
+def test_update_goal_contribution_rejects_zero_or_negative_amount(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Savings")
+    period_id = _create_payout_period(client, "15th")
+    goal_id = _create_goal(client, "Emergency Fund", "1000")
+    _place_channel(client, period_id, channel_id)
+    _place_goal(client, period_id, goal_id)
+
+    create = client.post(
+        "/goal-contributions",
+        data={
+            "goal_id": goal_id,
+            "channel_id": channel_id,
+            "payout_period_id": period_id,
+            "amount": "300",
+        },
+    )
+    match = re.search(r'data-edge-id="goal-contribution-(\d+)"', create.text)
+    assert match is not None
+    contribution_id = match.group(1)
+
+    response = client.patch(f"/goal-contributions/{contribution_id}", data={"amount": "0"})
+    assert response.status_code == 422
+
+
 def test_update_goal_contribution_recomputes_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
     period_id = _create_payout_period(client, "15th")

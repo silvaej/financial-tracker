@@ -30,6 +30,39 @@ def test_create_payout_period_with_no_channel(client: TestClient) -> None:
     assert "30th" in response.text
 
 
+def test_create_payout_period_rejects_whitespace_only_label(client: TestClient) -> None:
+    response = client.post(
+        "/payout-periods",
+        data={"label": "   ", "income_amount": "1000", "receiving_channel_id": ""},
+    )
+    assert response.status_code == 422
+
+
+def test_create_payout_period_rejects_negative_income(client: TestClient) -> None:
+    response = client.post(
+        "/payout-periods",
+        data={"label": "15th", "income_amount": "-100", "receiving_channel_id": ""},
+    )
+    assert response.status_code == 422
+
+
+def test_update_payout_period_rejects_negative_income(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    create = client.post(
+        "/payout-periods",
+        data={"label": "15th", "income_amount": "1000", "receiving_channel_id": channel_id},
+    )
+    match = re.search(r"/payout-periods/(\d+)", create.text)
+    assert match is not None
+    period_id = match.group(1)
+
+    response = client.patch(
+        f"/payout-periods/{period_id}",
+        data={"income_amount": "-2000", "receiving_channel_id": channel_id},
+    )
+    assert response.status_code == 422
+
+
 def test_update_payout_period_income(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     create = client.post(

@@ -23,6 +23,17 @@ def test_update_asset_renames_and_changes_amount(client: TestClient) -> None:
     assert "Maya TD" not in response.text
 
 
+def test_create_asset_rejects_zero_or_negative_amount(client: TestClient) -> None:
+    for amount in ("0", "-11210.80"):
+        response = client.post("/assets", data={"name": "BPI IMI", "amount": amount})
+        assert response.status_code == 422
+
+
+def test_create_asset_rejects_whitespace_only_name(client: TestClient) -> None:
+    response = client.post("/assets", data={"name": "   ", "amount": "1000"})
+    assert response.status_code == 422
+
+
 def test_delete_asset(client: TestClient) -> None:
     create = client.post("/assets", data={"name": "Temp Asset", "amount": "500"})
     match = re.search(r'/assets/(\d+)"', create.text)

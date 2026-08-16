@@ -32,6 +32,22 @@ def test_update_credit_line_renames_and_changes_amounts(client: TestClient) -> N
     assert "Old Card" not in response.text
 
 
+def test_create_credit_line_rejects_zero_or_negative_limit(client: TestClient) -> None:
+    for limit in ("0", "-1000"):
+        response = client.post("/credit", data={"name": "Maya Black", "limit": limit, "used": "0"})
+        assert response.status_code == 422
+
+
+def test_create_credit_line_rejects_negative_used(client: TestClient) -> None:
+    response = client.post("/credit", data={"name": "Maya Black", "limit": "1000", "used": "-1"})
+    assert response.status_code == 422
+
+
+def test_create_credit_line_rejects_whitespace_only_name(client: TestClient) -> None:
+    response = client.post("/credit", data={"name": "   ", "limit": "1000", "used": "0"})
+    assert response.status_code == 422
+
+
 def test_delete_credit_line(client: TestClient) -> None:
     create = client.post("/credit", data={"name": "Temp Card", "limit": "1000", "used": "0"})
     match = re.search(r'/credit/(\d+)"', create.text)

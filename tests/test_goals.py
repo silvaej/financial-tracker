@@ -55,6 +55,37 @@ def test_update_goal_renames_and_changes_amounts(client: TestClient) -> None:
     assert "Old Name" not in response.text
 
 
+def test_create_goal_rejects_zero_or_negative_target(client: TestClient) -> None:
+    for target in ("0", "-1000"):
+        response = client.post("/goals", data={"name": "CAR DP", "target": target, "months": "6"})
+        assert response.status_code == 422
+
+
+def test_create_goal_rejects_zero_or_negative_months(client: TestClient) -> None:
+    for months in ("0", "-1"):
+        response = client.post(
+            "/goals", data={"name": "CAR DP", "target": "100000", "months": months}
+        )
+        assert response.status_code == 422
+
+
+def test_create_goal_rejects_whitespace_only_name(client: TestClient) -> None:
+    response = client.post("/goals", data={"name": "   ", "target": "1000", "months": "1"})
+    assert response.status_code == 422
+
+
+def test_update_goal_rejects_zero_or_negative_target(client: TestClient) -> None:
+    create = client.post("/goals", data={"name": "Old Name", "target": "1000", "months": "1"})
+    match = re.search(r'/goals/(\d+)"', create.text)
+    assert match is not None
+    goal_id = match.group(1)
+
+    response = client.patch(
+        f"/goals/{goal_id}", data={"name": "Old Name", "target": "-2000", "months": "4"}
+    )
+    assert response.status_code == 422
+
+
 def test_delete_goal(client: TestClient) -> None:
     create = client.post("/goals", data={"name": "Temp Goal", "target": "1000", "months": "1"})
     match = re.search(r'/goals/(\d+)"', create.text)

@@ -1,8 +1,10 @@
 import os
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -58,6 +60,24 @@ def not_authenticated_handler(request: Request, exc: NotAuthenticated) -> Respon
     if request.headers.get("HX-Request") == "true":
         return Response(status_code=200, headers={"HX-Redirect": "/login"})
     return RedirectResponse(url="/login", status_code=303)
+
+
+@app.exception_handler(ValidationError)
+def schema_validation_error_handler(request: Request, exc: ValidationError) -> Response:
+    # Routers build app/schemas.py models by hand from individually-parsed
+    # Form(...) fields (see CLAUDE.md's "Optional FK form fields" note) rather
+    # than declaring the schema itself as a FastAPI request-body dependency,
+    # so FastAPI's own automatic RequestValidationError -> 422 handling never
+    # kicks in for a gt=0/min_length violation raised inside a route body --
+    # without this handler it would surface as an unhandled 500 instead.
+    #
+    # `detail` must be a plain string, not FastAPI's default list-of-dicts
+    # shape: base.html's global `htmx:responseError` listener does
+    # `alertMessage.textContent = data.detail` for every error path in this
+    # app (see OwnershipError -> 404, ChannelInUseError -> 409, both plain
+    # strings) -- assigning an array there would render as "[object Object]".
+    message = "; ".join(f"{err['loc'][-1]}: {err['msg']}" for err in exc.errors())
+    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": message}))
 
 
 app.include_router(auth.router)
