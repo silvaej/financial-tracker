@@ -63,6 +63,10 @@ class ChannelInUseError(Exception):
     """Raised when deleting a channel that is still referenced elsewhere."""
 
 
+class PayoutPeriodInUseError(Exception):
+    """Raised when deleting a payout period that is still referenced elsewhere."""
+
+
 class OwnershipError(Exception):
     """Raised when a referenced row doesn't belong to the acting user."""
 
@@ -398,12 +402,15 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
         or db.query(models.GoalContribution)
         .filter_by(channel_id=channel_id, user_id=user_id)
         .first()
+        or db.query(models.Goal).filter_by(channel_id=channel_id, user_id=user_id).first()
+        or db.query(models.CreditLine).filter_by(channel_id=channel_id, user_id=user_id).first()
+        or db.query(models.Asset).filter_by(channel_id=channel_id, user_id=user_id).first()
     )
     if in_use is not None:
         raise ChannelInUseError(
             "This channel is still used by a payout period, expense, transfer, "
-            "or goal contribution, and can't be deleted until those are removed "
-            "or reassigned."
+            "goal contribution, goal, credit line, or asset, and can't be "
+            "deleted until those are removed or reassigned."
         )
 
     db.query(models.ChannelPlacement).filter_by(channel_id=channel_id, user_id=user_id).delete()
@@ -460,9 +467,35 @@ def update_payout_period(
 
 def delete_payout_period(db: Session, payout_period_id: int, user_id: int) -> None:
     period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
-    if period is not None:
-        db.delete(period)
-        db.commit()
+    if period is None:
+        return
+
+    in_use = (
+        db.query(models.Expense)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.Transfer)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.GoalContribution)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.ChannelPlacement)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.GoalPlacement)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+    )
+    if in_use is not None:
+        raise PayoutPeriodInUseError(
+            "This payout period is still used by an expense, transfer, goal "
+            "contribution, or canvas placement, and can't be deleted until "
+            "those are removed or reassigned."
+        )
+
+    db.delete(period)
+    db.commit()
 
 
 # --- Expenses -----------------------------------------------------------------
