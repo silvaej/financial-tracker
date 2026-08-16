@@ -2,6 +2,9 @@ import re
 
 from fastapi.testclient import TestClient
 
+from app import crud, schemas
+from tests.conftest import TEST_USER_ID, TestingSessionLocal
+
 
 def _create_channel(client: TestClient, name: str) -> str:
     response = client.post("/channels", data={"name": name, "color": "#8a8a8a"})
@@ -174,6 +177,77 @@ def test_mark_expense_paid_and_unpaid(client: TestClient) -> None:
 def test_mark_expense_paid_requires_ownership(client: TestClient) -> None:
     response = client.patch("/expenses/999999/paid", data={"paid": "on"})
     assert response.status_code == 404
+
+
+def test_pause_and_resume_expense(client: TestClient) -> None:
+    """Regression test for #86: pausing an expense keeps the row (name still
+    shown, "Paused" pill appears) instead of deleting it."""
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Netflix",
+            "amount": "549",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+    assert "Paused" not in create.text
+
+    paused = client.patch(f"/expenses/{expense_id}/active", data={"active": "false"})
+    assert paused.status_code == 200
+    assert "Netflix" in paused.text
+    assert "Paused" in paused.text
+
+    resumed = client.patch(f"/expenses/{expense_id}/active", data={"active": "true"})
+    assert resumed.status_code == 200
+    assert "Netflix" in resumed.text
+    assert "Paused" not in resumed.text
+
+
+def test_pause_expense_requires_ownership(client: TestClient) -> None:
+    response = client.patch("/expenses/999999/active", data={"active": "false"})
+    assert response.status_code == 404
+
+
+def test_paused_expense_excluded_from_channel_balance() -> None:
+    """A paused expense keeps its row (channel/amount/history intact) but no
+    longer counts toward the period's balance calculation."""
+    db = TestingSessionLocal()
+    try:
+        channel = crud.create_channel(db, schemas.ChannelCreate(name="BPI"), TEST_USER_ID)
+        period = crud.create_payout_period(
+            db,
+            schemas.PayoutPeriodCreate(
+                label="15th", income_amount=1000, receiving_channel_id=channel.id
+            ),
+            TEST_USER_ID,
+        )
+        expense = crud.create_expense(
+            db,
+            schemas.ExpenseCreate(
+                name="Netflix", amount=549, payout_period_id=period.id, channel_id=channel.id
+            ),
+            TEST_USER_ID,
+        )
+
+        balances = {c.id: net for c, net in crud.channel_balances(db, period.id, TEST_USER_ID)}
+        assert balances[channel.id] == 1000 - 549
+
+        crud.set_expense_active(db, expense.id, TEST_USER_ID, False)
+        balances = {c.id: net for c, net in crud.channel_balances(db, period.id, TEST_USER_ID)}
+        assert balances[channel.id] == 1000
+
+        crud.set_expense_active(db, expense.id, TEST_USER_ID, True)
+        balances = {c.id: net for c, net in crud.channel_balances(db, period.id, TEST_USER_ID)}
+        assert balances[channel.id] == 1000 - 549
+    finally:
+        db.close()
 
 
 def test_expenses_filter_by_name(client: TestClient) -> None:

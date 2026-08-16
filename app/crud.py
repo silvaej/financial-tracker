@@ -606,6 +606,16 @@ def set_expense_paid(db: Session, expense_id: int, user_id: int, paid: bool) -> 
     db.commit()
 
 
+def set_expense_active(db: Session, expense_id: int, user_id: int, active: bool) -> None:
+    """Pause/resume a recurring expense without deleting it -- see
+    Expense.active's docstring (issue #86)."""
+    expense = _owned(db, models.Expense, expense_id, user_id)
+    if expense is None:
+        raise OwnershipError("Expense not found.")
+    expense.active = active
+    db.commit()
+
+
 # --- Transfers ------------------------------------------------------------------
 
 
@@ -994,7 +1004,11 @@ def _all_channel_balances(
     this per period in a loop."""
     channels = list_channels(db, user_id)
     periods = list_payout_periods(db, user_id)
-    all_expenses = list_expenses(db, user_id)
+    # Paused expenses (Expense.active=False) are excluded here -- see #86 --
+    # so they don't count toward the period's balance without needing to
+    # touch the row's identity (still shown, unfiltered, on the Expenses
+    # page itself via list_expenses()).
+    all_expenses = [e for e in list_expenses(db, user_id) if e.active]
 
     carry_in_by_period: dict[int, dict[int, float]] = {}
     balances_by_period: dict[int, list[tuple[models.Channel, float]]] = {}
@@ -1325,7 +1339,7 @@ def overview_page_data(db: Session, user_id: int) -> dict:
     period = next_payout_period(db, user_id)
     upcoming_expenses = (
         sorted(
-            (e for e in list_expenses(db, user_id) if e.payout_period_id == period.id),
+            (e for e in list_expenses(db, user_id) if e.payout_period_id == period.id and e.active),
             key=lambda e: (e.due_day is None, e.due_day),
         )
         if period is not None
@@ -1453,7 +1467,10 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     payout_periods = list_payout_periods(db, user_id)
     channels = list_channels(db, user_id)
     goals = list_goals(db, user_id)
-    all_expenses = list_expenses(db, user_id)
+    # Same exclusion as _all_channel_balances -- keeps the canvas's per-
+    # channel expense breakdown consistent with the balances it's shown
+    # alongside (a paused expense doesn't visually deduct here either).
+    all_expenses = [e for e in list_expenses(db, user_id) if e.active]
     payout_period_count = len(payout_periods)
     goal_entries: list[dict[str, Any]] = [
         {"goal": g, "per_payout": goal_payout_amount(g, payout_period_count)} for g in goals

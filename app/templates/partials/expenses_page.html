@@ -443,7 +443,10 @@
         <tbody>
           {% for expense in expenses %}
             <tr>
-              <td class="led-inline led-inline-2" data-label="Name">{{ expense.name }}</td>
+              <td class="led-inline led-inline-2" data-label="Name">
+                {{ expense.name }}
+                {% if not expense.active %}<span class="pill pill-gold">Paused</span>{% endif %}
+              </td>
               <td class="led-inline led-inline-2" data-label="Payout">{{ expense.payout_period.label }}</td>
               <td class="led-inline led-inline-2" data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
               <td class="led-inline led-inline-2" data-label="Due">{{ expense.due_day or "—" }}</td>
@@ -459,6 +462,13 @@
               </td>
               <td class="num led-inline led-inline-2" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               <td class="led-actions">
+                <button class="icon-btn"
+                        title="{{ 'Pause' if expense.active else 'Resume' }}"
+                        aria-label="{{ 'Pause' if expense.active else 'Resume' }}"
+                        hx-patch="/expenses/{{ expense.id }}/active"
+                        hx-vals='{"active": "{{ "false" if expense.active else "true" }}"}'
+                        hx-target="#expenses-page"
+                        hx-swap="outerHTML">{{ macros.icon_pause() if expense.active else macros.icon_play() }}</button>
                 <button class="icon-btn"
                         title="Delete"
                         aria-label="Delete"

@@ -122,6 +122,11 @@ class Expense(Base):
     # start of a new payout period; the user checks it off, then unchecks it
     # themselves next cycle. See issue #85.
     paid: Mapped[bool] = mapped_column(default=False)
+    # Paused expenses are excluded from channel_balances() (see
+    # _all_channel_balances in crud.py) but the row itself is kept --
+    # cancelling a subscription for one cycle shouldn't mean losing its
+    # channel/amount/history the way deleting it would. See issue #86.
+    active: Mapped[bool] = mapped_column(default=True)
 
     payout_period: Mapped[PayoutPeriod] = relationship()
     channel: Mapped[Channel] = relationship()
