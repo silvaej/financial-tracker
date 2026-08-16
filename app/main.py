@@ -5,6 +5,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -15,6 +17,7 @@ from app.auth import SESSION_COOKIE_MAX_AGE_SECONDS, NotAuthenticated, get_curre
 from app.config import settings
 from app.csrf import csrf_protect
 from app.database import get_db
+from app.rate_limit import limiter
 from app.routers import (
     assets,
     auth,
@@ -34,6 +37,8 @@ from app.routers import (
 from app.templating import templates
 
 app = FastAPI(title="Finance Tracker", dependencies=[Depends(csrf_protect)])
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 # Vercel sets VERCEL=1 on every deployed invocation (production and preview);
 # it's unset locally (Docker/Compose), which still runs over plain http.
@@ -60,6 +65,20 @@ def not_authenticated_handler(request: Request, exc: NotAuthenticated) -> Respon
     if request.headers.get("HX-Request") == "true":
         return Response(status_code=200, headers={"HX-Redirect": "/login"})
     return RedirectResponse(url="/login", status_code=303)
+
+
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    # slowapi's own default handler responds with {"error": ...}, not
+    # {"detail": ...} -- base.html's global htmx:responseError listener does
+    # `alertMessage.textContent = data.detail` for every error path in this
+    # app (see ValidationError/OwnershipError/ChannelInUseError below/
+    # elsewhere), so a mismatched key would render as "undefined" instead of
+    # a real message on a rate-limited htmx request (e.g. /signup/check-key,
+    # triggered live as the user types an invite key).
+    return JSONResponse(
+        status_code=429, content={"detail": "Too many requests. Please wait and try again."}
+    )
 
 
 @app.exception_handler(ValidationError)
