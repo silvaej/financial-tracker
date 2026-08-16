@@ -59,6 +59,29 @@ def test_rail_nav_items_have_accessible_names(client: TestClient) -> None:
     assert 'aria-label="Log out"' in text
 
 
+def test_form_fields_have_accessible_names(client: TestClient) -> None:
+    """Regression test for #78: every form field's 'label' was a styled
+    <span> positioned near the input with no programmatic association at
+    all (grep -rn '<label for=' app/templates returned zero matches).
+    Account page fields now use real <label for>; table/add-row fields
+    (which already show their label via the column <th>/data-label) use
+    aria-label instead, since a second visible label there would be
+    redundant -- spot-check a representative field on each affected page."""
+    account = client.get("/account").text
+    assert 'for="display_name"' in account
+    assert 'for="currency_code"' in account
+    assert 'for="timezone"' in account
+
+    expenses = client.get("/expenses").text
+    assert 'aria-label="Channel name"' in expenses
+    assert 'aria-label="Label"' in expenses
+    assert 'aria-label="Expense name"' in expenses
+
+    assert 'aria-label="Asset name"' in client.get("/assets").text
+    assert 'aria-label="Credit line name"' in client.get("/credit").text
+    assert 'aria-label="Goal name"' in client.get("/goals").text
+
+
 def test_confirm_and_alert_modals_have_dialog_semantics(client: TestClient) -> None:
     """Regression test for #77: the confirm/alert modals -- used for every
     destructive-delete confirmation and error alert app-wide -- previously

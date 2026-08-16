@@ -43,7 +43,11 @@
                       hx-target="#assets-page"
                       hx-swap="outerHTML"
                       class="edit-asset-{{ asset.id }} hidden items-center gap-2">
-                  <input class="field" type="text" name="name" value="{{ asset.name }}">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Name"
+                         value="{{ asset.name }}">
                 </form>
               </td>
               <td class="led-inline led-inline-2" data-label="Channel">
@@ -55,7 +59,10 @@
                   {% endif %}
                 </span>
                 <div class="edit-asset-{{ asset.id }} hidden items-center gap-1">
-                  <select class="field" name="channel_id" form="asset-edit-form-{{ asset.id }}">
+                  <select class="field"
+                          name="channel_id"
+                          form="asset-edit-form-{{ asset.id }}"
+                          aria-label="Channel">
                     <option value="">No channel</option>
                     {% for channel in channels %}
                       <option value="{{ channel.id }}"
@@ -74,6 +81,7 @@
                          step="0.01"
                          name="amount"
                          form="asset-edit-form-{{ asset.id }}"
+                         aria-label="Amount"
                          value="{{ asset.amount }}">
                 </div>
               </td>
@@ -124,10 +132,14 @@
                      name="name"
                      form="add-asset-form"
                      placeholder="Asset name"
+                     aria-label="Asset name"
                      required>
             </td>
             <td class="led-inline led-inline-2" data-label="Channel">
-              <select class="field" name="channel_id" form="add-asset-form">
+              <select class="field"
+                      name="channel_id"
+                      form="add-asset-form"
+                      aria-label="Channel">
                 <option value="">No channel</option>
                 {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
               </select>
@@ -141,6 +153,7 @@
                        name="amount"
                        form="add-asset-form"
                        placeholder="Amount"
+                       aria-label="Amount"
                        required>
               </div>
             </td>
