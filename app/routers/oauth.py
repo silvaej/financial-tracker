@@ -10,6 +10,7 @@ from app import crud
 from app.auth import start_session
 from app.database import get_db
 from app.oauth import fetch_identity, oauth
+from app.rate_limit import limiter
 
 router = APIRouter(tags=["oauth"])
 logger = logging.getLogger("app.oauth")
@@ -26,6 +27,7 @@ _INTENTS = ("login", "signup")
 
 
 @router.get("/auth/{provider}/start")
+@limiter.limit("10/minute")
 async def oauth_start(
     provider: str,
     request: Request,
@@ -49,6 +51,7 @@ async def oauth_start(
 
 
 @router.get("/auth/{provider}/callback")
+@limiter.limit("10/minute")
 async def oauth_callback(
     provider: str, request: Request, db: Session = Depends(get_db)
 ) -> Response:

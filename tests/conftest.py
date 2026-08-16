@@ -21,6 +21,7 @@ from app.auth import get_current_user
 from app.csrf import csrf_protect
 from app.database import Base, get_db
 from app.main import app
+from app.rate_limit import limiter
 
 engine = create_engine(
     "sqlite:///:memory:",
@@ -61,6 +62,13 @@ app.dependency_overrides[csrf_protect] = _override_csrf_protect
 
 @pytest.fixture(autouse=True)
 def _reset_db() -> Generator[None, None, None]:
+    # slowapi's in-memory storage lives for the whole test process, not per
+    # request/session like the DB above -- without resetting it here, every
+    # test's calls against a rate-limited route (e.g. /auth/*/start,
+    # /signup/check-key) share one running counter with every other test
+    # that happens to touch the same route, so later tests start failing
+    # with 429s that have nothing to do with what they're actually testing.
+    limiter.reset()
     Base.metadata.create_all(engine)
     db = TestingSessionLocal()
     # Onboarding already "complete" -- this fixture's user backs nearly every
