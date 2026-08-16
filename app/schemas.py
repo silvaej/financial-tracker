@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChannelCreate(BaseModel):
@@ -30,6 +30,7 @@ class ExpenseCreate(BaseModel):
     amount: float
     payout_period_id: int
     channel_id: int
+    due_day: int | None = Field(default=None, ge=1, le=31)
 
 
 class TransferCreate(BaseModel):

@@ -55,12 +55,14 @@
           <colgroup>
             <col class="min-w-28">
             <col class="w-40">
+            <col class="w-16">
             <col class="w-32">
           </colgroup>
           <thead>
             <tr>
               <th>Expense</th>
               <th>Channel</th>
+              <th>Due</th>
               <th>Amount</th>
             </tr>
           </thead>
@@ -69,16 +71,17 @@
               <tr>
                 <td data-label="Expense">{{ expense.name }}</td>
                 <td data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+                <td data-label="Due">{{ expense.due_day or "—" }}</td>
                 <td class="num" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               </tr>
             {% else %}
-              {{ macros.empty_row(3, 'expenses due this period') }}
+              {{ macros.empty_row(4, 'expenses due this period') }}
             {% endfor %}
           </tbody>
           {% if upcoming_expenses %}
             <tfoot>
               <tr>
-                <td colspan="2" class="text-ink-soft">Total</td>
+                <td colspan="3" class="text-ink-soft">Total</td>
                 <td class="num">{{ macros.peso(upcoming_expenses_total) }}</td>
               </tr>
             </tfoot>

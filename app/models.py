@@ -99,6 +99,7 @@ class Expense(Base):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
+    due_day: Mapped[int | None] = mapped_column(nullable=True)
 
     payout_period: Mapped[PayoutPeriod] = relationship()
     channel: Mapped[Channel] = relationship()
