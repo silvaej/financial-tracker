@@ -1,14 +1,17 @@
 import json
+import logging
 import math
 import secrets
 import zoneinfo
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal, NamedTuple
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+
+logger = logging.getLogger("app.oauth")
 
 # --- Channels ---------------------------------------------------------------
 
@@ -166,6 +169,55 @@ def create_oauth_identity(
     db.commit()
     db.refresh(identity)
     return identity
+
+
+OAuthLoginError = Literal["already_has_account", "no_account", "invalid_key"]
+
+
+class OAuthLoginResult(NamedTuple):
+    user: models.User | None
+    error: OAuthLoginError | None
+
+
+def resolve_oauth_login(
+    db: Session,
+    provider: str,
+    provider_user_id: str,
+    email: str,
+    pending_invite_key: str,
+    pending_intent: str,
+) -> OAuthLoginResult:
+    """The account-linking decision tree for an OAuth callback: identity
+    lookup -> email match -> auto-link -> invite-key validation -> account
+    creation. Pulled out of app/routers/oauth.py (see issue #82) so the
+    router can stay thin (parse -> call -> respond) like every other router
+    in this app -- this was the one place business logic lived directly in
+    a route handler."""
+    identity = get_oauth_identity(db, provider, provider_user_id)
+    if identity is not None:
+        if pending_intent == "signup":
+            return OAuthLoginResult(user=None, error="already_has_account")
+        return OAuthLoginResult(user=identity.user, error=None)
+
+    existing_user = get_user_by_email(db, email)
+    if existing_user is not None:
+        if pending_intent == "signup":
+            return OAuthLoginResult(user=None, error="already_has_account")
+        create_oauth_identity(db, existing_user, provider, provider_user_id, email)
+        return OAuthLoginResult(user=existing_user, error=None)
+
+    if not pending_invite_key:
+        return OAuthLoginResult(user=None, error="no_account")
+
+    signup_key = get_active_signup_key(db, pending_invite_key)
+    if signup_key is None:
+        return OAuthLoginResult(user=None, error="invalid_key")
+
+    user = create_user(db, email)
+    redeem_signup_key(db, signup_key)
+    logger.info("New account created via signup key: %r", email)
+    create_oauth_identity(db, user, provider, provider_user_id, email)
+    return OAuthLoginResult(user=user, error=None)
 
 
 def update_profile(

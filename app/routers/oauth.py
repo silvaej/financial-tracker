@@ -77,34 +77,20 @@ async def oauth_callback(
             f"Your {provider.capitalize()} account has no verified email we can use.",
         )
 
-    already_has_account_error = _redirect_with_error(
-        "/login", "You already have an account with that email — log in instead."
+    result = crud.resolve_oauth_login(
+        db, provider, provider_user_id, email, pending_invite_key, pending_intent
     )
+    if result.error == "already_has_account":
+        return _redirect_with_error(
+            "/login", "You already have an account with that email — log in instead."
+        )
+    if result.error == "no_account":
+        return _redirect_with_error(
+            "/signup", "No account found for that email. Enter your invite key first."
+        )
+    if result.error == "invalid_key":
+        return _redirect_with_error("/signup", "That invite key is invalid or has expired.")
 
-    identity = crud.get_oauth_identity(db, provider, provider_user_id)
-    if identity is not None:
-        if pending_intent == "signup":
-            return already_has_account_error
-        user = identity.user
-    else:
-        existing_user = crud.get_user_by_email(db, email)
-        if existing_user is not None:
-            if pending_intent == "signup":
-                return already_has_account_error
-            user = existing_user
-            crud.create_oauth_identity(db, user, provider, provider_user_id, email)
-        else:
-            if not pending_invite_key:
-                return _redirect_with_error(
-                    "/signup", "No account found for that email. Enter your invite key first."
-                )
-            signup_key = crud.get_active_signup_key(db, pending_invite_key)
-            if signup_key is None:
-                return _redirect_with_error("/signup", "That invite key is invalid or has expired.")
-            user = crud.create_user(db, email)
-            crud.redeem_signup_key(db, signup_key)
-            logger.info("New account created via signup key: %r", email)
-            crud.create_oauth_identity(db, user, provider, provider_user_id, email)
-
-    start_session(request, user.id, keep_signed_in=pending_keep_signed_in)
+    assert result.user is not None
+    start_session(request, result.user.id, keep_signed_in=pending_keep_signed_in)
     return RedirectResponse(url="/", status_code=303)
