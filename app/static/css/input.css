@@ -261,6 +261,19 @@
     @apply bg-gold-soft text-gold;
   }
 
+  /* Payout cycle history's clickable timeline of "Live template" + each
+     closed cycle -- see #84. Mirrors .preset-trigger's button-chip
+     language rather than introducing a new visual style. */
+  .cycle-rail {
+    @apply flex items-center gap-2 flex-wrap;
+  }
+  .cycle-chip {
+    @apply inline-flex items-center gap-1.5 text-xs font-semibold text-ink-soft px-3 py-1.5 rounded-full border border-line bg-card cursor-pointer hover:border-accent hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
+  }
+  .cycle-chip-active {
+    @apply bg-accent/10 text-accent border-accent;
+  }
+
   .led {
     @apply w-full min-w-max table-fixed text-[13.5px] border-collapse;
   }

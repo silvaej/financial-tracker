@@ -1098,6 +1098,139 @@ def overview_warnings(db: Session, user_id: int) -> list[dict]:
     return entries
 
 
+# --- Payout cycles ----------------------------------------------------------
+
+
+def list_payout_cycles(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.PayoutCycle]:
+    stmt = (
+        select(models.PayoutCycle)
+        .where(
+            models.PayoutCycle.payout_period_id == payout_period_id,
+            models.PayoutCycle.user_id == user_id,
+        )
+        .order_by(models.PayoutCycle.closed_at.desc())
+    )
+    return list(db.scalars(stmt))
+
+
+def list_payout_cycle_balances(
+    db: Session, payout_cycle_id: int
+) -> list[models.PayoutCycleBalance]:
+    stmt = (
+        select(models.PayoutCycleBalance)
+        .where(models.PayoutCycleBalance.payout_cycle_id == payout_cycle_id)
+        .order_by(models.PayoutCycleBalance.id)
+    )
+    return list(db.scalars(stmt))
+
+
+def _live_cycle_balances(
+    db: Session, period: models.PayoutPeriod, user_id: int
+) -> list[models.PayoutCycleBalance]:
+    """The live template's current per-channel breakdown, in the exact shape
+    a closed PayoutCycle's balances would be -- shared by close_payout_cycle
+    (persisted) and the "viewing the live template" case in
+    payout_cycle_history_page_data (transient, never db.add()ed, just reused
+    for the template to render both cases identically). `net` includes
+    carry-in from prior periods (the real running balance, same as
+    channel_balances() everywhere else in the app); income/transfers_net/
+    expenses_total describe only this period's own activity, and generally
+    won't sum to `net` on their own -- see PayoutCycleBalance's docstring."""
+    channels = list_channels(db, user_id)
+    transfers = list_transfers(db, period.id, user_id)
+    expenses = [
+        e for e in list_expenses(db, user_id) if e.payout_period_id == period.id and e.active
+    ]
+    net_by_channel_id = {c.id: net for c, net in channel_balances(db, period.id, user_id)}
+
+    balances = []
+    for channel in channels:
+        income = float(period.income_amount) if period.receiving_channel_id == channel.id else 0.0
+        transfers_net = sum(
+            float(t.amount) for t in transfers if t.to_channel_id == channel.id
+        ) - sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
+        expenses_total = sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+        net = net_by_channel_id.get(channel.id, 0.0)
+        if income == 0 and transfers_net == 0 and expenses_total == 0 and net == 0:
+            continue  # skip channels with no activity this cycle
+        balances.append(
+            models.PayoutCycleBalance(
+                channel_name=channel.name,
+                channel_color=channel.color,
+                income=income,
+                transfers_net=transfers_net,
+                expenses_total=expenses_total,
+                net=net,
+            )
+        )
+    return balances
+
+
+def close_payout_cycle(db: Session, payout_period_id: int, user_id: int) -> models.PayoutCycle:
+    """Snapshot the given payout period's current channel balances into a
+    new dated PayoutCycle -- explicit, user-triggered only (no auto-snapshot
+    on some inferred date, since PayoutPeriod has no real calendar anchor).
+    The live template (period, its transfers, its expenses) is left
+    completely untouched -- closing a cycle is purely additive, so there's
+    no data-loss risk and no "did I already close this month" bookkeeping
+    to get wrong. See issue #84."""
+    period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
+    if period is None:
+        raise OwnershipError("Payout period not found.")
+
+    live_balances = _live_cycle_balances(db, period, user_id)
+
+    cycle = models.PayoutCycle(
+        user_id=user_id,
+        payout_period_id=payout_period_id,
+        label=period.label,
+        income_amount=period.income_amount,
+        receiving_channel_name=(
+            period.receiving_channel.name if period.receiving_channel else None
+        ),
+    )
+    db.add(cycle)
+    db.flush()  # assigns cycle.id, needed for the balance rows below
+
+    for balance in live_balances:
+        balance.payout_cycle_id = cycle.id
+        db.add(balance)
+
+    db.commit()
+    db.refresh(cycle)
+    return cycle
+
+
+def payout_cycle_history_page_data(
+    db: Session, payout_period_id: int, user_id: int, cycle_id: int | None
+) -> dict:
+    period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
+    if period is None:
+        raise OwnershipError("Payout period not found.")
+
+    cycles = list_payout_cycles(db, payout_period_id, user_id)
+    selected_cycle = None
+    if cycle_id is not None:
+        selected_cycle = next((c for c in cycles if c.id == cycle_id), None)
+        if selected_cycle is None:
+            raise OwnershipError("Cycle not found.")
+
+    balances = (
+        list_payout_cycle_balances(db, selected_cycle.id)
+        if selected_cycle is not None
+        else _live_cycle_balances(db, period, user_id)
+    )
+
+    return {
+        "period": period,
+        "cycles": cycles,
+        "selected_cycle": selected_cycle,
+        "balances": balances,
+    }
+
+
 # --- Assets ---------------------------------------------------------------
 
 

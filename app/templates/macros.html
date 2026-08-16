@@ -13,6 +13,15 @@
           style="background: {{ channel.color }}">{{ initials }}</span>
   {% endif %}
 {% endmacro %}
+{% macro badge_from_name(name, color, size=18) %}
+  {# For contexts with only a denormalized channel name/color, not a real
+     Channel row (e.g. PayoutCycleBalance snapshots, #84) -- no logo/
+     badge_label to fall back through, just the initials treatment. #}
+  {% set words = name.split() %}
+  {% set initials = (words[0][0] ~ (words[1][0] if words|length > 1 else "")) | upper %}
+  <span class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }}"
+        style="background: {{ color }}">{{ initials }}</span>
+{% endmacro %}
 {% macro channel_name(channel, max_len=18) %}
   <span title="{{ channel.name }}">{{ channel.name|truncate(max_len, True, '…') }}</span>
 {% endmacro %}
@@ -115,6 +124,15 @@
        stroke="currentColor"
        stroke-width="1.7">
     <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+  </svg>
+{% endmacro %}
+{% macro icon_history() %}
+  <svg class="w-3.5 h-3.5"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 {% endmacro %}
 {% macro icon_check() %}
