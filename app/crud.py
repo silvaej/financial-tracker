@@ -596,6 +596,16 @@ def delete_expense(db: Session, expense_id: int, user_id: int) -> None:
     _delete_owned(db, models.Expense, expense_id, user_id)
 
 
+def set_expense_paid(db: Session, expense_id: int, user_id: int, paid: bool) -> None:
+    """A simple manual paid/unpaid marker -- see Expense.paid's docstring
+    for why this doesn't auto-reset per cycle (issue #85)."""
+    expense = _owned(db, models.Expense, expense_id, user_id)
+    if expense is None:
+        raise OwnershipError("Expense not found.")
+    expense.paid = paid
+    db.commit()
+
+
 # --- Transfers ------------------------------------------------------------------
 
 

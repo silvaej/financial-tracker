@@ -425,6 +425,7 @@
           <col class="w-24">
           <col class="w-40">
           <col class="w-16">
+          <col class="w-16">
           <col class="w-24">
           <col class="w-36">
         </colgroup>
@@ -434,6 +435,7 @@
             <th>Payout</th>
             <th>Channel</th>
             <th>Due</th>
+            <th>Paid</th>
             <th class="text-right">Amount</th>
             <th></th>
           </tr>
@@ -445,6 +447,16 @@
               <td class="led-inline led-inline-2" data-label="Payout">{{ expense.payout_period.label }}</td>
               <td class="led-inline led-inline-2" data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
               <td class="led-inline led-inline-2" data-label="Due">{{ expense.due_day or "—" }}</td>
+              <td class="led-inline led-inline-2" data-label="Paid">
+                <input type="checkbox"
+                       aria-label="Paid"
+                       hx-patch="/expenses/{{ expense.id }}/paid"
+                       hx-target="#expenses-page"
+                       hx-swap="outerHTML"
+                       hx-trigger="change"
+                       name="paid"
+                       {{ "checked" if expense.paid else "" }}>
+              </td>
               <td class="num led-inline led-inline-2" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               <td class="led-actions">
                 <button class="icon-btn"
@@ -457,10 +469,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(6, 'expenses') }}
+            {{ macros.empty_row(7, 'expenses') }}
           {% endfor %}
           <tr class="tr-add-btn">
-            <td colspan="6">
+            <td colspan="7">
               <button type="button"
                       id="add-expense-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 3 else '' }}"
@@ -518,6 +530,7 @@
                      placeholder="Day"
                      aria-label="Due day">
             </td>
+            <td class="led-inline led-inline-2" data-label="Paid"></td>
             <td class="num led-inline led-inline-2" data-label="Amount">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
