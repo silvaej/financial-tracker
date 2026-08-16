@@ -83,6 +83,39 @@ def test_create_expense_without_due_day_leaves_it_blank(client: TestClient) -> N
     assert "Groceries" in create.text
 
 
+def test_create_expense_rejects_zero_or_negative_amount(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+
+    for amount in ("0", "-50"):
+        response = client.post(
+            "/expenses",
+            data={
+                "name": "Groceries",
+                "amount": amount,
+                "payout_period_id": period_id,
+                "channel_id": channel_id,
+            },
+        )
+        assert response.status_code == 422
+
+
+def test_create_expense_rejects_whitespace_only_name(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+
+    response = client.post(
+        "/expenses",
+        data={
+            "name": "   ",
+            "amount": "150.75",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_expenses_filter_by_name(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     period_id = _create_payout_period(client, "15th", channel_id)

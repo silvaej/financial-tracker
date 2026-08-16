@@ -66,6 +66,50 @@ def test_create_update_delete_transfer(client: TestClient) -> None:
     assert deleted.status_code == 200
 
 
+def test_create_transfer_rejects_zero_or_negative_amount(client: TestClient) -> None:
+    a = _create_channel(client, "Channel A")
+    b = _create_channel(client, "Channel B")
+    period_id = _create_payout_period(client, "15th", "1000", a)
+    _place_channel(client, period_id, a)
+    _place_channel(client, period_id, b)
+
+    for amount in ("0", "-300"):
+        response = client.post(
+            "/transfers",
+            data={
+                "payout_period_id": period_id,
+                "from_channel_id": a,
+                "to_channel_id": b,
+                "amount": amount,
+            },
+        )
+        assert response.status_code == 422
+
+
+def test_update_transfer_rejects_zero_or_negative_amount(client: TestClient) -> None:
+    a = _create_channel(client, "Channel A")
+    b = _create_channel(client, "Channel B")
+    period_id = _create_payout_period(client, "15th", "1000", a)
+    _place_channel(client, period_id, a)
+    _place_channel(client, period_id, b)
+
+    create = client.post(
+        "/transfers",
+        data={
+            "payout_period_id": period_id,
+            "from_channel_id": a,
+            "to_channel_id": b,
+            "amount": "300",
+        },
+    )
+    match = re.search(r'data-edge-id="transfer-(\d+)"', create.text)
+    assert match is not None
+    transfer_id = match.group(1)
+
+    response = client.patch(f"/transfers/{transfer_id}", data={"amount": "-400"})
+    assert response.status_code == 422
+
+
 def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClient) -> None:
     """Worked example: A receives 1000 income, sends 300 to B.
     A also has a 100 expense, B has a 50 expense.

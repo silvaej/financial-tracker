@@ -16,6 +16,21 @@ def test_create_channel_appears_on_page(client: TestClient) -> None:
     assert "BPI" in response.text
 
 
+def test_create_channel_rejects_whitespace_only_name(client: TestClient) -> None:
+    response = client.post("/channels", data={"name": "   ", "color": "#8a8a8a"})
+    assert response.status_code == 422
+
+
+def test_update_channel_rejects_whitespace_only_name(client: TestClient) -> None:
+    create = client.post("/channels", data={"name": "Maya", "color": "#0FA968"})
+    match = re.search(r'/channels/(\d+)"', create.text)
+    assert match is not None
+    channel_id = match.group(1)
+
+    response = client.patch(f"/channels/{channel_id}", data={"name": "   ", "color": "#0FA968"})
+    assert response.status_code == 422
+
+
 def test_update_channel_renames_it(client: TestClient) -> None:
     create = client.post("/channels", data={"name": "Maya", "color": "#0FA968"})
     assert "Maya" in create.text
