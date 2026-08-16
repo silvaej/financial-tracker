@@ -1,6 +1,32 @@
 @import "tailwindcss";
 @source "../../templates";
 
+/* Google Fonts' served IBM Plex Mono file has a malformed/mis-shaped glyph
+   for U+20B1 (PESO SIGN) that Chrome renders with a stray horizontal line
+   smeared across the *entire* text run, not just the glyph itself -- see
+   issue #49. Confirmed via a standalone repro (isolated font-weight,
+   ligatures/kerning/text-rendering tweaks, and letter-spacing changes all
+   still showed the bug; only substituting a different font for this one
+   codepoint fixed it -- and only when done as a distinct synthetic family
+   inserted ahead of "IBM Plex Mono" in the stack, not as a second
+   same-named @font-face relying on unicode-range disambiguation between
+   two rules sharing a family name, which empirically did NOT take
+   precedence reliably). "PesoFix" has no glyphs of its own outside
+   U+20B1, so every other character in --font-mono falls straight through
+   to the real IBM Plex Mono exactly as before -- no visible font change
+   anywhere else. Falls through further to the theme's own generic
+   "monospace" if none of the local() sources are installed. */
+@font-face {
+  font-family: "PesoFix";
+  src:
+    local("Consolas"),
+    local("SF Mono"),
+    local("Menlo"),
+    local("Cascadia Mono"),
+    local("Courier New");
+  unicode-range: U+20B1;
+}
+
 @layer base {
   input[type="number"] {
     -moz-appearance: textfield;
@@ -29,7 +55,7 @@
      utility, so this token is repointed to the same sans stack as body text
      rather than touching every template that references it. */
   --font-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-mono: "PesoFix", "IBM Plex Mono", monospace;
 }
 
 /* Dark-mode token overrides -- @theme above only feeds Tailwind's utility
