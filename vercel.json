@@ -1,5 +1,5 @@
 {
-  "buildCommand": "curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.0.0/tailwindcss-linux-x64 && chmod +x tailwindcss && ./tailwindcss -i app/static/css/input.css -o app/static/css/style.css",
+  "buildCommand": "curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.0.0/tailwindcss-linux-x64 && echo '09c1a5997d68f5e0127d9737593e7dc658fc96dc1851d782a78983d0d6a03c7c  tailwindcss' | sha256sum -c - && chmod +x tailwindcss && ./tailwindcss -i app/static/css/input.css -o app/static/css/style.css",
   "regions": ["sin1"],
   "git": {
     "deploymentEnabled": {
