@@ -234,9 +234,6 @@
   .pill-gold {
     @apply bg-gold-soft text-gold;
   }
-  .pill-rust {
-    @apply bg-rust-soft text-rust;
-  }
 
   .led {
     @apply w-full min-w-max table-fixed text-[13.5px] border-collapse;
