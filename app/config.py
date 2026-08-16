@@ -12,6 +12,16 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     github_client_id: str = ""
     github_client_secret: str = ""
+    # Comma-separated allowlist gating /admin -- see issue #65. No is_admin
+    # column/migration; a handful of operator emails doesn't need a
+    # redeploy-free way to manage, revisit if that ever becomes false.
+    admin_emails: str = ""
+
+    @property
+    def admin_email_set(self) -> frozenset[str]:
+        return frozenset(
+            email.strip().lower() for email in self.admin_emails.split(",") if email.strip()
+        )
 
 
 settings = Settings()

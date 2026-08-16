@@ -47,6 +47,15 @@ class User(Base):
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Added retroactively for the admin dashboard's "signup date" column
+    # (issue #65) -- existing rows get the migration's run time as their
+    # value (server_default=now()), not their real signup date, since that
+    # was never tracked before this. Documented as a known limitation in
+    # the migration rather than trying to backfill a value this app never
+    # actually recorded.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
     # Plain unique=True above only rejects byte-identical duplicates -- app
     # code always normalizes email to lowercase before read/write (see
