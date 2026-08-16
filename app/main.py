@@ -1,4 +1,5 @@
 import os
+from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -56,6 +57,43 @@ app.add_middleware(
     same_site="lax",
     https_only=os.environ.get("VERCEL") == "1",
 )
+
+# CSP audited against this app's actual resource usage (see #73): htmx from
+# unpkg, the compiled Tailwind stylesheet + Google Fonts, and same-origin
+# everything else (channel logos/avatars are served through app routes, not
+# data: URIs). 'unsafe-inline' on script-src/style-src is a real, deliberate
+# gap, not an oversight -- the app relies throughout on inline onclick/
+# onchange/oninput handlers and a few inline style="width: {{ pct }}%"
+# attributes (progress bars, dynamic channel colors) that would need a
+# larger template refactor (nonces don't cover inline *event handler*
+# attributes at all) to remove. Still meaningfully restricts remote script/
+# object/frame sources and exfiltration paths even with that gap.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self'; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'"
+)
+
+
+@app.middleware("http")
+async def security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Content-Security-Policy"] = _CSP
+    if os.environ.get("VERCEL") == "1":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
