@@ -878,50 +878,73 @@ def preview_canvas(
 # --- Channel balances -----------------------------------------------------------
 
 
+def _all_channel_balances(
+    db: Session, user_id: int
+) -> tuple[dict[int, dict[int, float]], dict[int, list[tuple[models.Channel, float]]]]:
+    """Every payout period's carry-in and channel balances, computed once per
+    request in a single display_order pass -- each period's ending balances
+    become the next period's carry-in, fed forward directly, rather than each
+    period independently re-deriving every prior period's full balance
+    calculation (which was exponential: computing period k re-triggered a
+    fresh computation of periods 0..k-1, each of which re-triggered periods
+    0..k-2, and so on). This is the O(n) replacement; callers that need one
+    period's data should index into the returned dicts rather than calling
+    this per period in a loop."""
+    channels = list_channels(db, user_id)
+    periods = list_payout_periods(db, user_id)
+    all_expenses = list_expenses(db, user_id)
+
+    carry_in_by_period: dict[int, dict[int, float]] = {}
+    balances_by_period: dict[int, list[tuple[models.Channel, float]]] = {}
+    carry: dict[int, float] = {}
+    for period in periods:
+        carry_in_by_period[period.id] = carry
+        expenses = [e for e in all_expenses if e.payout_period_id == period.id]
+        transfers = list_transfers(db, period.id, user_id)
+        goal_contributions = list_goal_contributions(db, period.id, user_id)
+
+        balances: list[tuple[models.Channel, float]] = []
+        for channel in channels:
+            net = carry.get(channel.id, 0.0)
+            if period.receiving_channel_id == channel.id:
+                net += float(period.income_amount)
+            net += sum(float(t.amount) for t in transfers if t.to_channel_id == channel.id)
+            net -= sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
+            net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+            net -= sum(float(gc.amount) for gc in goal_contributions if gc.channel_id == channel.id)
+            balances.append((channel, net))
+        balances_by_period[period.id] = balances
+        carry = {c.id: net for c, net in balances}
+
+    return carry_in_by_period, balances_by_period
+
+
 def _carry_in_for_period(db: Session, payout_period_id: int, user_id: int) -> dict[int, float]:
     """Each channel's ending balance from the payout period before this one (in
-    display_order), so a month's leftover cash chains forward period to period."""
-    carry: dict[int, float] = {}
-    for period in list_payout_periods(db, user_id):
-        if period.id == payout_period_id:
-            break
-        carry = {c.id: net for c, net in channel_balances(db, period.id, user_id)}
-    return carry
+    display_order), so a month's leftover cash chains forward period to period.
+    Single-period convenience wrapper around `_all_channel_balances` -- don't
+    call this in a per-period loop, call `_all_channel_balances` once instead."""
+    carry_in_by_period, _ = _all_channel_balances(db, user_id)
+    return carry_in_by_period.get(payout_period_id, {})
 
 
 def channel_balances(
     db: Session, payout_period_id: int, user_id: int
 ) -> list[tuple[models.Channel, float]]:
-    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
-    payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
-    channels = list_channels(db, user_id)
-    expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
-    transfers = list_transfers(db, payout_period_id, user_id)
-    goal_contributions = list_goal_contributions(db, payout_period_id, user_id)
-
-    balances = []
-    for channel in channels:
-        net = carry_in.get(channel.id, 0.0)
-        if payout_period is not None and payout_period.receiving_channel_id == channel.id:
-            net += float(payout_period.income_amount)
-        net += sum(float(t.amount) for t in transfers if t.to_channel_id == channel.id)
-        net -= sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
-        net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
-        net -= sum(float(gc.amount) for gc in goal_contributions if gc.channel_id == channel.id)
-        balances.append((channel, net))
-    return balances
+    """Single-period convenience wrapper around `_all_channel_balances` -- don't
+    call this in a per-period loop (each call recomputes every period), call
+    `_all_channel_balances` once instead and index into its result."""
+    _, balances_by_period = _all_channel_balances(db, user_id)
+    return balances_by_period.get(payout_period_id, [])
 
 
-def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
-    unfunded_channels = [
-        c.name for c, net in channel_balances(db, payout_period_id, user_id) if net < 0
-    ]
-
-    goals = list_goals(db, user_id)
-    payout_period_count = len(list_payout_periods(db, user_id))
-    contributed = {
-        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
-    }
+def _cashflow_warnings_from_balances(
+    balances: list[tuple[models.Channel, float]],
+    goals: list[models.Goal],
+    payout_period_count: int,
+    contributed: dict[int, float],
+) -> dict[str, list[str]]:
+    unfunded_channels = [c.name for c, net in balances if net < 0]
     underfunded_goals = [
         g.name
         for g in goals
@@ -930,10 +953,30 @@ def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[
     return {"unfunded_channels": unfunded_channels, "underfunded_goals": underfunded_goals}
 
 
+def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
+    balances = channel_balances(db, payout_period_id, user_id)
+    goals = list_goals(db, user_id)
+    payout_period_count = len(list_payout_periods(db, user_id))
+    contributed = {
+        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
+    }
+    return _cashflow_warnings_from_balances(balances, goals, payout_period_count, contributed)
+
+
 def overview_warnings(db: Session, user_id: int) -> list[dict]:
+    periods = list_payout_periods(db, user_id)
+    _, balances_by_period = _all_channel_balances(db, user_id)
+    goals = list_goals(db, user_id)
+    payout_period_count = len(periods)
+
     entries = []
-    for period in list_payout_periods(db, user_id):
-        warnings = cashflow_warnings(db, period.id, user_id)
+    for period in periods:
+        contributed = {
+            c.goal_id: float(c.amount) for c in list_goal_contributions(db, period.id, user_id)
+        }
+        warnings = _cashflow_warnings_from_balances(
+            balances_by_period.get(period.id, []), goals, payout_period_count, contributed
+        )
         if warnings["unfunded_channels"] or warnings["underfunded_goals"]:
             entries.append({"period": period, "warnings": warnings})
     return entries
@@ -1319,12 +1362,19 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     goal_entries: list[dict[str, Any]] = [
         {"goal": g, "per_payout": goal_payout_amount(g, payout_period_count)} for g in goals
     ]
+    # Computed once for the whole request (O(n) in the number of payout
+    # periods) rather than once per period -- see `_all_channel_balances`.
+    carry_in_by_period, balances_by_period = _all_channel_balances(db, user_id)
     payout_data = []
     for period in payout_periods:
         expenses = [e for e in all_expenses if e.payout_period_id == period.id]
         transfers = _order_transfers(channels, list_transfers(db, period.id, user_id))
         goal_contributions = list_goal_contributions(db, period.id, user_id)
-        balances = channel_balances(db, period.id, user_id)
+        balances = balances_by_period.get(period.id, [])
+        # Matches `cashflow_warnings`'s own (non-summing, last-write-wins)
+        # dict construction so the embedded "warnings" below stay identical
+        # to a direct `cashflow_warnings(db, period.id, user_id)` call.
+        contributed_for_warnings = {c.goal_id: float(c.amount) for c in goal_contributions}
         contributed_by_goal: dict[int, float] = {}
         for gc in goal_contributions:
             contributed_by_goal[gc.goal_id] = contributed_by_goal.get(gc.goal_id, 0.0) + float(
@@ -1377,8 +1427,10 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                 "balances": balances,
                 "balance_by_channel": {c.id: net for c, net in balances},
                 "contributed_by_goal": contributed_by_goal,
-                "carry_in": _carry_in_for_period(db, period.id, user_id),
-                "warnings": cashflow_warnings(db, period.id, user_id),
+                "carry_in": carry_in_by_period.get(period.id, {}),
+                "warnings": _cashflow_warnings_from_balances(
+                    balances, goals, payout_period_count, contributed_for_warnings
+                ),
                 "expenses_by_channel": expenses_by_channel,
                 "position_by_channel": position_by_channel,
                 "position_by_goal": position_by_goal,
