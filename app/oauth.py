@@ -22,6 +22,24 @@ oauth.register(
     client_kwargs={"scope": "read:user user:email"},
 )
 
+# Origins /auth/{provider}/start 302s the browser to when a login begins.
+# These MUST appear in the CSP's form-action directive (app/main.py) or Chrome
+# blocks the entire login: it enforces form-action against every hop of a
+# redirect chain, not just the form's initial target (Firefox doesn't -- a
+# long-standing cross-browser difference), and login.html's provider buttons
+# submit a real <form> to /auth/{provider}/start, which then redirects here.
+# Chrome reports such a violation against the *original* same-origin form
+# target, not the redirect that actually tripped it, which makes it read like
+# 'self' is rejecting a same-origin URL. See issue #129.
+#
+# Keep in sync with the register() calls above when adding a provider.
+OAUTH_REDIRECT_ORIGINS = (
+    # google's authorization_endpoint, resolved via the OIDC discovery doc above
+    "https://accounts.google.com",
+    # github's authorize_url above
+    "https://github.com",
+)
+
 
 async def fetch_identity(
     provider: str, client: Any, token: dict[str, Any]
