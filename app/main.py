@@ -18,6 +18,7 @@ from app.auth import SESSION_COOKIE_MAX_AGE_SECONDS, NotAuthenticated, get_curre
 from app.config import settings
 from app.csrf import csrf_protect
 from app.database import get_db
+from app.oauth import OAUTH_REDIRECT_ORIGINS
 from app.rate_limit import limiter
 from app.routers import (
     admin,
@@ -79,7 +80,13 @@ _CSP = (
     "connect-src 'self'; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "
-    "form-action 'self'"
+    # The OAuth provider origins are required here, not optional hardening
+    # slack: the login form submits to /auth/{provider}/start, which 302s to
+    # the provider, and Chrome checks form-action against every redirect hop
+    # -- omitting them blocks login outright (issue #129). Still restricts
+    # submissions to arbitrary third-party origins, which is the exfiltration
+    # path this directive exists to close.
+    "form-action 'self' " + " ".join(OAUTH_REDIRECT_ORIGINS)
 )
 
 
