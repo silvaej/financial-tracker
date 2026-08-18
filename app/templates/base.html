@@ -27,11 +27,7 @@
            hx-swap="innerHTML"
            hx-push-url="true">
         <div class="rail-head" id="rail-head">
-          <div class="rail-brand" id="rail-brand">
-            {{ macros.brand_wordmark() }}
-            {% set greeting_name = current_user.display_name if current_user and current_user.display_name else (current_user.email.split('@')[0] if current_user else '') %}
-            <span class="rail-greeting" title="What's up, {{ greeting_name }}!">What's up, {{ greeting_name }}!</span>
-          </div>
+          <div class="rail-brand" id="rail-brand">{{ macros.brand_wordmark() }}</div>
           <button class="shrink-0 bg-paper-dim text-ink-soft rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-line"
                   id="collapse-toggle"
                   type="button">

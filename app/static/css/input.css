@@ -51,7 +51,7 @@
   --color-rust: #c53d3d;
   --color-rust-soft: #fbe8e8;
   /* Not a display face any more -- flat/fintech direction dropped the serif
-     look entirely, but .page-title/.rail-greeting still use the font-serif
+     look entirely, but .page-title/.brand-wordmark still use the font-serif
      utility, so this token is repointed to the same sans stack as body text
      rather than touching every template that references it. */
   --font-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
@@ -117,10 +117,14 @@
     @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-line;
   }
   .rail-brand {
-    @apply flex flex-col gap-1 min-w-0 transition-opacity duration-150;
-  }
-  .rail-greeting {
-    @apply font-serif font-semibold text-sm text-ink truncate;
+    /* Just the wordmark now -- see issue #140. Used to also hold a
+       personalized greeting stacked underneath, but that turned the
+       expanded (row) vs collapsed (column) .rail-head layouts into a much
+       bigger height difference once there were two lines instead of one,
+       making the already-jarring row<->column snap on collapse/expand
+       even more visible. Removed rather than trying to animate the
+       row/column switch itself. */
+    @apply min-w-0 transition-opacity duration-150;
   }
 
   /* Wordmark -- see issue #131. Reused as-is (just a different `size`) in
