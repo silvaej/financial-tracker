@@ -93,3 +93,18 @@ def test_confirm_and_alert_modals_have_dialog_semantics(client: TestClient) -> N
     assert 'aria-modal="true"' in text
     assert 'aria-describedby="confirm-modal-message"' in text
     assert 'aria-describedby="alert-modal-message"' in text
+
+
+def test_favicon_served_and_linked_on_every_page(client: TestClient) -> None:
+    """Regression test for #132: there was previously no favicon/apple-touch-
+    icon <link> anywhere, on either the authenticated app shell or the
+    standalone login/signup pages."""
+    favicon = client.get("/static/favicon.svg")
+    assert favicon.status_code == 200
+    assert favicon.headers["content-type"].startswith("image/svg+xml")
+
+    for path in ("/", "/login", "/signup"):
+        text = client.get(path).text
+        assert 'rel="icon"' in text
+        assert "static/favicon.svg" in text
+        assert 'rel="apple-touch-icon"' in text
