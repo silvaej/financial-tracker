@@ -51,8 +51,8 @@
             {% set user = row.user %}
             <tr>
               <td data-label="Email">
-                {{ user.display_name or user.email }}
-                {% if user.display_name %}<div class="text-[11px] text-ink-soft">{{ user.email }}</div>{% endif %}
+                {{ user.display_name or row.masked_email }}
+                {% if user.display_name %}<div class="text-[11px] text-ink-soft">{{ row.masked_email }}</div>{% endif %}
               </td>
               <td data-label="Signed up">{{ user.created_at.strftime("%Y-%m-%d") }}</td>
               <td data-label="Providers">
@@ -78,7 +78,7 @@
                           hx-post="/admin/users/{{ user.id }}/delete"
                           hx-target="#admin-page"
                           hx-swap="outerHTML"
-                          hx-confirm="Delete {{ user.email }} and all of their data? This can't be undone.">{{ macros.icon_delete() }}</button>
+                          hx-confirm="Delete {{ user.display_name or row.masked_email }} and all of their data? This can't be undone.">{{ macros.icon_delete() }}</button>
                 {% endif %}
               </td>
             </tr>
@@ -208,7 +208,7 @@
                                 required>
                           <option value="">Choose a user&hellip;</option>
                           {% for row in users %}
-                            <option value="{{ row.user.id }}">{{ row.user.email }}</option>
+                            <option value="{{ row.user.id }}">{{ row.user.display_name or row.masked_email }}</option>
                           {% endfor %}
                         </select>
                         <button class="btn-secondary" type="submit">Assign</button>
