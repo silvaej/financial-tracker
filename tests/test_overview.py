@@ -226,6 +226,37 @@ def test_unknown_section_still_404s(client: TestClient) -> None:
     assert response.status_code == 404
 
 
+def test_paid_expenses_drop_off_the_upcoming_list(client: TestClient) -> None:
+    """Regression test for #137: marking an expense paid (#85) didn't remove
+    it from Overview's "Upcoming" section or its total, defeating the point
+    of marking it paid -- "upcoming" should mean "still owed"."""
+    channel_id = _create_channel(client, "Payroll")
+    period_id = _create_payout_period(client, "15th", "32000", channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Meralco",
+            "amount": "2500.50",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)/paid", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    response = client.get("/overview")
+    assert "Meralco" in response.text
+
+    client.patch(f"/expenses/{expense_id}/paid", data={"paid": "true"})
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Meralco" not in response.text
+    assert "expenses due this period" in response.text  # empty-state row, no expenses left unpaid
+
+
 def test_summary_cards_explain_what_they_mean(client: TestClient) -> None:
     """Regression test for #136: the stat cards had no explanation of what
     feeds them (e.g. "Total liabilities" only counts CreditLine.used, not
