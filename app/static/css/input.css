@@ -137,6 +137,14 @@
        applyCollapsed() in base.html. Keeps label text from instantly
        reflowing/wrapping while the rail is still animating narrower. */
     @apply transition-opacity duration-150;
+    /* Without this, the label wraps onto a second line once the row's
+       shrinking width (mid-.rail-width-transition) drops below the text's
+       natural width -- .rail stacks tabs in a column, so that one row
+       growing taller pushes every row below it down, then snaps back up
+       150ms later once display:none removes the wrapped text from layout.
+       Reads as the whole nav jittering vertically during collapse/expand.
+       See issue #140. */
+    @apply whitespace-nowrap overflow-hidden;
   }
 
   /* Bottom tab bar -- the mobile replacement for .rail. Hidden by default;
