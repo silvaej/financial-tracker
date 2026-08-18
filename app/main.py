@@ -40,7 +40,7 @@ from app.routers import (
 )
 from app.templating import templates
 
-app = FastAPI(title="Finance Tracker", dependencies=[Depends(csrf_protect)])
+app = FastAPI(title="Vantage", dependencies=[Depends(csrf_protect)])
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 

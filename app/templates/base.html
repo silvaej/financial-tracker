@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ request.session.csrf_token }}">
     <meta name="currency-symbol" content="{{ currency_symbol }}">
-    <title>Finance Tracker</title>
+    <title>Vantage</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
           rel="stylesheet">
@@ -23,6 +23,7 @@
            hx-push-url="true">
         <div class="rail-head" id="rail-head">
           <div class="rail-brand" id="rail-brand">
+            {{ macros.brand_wordmark() }}
             {% set greeting_name = current_user.display_name if current_user and current_user.display_name else (current_user.email.split('@')[0] if current_user else '') %}
             <span class="rail-greeting" title="What's up, {{ greeting_name }}!">What's up, {{ greeting_name }}!</span>
           </div>
