@@ -1,9 +1,10 @@
+import calendar
 import json
 import logging
 import math
 import secrets
 import zoneinfo
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal, NamedTuple
 
 from sqlalchemy import func, or_, select
@@ -508,6 +509,7 @@ def create_payout_period(
         label=data.label,
         income_amount=data.income_amount,
         receiving_channel_id=data.receiving_channel_id,
+        payout_day=data.payout_day,
         display_order=(max_order or 0) + 1,
         user_id=user_id,
     )
@@ -525,6 +527,7 @@ def update_payout_period(
     if period is not None:
         period.income_amount = data.income_amount
         period.receiving_channel_id = data.receiving_channel_id
+        period.payout_day = data.payout_day
         db.commit()
         db.refresh(period)
     return period
@@ -1498,6 +1501,58 @@ def channel_presets_by_group() -> dict[str, list[dict[str, str]]]:
     return groups
 
 
+def _most_recent_monthly_occurrence(day: int, today: date) -> date:
+    """The most recent calendar date <= today whose day-of-month is `day`,
+    clamped to the last day of a shorter month (e.g. day=31 in April -> 30)."""
+    year, month = today.year, today.month
+    clamped = min(day, calendar.monthrange(year, month)[1])
+    candidate = date(year, month, clamped)
+    if candidate <= today:
+        return candidate
+    month -= 1
+    if month == 0:
+        month, year = 12, year - 1
+    clamped = min(day, calendar.monthrange(year, month)[1])
+    return date(year, month, clamped)
+
+
+def overdue_payout_period_ids(
+    db: Session, user_id: int, payout_periods: list[models.PayoutPeriod]
+) -> set[int]:
+    """Periods whose payout_day has passed this month with no PayoutCycle
+    closed since -- a UI hint only (see #134), not enforcement. Closing a
+    cycle clears the hint until next month's payday passes again. Periods
+    with no payout_day set never show it -- that field is optional."""
+    candidates = [p for p in payout_periods if p.payout_day is not None]
+    if not candidates:
+        return set()
+
+    today = datetime.now(UTC).date()
+    # dict(Result.tuples()) is ambiguous -- Result exposes .keys(), which
+    # makes dict() try mapping-style construction (subscripting the Result
+    # itself) instead of treating it as an iterable of pairs. .all() first
+    # materializes a plain list of tuples, sidestepping that.
+    latest_closed_by_period: dict[int, datetime] = dict(
+        db.execute(
+            select(models.PayoutCycle.payout_period_id, func.max(models.PayoutCycle.closed_at))
+            .where(models.PayoutCycle.user_id == user_id)
+            .group_by(models.PayoutCycle.payout_period_id)
+        )
+        .tuples()
+        .all()
+    )
+
+    overdue = set()
+    for period in candidates:
+        assert period.payout_day is not None  # narrowed by the `candidates` filter above
+        occurrence = _most_recent_monthly_occurrence(period.payout_day, today)
+        latest_closed = latest_closed_by_period.get(period.id)
+        if latest_closed is not None and latest_closed.date() >= occurrence:
+            continue
+        overdue.add(period.id)
+    return overdue
+
+
 def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
     channels = list_channels(db, user_id)
     payout_periods = list_payout_periods(db, user_id)
@@ -1527,6 +1582,7 @@ def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
         "channel_types": CHANNEL_TYPES,
         "channel_preset_groups": channel_presets_by_group(),
         "payout_periods": payout_periods,
+        "overdue_payout_period_ids": overdue_payout_period_ids(db, user_id, payout_periods),
         "expenses": list_expenses(db, user_id, q),
         "q": q or "",
         "onboarding_step": onboarding_step,

@@ -254,6 +254,7 @@
       <table class="led">
         <colgroup>
           <col class="w-24">
+          <col class="w-24">
           <col class="w-32">
           <col class="min-w-28">
           <col class="w-36">
@@ -261,6 +262,7 @@
         <thead>
           <tr>
             <th>Label</th>
+            <th class="text-right">Payout day</th>
             <th class="text-right">Income</th>
             <th class="text-right">Receiving channel</th>
             <th></th>
@@ -269,7 +271,26 @@
         <tbody>
           {% for period in payout_periods %}
             <tr>
-              <td data-label="Label">{{ period.label }}</td>
+              <td data-label="Label">
+                {{ period.label }}
+                {% if period.id in overdue_payout_period_ids %}
+                  <span class="overdue-dot"
+                        title="Payday ({{ period.payout_day }}) has passed — ready to close this cycle?"></span>
+                {% endif %}
+              </td>
+              <td class="num" data-label="Payout day">
+                <span class="view-payout-{{ period.id }}">{{ period.payout_day if period.payout_day else "—" }}</span>
+                <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
+                  <input class="field field-mono w-16"
+                         type="number"
+                         min="1"
+                         max="31"
+                         name="payout_day"
+                         form="edit-payout-form-{{ period.id }}"
+                         aria-label="Payout day"
+                         value="{{ period.payout_day or '' }}">
+                </div>
+              </td>
               <td class="num" data-label="Income">
                 <span class="view-payout-{{ period.id }}">{{ macros.peso(period.income_amount) }}</span>
                 <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
@@ -339,10 +360,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(4, 'payout periods') }}
+            {{ macros.empty_row(5, 'payout periods') }}
           {% endfor %}
           <tr class="tr-add-btn">
-            <td colspan="4">
+            <td colspan="5">
               <button type="button"
                       id="add-payout-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 2 else '' }}"
@@ -361,6 +382,16 @@
                      placeholder="e.g. 15th"
                      aria-label="Label"
                      required>
+            </td>
+            <td class="num" data-label="Payout day">
+              <input class="field field-mono w-16"
+                     type="number"
+                     min="1"
+                     max="31"
+                     name="payout_day"
+                     form="add-payout-form"
+                     placeholder="Day"
+                     aria-label="Payout day">
             </td>
             <td class="num" data-label="Income">
               <div class="flex items-center justify-end gap-1">
