@@ -1,6 +1,32 @@
 @import "tailwindcss";
 @source "../../templates";
 
+/* Google Fonts' served IBM Plex Mono file has a malformed/mis-shaped glyph
+   for U+20B1 (PESO SIGN) that Chrome renders with a stray horizontal line
+   smeared across the *entire* text run, not just the glyph itself -- see
+   issue #49. Confirmed via a standalone repro (isolated font-weight,
+   ligatures/kerning/text-rendering tweaks, and letter-spacing changes all
+   still showed the bug; only substituting a different font for this one
+   codepoint fixed it -- and only when done as a distinct synthetic family
+   inserted ahead of "IBM Plex Mono" in the stack, not as a second
+   same-named @font-face relying on unicode-range disambiguation between
+   two rules sharing a family name, which empirically did NOT take
+   precedence reliably). "PesoFix" has no glyphs of its own outside
+   U+20B1, so every other character in --font-mono falls straight through
+   to the real IBM Plex Mono exactly as before -- no visible font change
+   anywhere else. Falls through further to the theme's own generic
+   "monospace" if none of the local() sources are installed. */
+@font-face {
+  font-family: "PesoFix";
+  src:
+    local("Consolas"),
+    local("SF Mono"),
+    local("Menlo"),
+    local("Cascadia Mono"),
+    local("Courier New");
+  unicode-range: U+20B1;
+}
+
 @layer base {
   input[type="number"] {
     -moz-appearance: textfield;
@@ -25,11 +51,11 @@
   --color-rust: #c53d3d;
   --color-rust-soft: #fbe8e8;
   /* Not a display face any more -- flat/fintech direction dropped the serif
-     look entirely, but .page-title/.rail-greeting still use the font-serif
+     look entirely, but .page-title/.brand-wordmark still use the font-serif
      utility, so this token is repointed to the same sans stack as body text
      rather than touching every template that references it. */
   --font-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-mono: "PesoFix", "IBM Plex Mono", monospace;
 }
 
 /* Dark-mode token overrides -- @theme above only feeds Tailwind's utility
@@ -88,16 +114,58 @@
     @apply w-52 shrink-0 bg-card border-r border-line flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
   }
   .rail-head {
+    /* Deliberately a *fixed* row layout at every rail width -- base.html's
+       applyCollapsed() used to toggle this into a column layout while
+       collapsed (brand stacked above the collapse-toggle button), which
+       reserves sum(brand-height, gap, button-height) instead of
+       max(brand-height, button-height). That's taller than the row
+       layout, and the classList.toggle() applying it happens instantly on
+       click, not animated in step with .rail's own 200ms width
+       transition -- so for that first frame, .rail-head snaps taller,
+       pushing every .tab below it down, then snaps back once the width
+       animation finishes. Confirmed via a screen recording after the
+       previous fix (removing the greeting, see .rail-brand below) turned
+       out to only shrink the jump, not eliminate it -- row vs column is
+       still two different heights regardless of how many lines .rail-brand
+       holds. Never switching layout mode at all removes the height
+       difference entirely: .rail-brand still fades/clips as the rail
+       narrows (see its own overflow-hidden below), it just never gets a
+       second row to itself. See issue #140. */
     @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-line;
   }
   .rail-brand {
-    @apply flex items-center gap-2.5 min-w-0 transition-opacity duration-150;
+    /* overflow-hidden so the wordmark clips instead of overflowing/
+       wrapping as .rail-head's fixed row layout (above) narrows along
+       with .rail during the collapse/expand transition -- same
+       whitespace-nowrap/overflow-hidden clipping idea #143 already uses
+       for .tab-label, applied here since .rail-head no longer switches to
+       a column layout to give this room. */
+    @apply min-w-0 overflow-hidden transition-opacity duration-150;
   }
-  .rail-greeting {
-    @apply font-serif font-semibold text-sm text-ink truncate;
+
+  /* Wordmark -- see issue #131. Reused as-is (just a different `size`) in
+     the rail nav and on login/signup, so it lives as one macro
+     (macros.html's brand_wordmark) rather than being duplicated per
+     template. Accent-colored rather than plain ink: it's the one existing
+     brand color already used for active tabs/links, so the wordmark reads
+     as the same identity instead of introducing a second brand color. */
+  .brand-wordmark {
+    @apply inline-flex items-start font-serif font-extrabold tracking-tight text-accent leading-none;
+  }
+  .brand-wordmark-md {
+    @apply text-base;
+  }
+  .brand-wordmark-lg {
+    @apply text-xl;
+  }
+  .brand-wordmark-beta {
+    /* True superscript position/register (mono face, tracked-out caps) --
+       deliberately not a filled pill, reads as a trademark-style tag next
+       to the mark rather than a promotional badge. */
+    @apply font-mono text-[9px] font-bold uppercase tracking-wider text-ink-soft ml-1 relative -top-0.5;
   }
   .tab {
-    @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors;
+    @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .tab-icon {
     @apply w-5 h-5 shrink-0;
@@ -111,6 +179,14 @@
        applyCollapsed() in base.html. Keeps label text from instantly
        reflowing/wrapping while the rail is still animating narrower. */
     @apply transition-opacity duration-150;
+    /* Without this, the label wraps onto a second line once the row's
+       shrinking width (mid-.rail-width-transition) drops below the text's
+       natural width -- .rail stacks tabs in a column, so that one row
+       growing taller pushes every row below it down, then snaps back up
+       150ms later once display:none removes the wrapped text from layout.
+       Reads as the whole nav jittering vertically during collapse/expand.
+       See issue #140. */
+    @apply whitespace-nowrap overflow-hidden;
   }
 
   /* Bottom tab bar -- the mobile replacement for .rail. Hidden by default;
@@ -119,7 +195,7 @@
     @apply hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-line;
   }
   .tabbar-item {
-    @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold text-ink-soft;
+    @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold text-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .tabbar-item-active {
     @apply text-accent;
@@ -140,7 +216,7 @@
     @apply w-9 h-1 bg-line rounded-full mx-auto mb-1.5;
   }
   .sheet-item {
-    @apply flex items-center gap-3 px-5 py-3 text-sm font-semibold text-ink w-full text-left bg-transparent cursor-pointer;
+    @apply flex items-center gap-3 px-5 py-3 text-sm font-semibold text-ink w-full text-left bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .sheet-item svg {
     @apply w-[18px] h-[18px] text-ink-soft shrink-0;
@@ -156,7 +232,28 @@
   }
 
   .page {
+    /* Full-width scroll container -- overflow-y-auto stays here so its
+       native scrollbar sits at the true browser-window edge. The width
+       cap/centering (see issue #139) lives on [id$="-page"] below instead
+       of here: putting max-width+mx-auto directly on this same element
+       first shipped, but capping the *scrolling* element also pulls its
+       scrollbar in with it, stranding it partway across the screen
+       instead of at the window edge -- reported (with a live measurement
+       confirming the exact math: page capped to 1280px, viewport ~1912px,
+       scrollbar sitting ~280px short of the true edge) after #139 shipped
+       centered. Splitting "what scrolls" from "what's width-capped" fixes
+       that without giving up centering. */
     @apply flex-1 px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8 bg-paper overflow-y-auto overflow-x-hidden;
+  }
+  /* Every page partial's root element is <div id="{section}-page">
+     (expenses-page, goals-page, cashflow-page, ...) -- targeting that
+     naming convention directly means the cap/centering applies to
+     whatever htmx swaps into #page-content on every navigation, without
+     needing every partial template to carry its own wrapper div (which a
+     bare CSS class on .page's *children* couldn't reliably do, since the
+     immediate child is each partial's own differently-named root). */
+  [id$="-page"] {
+    @apply max-w-7xl mx-auto;
   }
   .page-head {
     @apply flex items-baseline justify-between gap-3 flex-wrap mb-5;
@@ -197,7 +294,7 @@
     @apply font-semibold text-base mb-3 flex items-center justify-between flex-wrap gap-2;
   }
   .pill {
-    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide;
+    @apply text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full bg-accent/10 text-accent tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
 
   /* First-login guided setup banner on the Expenses page (see
@@ -234,8 +331,48 @@
   .pill-gold {
     @apply bg-gold-soft text-gold;
   }
-  .pill-rust {
-    @apply bg-rust-soft text-rust;
+
+  /* First-visit nudge banners on Cash Flow/Goals/Credit/Assets -- see
+     issue #138. Same accent-tinted language as .onboard-banner above,
+     simplified: no progress bar (nothing sequential across these four
+     independent sections), no "Step X of Y" label. */
+  .nudge-banner {
+    @apply flex items-start gap-3.5 bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 mb-5;
+  }
+  .nudge-icon {
+    @apply w-6 h-6 rounded-md bg-accent text-white flex items-center justify-center shrink-0;
+  }
+  .nudge-icon svg {
+    @apply w-3.5 h-3.5;
+  }
+  .nudge-copy {
+    @apply flex-1 text-sm text-ink;
+  }
+  .nudge-copy strong {
+    @apply block text-[10.5px] font-bold uppercase tracking-wide text-accent mb-0.5;
+  }
+  .nudge-dismiss {
+    @apply bg-transparent border-0 text-ink-soft text-xs font-semibold cursor-pointer whitespace-nowrap self-center hover:text-ink hover:underline;
+  }
+
+  /* Payout cycle history's clickable timeline of "Live template" + each
+     closed cycle -- see #84. Mirrors .preset-trigger's button-chip
+     language rather than introducing a new visual style. */
+  .cycle-rail {
+    @apply flex items-center gap-2 flex-wrap;
+  }
+  .cycle-chip {
+    @apply inline-flex items-center gap-1.5 text-xs font-semibold text-ink-soft px-3 py-1.5 rounded-full border border-line bg-card cursor-pointer hover:border-accent hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
+  }
+  .cycle-chip-active {
+    @apply bg-accent/10 text-accent border-accent;
+  }
+
+  /* Hints that a payout period's payout_day has passed with no cycle closed
+     since -- see #134. Plain dot, not a .warn-pill: this is a nudge next to
+     an existing label, not a standalone status needing its own text. */
+  .overdue-dot {
+    @apply inline-block w-2 h-2 rounded-full bg-rust align-middle;
   }
 
   .led {
@@ -270,13 +407,13 @@
   }
 
   .icon-btn {
-    @apply inline-flex items-center p-1 rounded text-ink-soft hover:bg-rust-soft hover:text-rust cursor-pointer;
+    @apply inline-flex items-center p-1 rounded text-ink-soft hover:bg-rust-soft hover:text-rust cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .add-btn {
-    @apply inline-flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:brightness-90 cursor-pointer mt-2;
+    @apply inline-flex items-center gap-1.5 bg-accent text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:brightness-90 cursor-pointer mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .btn-secondary {
-    @apply inline-flex items-center text-ink-soft text-xs font-semibold px-3 py-1.5 rounded-md border border-line hover:bg-paper-dim cursor-pointer;
+    @apply inline-flex items-center text-ink-soft text-xs font-semibold px-3 py-1.5 rounded-md border border-line hover:bg-paper-dim cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .field {
     @apply w-full min-w-0 rounded border border-line px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent;
@@ -708,7 +845,7 @@
     @apply flex flex-col gap-2.5;
   }
   .provider-btn {
-    @apply flex items-center justify-center gap-2.5 w-full rounded-md border border-line px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-paper-dim cursor-pointer;
+    @apply flex items-center justify-center gap-2.5 w-full rounded-md border border-line px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-paper-dim cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;
   }
   .provider-btn:disabled {
     @apply opacity-45 cursor-not-allowed hover:bg-transparent;

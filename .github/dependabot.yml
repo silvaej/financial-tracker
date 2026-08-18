@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    # main only accepts PRs from dev (see CLAUDE.md's Branching section,
+    # enforced by ci.yml's enforce-branch-source job) -- without this,
+    # Dependabot would target the repo's default branch (main) and every PR
+    # it opens would fail that check.
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "(chore)"

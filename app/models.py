@@ -1,6 +1,15 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    LargeBinary,
+    Numeric,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -38,6 +47,22 @@ class User(Base):
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Added retroactively for the admin dashboard's "signup date" column
+    # (issue #65) -- existing rows get the migration's run time as their
+    # value (server_default=now()), not their real signup date, since that
+    # was never tracked before this. Documented as a known limitation in
+    # the migration rather than trying to backfill a value this app never
+    # actually recorded.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+    # Plain unique=True above only rejects byte-identical duplicates -- app
+    # code always normalizes email to lowercase before read/write (see
+    # crud.get_user_by_email/create_user), but this functional index is a
+    # DB-level backstop against any write path that forgets to (a raw SQL
+    # script, a future admin tool, etc.) -- see issue #71.
+    __table_args__ = (Index("ix_users_email_lower", func.lower(email), unique=True),)
 
 
 class OAuthIdentity(Base):
@@ -86,6 +111,12 @@ class PayoutPeriod(Base):
     receiving_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id"), nullable=True
     )
+    # Optional day-of-month this period's payday falls on -- same pattern as
+    # Expense.due_day. Purely a hint (crud.overdue_payout_period_ids uses it
+    # to flag periods whose payday has passed with no cycle closed since),
+    # not a real calendar anchor: `label` stays free text, and nothing else
+    # in the app infers dates from it. See issue #134.
+    payout_day: Mapped[int | None] = mapped_column(nullable=True)
 
     receiving_channel: Mapped[Channel | None] = relationship()
 
@@ -99,6 +130,18 @@ class Expense(Base):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
+    due_day: Mapped[int | None] = mapped_column(nullable=True)
+    # A simple manually-maintained marker ("did I pay this bill"), not tied
+    # to a specific cycle -- Expense rows are perpetual templates with no
+    # dated-cycle concept (see issue #84), so this doesn't auto-reset at the
+    # start of a new payout period; the user checks it off, then unchecks it
+    # themselves next cycle. See issue #85.
+    paid: Mapped[bool] = mapped_column(default=False)
+    # Paused expenses are excluded from channel_balances() (see
+    # _all_channel_balances in crud.py) but the row itself is kept --
+    # cancelling a subscription for one cycle shouldn't mean losing its
+    # channel/amount/history the way deleting it would. See issue #86.
+    active: Mapped[bool] = mapped_column(default=True)
 
     payout_period: Mapped[PayoutPeriod] = relationship()
     channel: Mapped[Channel] = relationship()
@@ -207,3 +250,77 @@ class Asset(Base):
     channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
 
     channel: Mapped[Channel | None] = relationship()
+
+
+class PayoutCycle(Base):
+    """A locked, dated snapshot of one occurrence of a PayoutPeriod -- see
+    issue #84. PayoutPeriod itself stays a perpetual, always-editable
+    template (per CLAUDE.md's Domain section); closing a cycle here doesn't
+    touch or clear the period's live transfers/expenses, it just records
+    what channel_balances() computed at that moment so a later edit to the
+    live template can't silently overwrite the only record that ever
+    existed. Deliberately no FK to Channel for the receiving channel (see
+    PayoutCycleBalance below) -- a snapshot is a historical fact and
+    shouldn't block deleting a channel used only in old history, or need
+    updating if that channel is later renamed/recolored."""
+
+    __tablename__ = "payout_cycles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    label: Mapped[str] = mapped_column(String(50), nullable=False)
+    closed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    income_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    receiving_channel_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    payout_period: Mapped[PayoutPeriod] = relationship()
+
+
+class PayoutCycleBalance(Base):
+    """One channel's snapshotted activity within a closed PayoutCycle.
+    channel_name/channel_color are denormalized (not a Channel FK) for the
+    same reason as PayoutCycle.receiving_channel_name above. `net` is the
+    channel's full running balance (as crud.channel_balances() computed it
+    at closure time, including carry-in from prior periods); `income`/
+    `transfers_net`/`expenses_total` describe only this cycle's own
+    activity and generally won't sum to `net` on their own -- both are
+    useful, so both are kept rather than picking one."""
+
+    __tablename__ = "payout_cycle_balances"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    payout_cycle_id: Mapped[int] = mapped_column(ForeignKey("payout_cycles.id"), nullable=False)
+    channel_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    channel_color: Mapped[str] = mapped_column(String(7), nullable=False)
+    income: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    transfers_net: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    expenses_total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    net: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+
+    payout_cycle: Mapped[PayoutCycle] = relationship()
+
+
+class OnboardingNudge(Base):
+    """Per-(user, section) dismissal for the first-visit nudge banners on
+    Cash Flow/Goals/Credit/Assets -- see issue #138. Distinct from
+    User.onboarding_completed_at (the Channels/PayoutPeriods/Expenses
+    3-step flow, which this doesn't touch): those three are genuinely
+    sequential, these four are independent, so each section is tracked
+    separately rather than folded into the same single timestamp. A row's
+    mere existence means "dismissed" -- crud.needs_nudge() also checks
+    whether the section still has no data, so the banner auto-clears the
+    moment either the user dismisses it or adds something, without
+    needing to distinguish the two."""
+
+    __tablename__ = "onboarding_nudges"
+    __table_args__ = (UniqueConstraint("user_id", "section"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    section: Mapped[str] = mapped_column(String(20), nullable=False)
+    dismissed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

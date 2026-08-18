@@ -6,6 +6,7 @@
       <div class="page-sub">Savings targets and the pace to hit them</div>
     </div>
   </div>
+  {{ macros.nudge_banner(show_nudge, "/goals/nudge/dismiss", "#goals-page", "Save toward something specific", "Set a target and fund it a little each payout — Goals track progress separately from your regular channel balances.") }}
   <div class="section">
     <div class="section-title">Goals<span class="pill">{{ goals|length }} total</span></div>
     <form id="add-goal-form"
@@ -46,7 +47,11 @@
                       hx-target="#goals-page"
                       hx-swap="outerHTML"
                       class="edit-goal-{{ goal.id }} hidden items-center gap-2">
-                  <input class="field" type="text" name="name" value="{{ goal.name }}">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Name"
+                         value="{{ goal.name }}">
                 </form>
               </td>
               <td data-label="Channel">
@@ -58,7 +63,10 @@
                   {% endif %}
                 </span>
                 <div class="edit-goal-{{ goal.id }} hidden items-center gap-1">
-                  <select class="field" name="channel_id" form="goal-edit-form-{{ goal.id }}">
+                  <select class="field"
+                          name="channel_id"
+                          form="goal-edit-form-{{ goal.id }}"
+                          aria-label="Channel">
                     <option value="">No channel</option>
                     {% for channel in channels %}
                       <option value="{{ channel.id }}"
@@ -77,6 +85,7 @@
                          step="0.01"
                          name="target"
                          form="goal-edit-form-{{ goal.id }}"
+                         aria-label="Target"
                          value="{{ goal.target }}">
                 </div>
               </td>
@@ -94,6 +103,7 @@
                          min="1"
                          name="months"
                          form="goal-edit-form-{{ goal.id }}"
+                         aria-label="Months"
                          value="{{ goal.months }}">
                 </div>
               </td>
@@ -164,10 +174,14 @@
                      name="name"
                      form="add-goal-form"
                      placeholder="Goal name"
+                     aria-label="Goal name"
                      required>
             </td>
             <td data-label="Channel">
-              <select class="field" name="channel_id" form="add-goal-form">
+              <select class="field"
+                      name="channel_id"
+                      form="add-goal-form"
+                      aria-label="Channel">
                 <option value="">No channel</option>
                 {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
               </select>
@@ -181,6 +195,7 @@
                        name="target"
                        form="add-goal-form"
                        placeholder="Target"
+                       aria-label="Target"
                        required>
               </div>
             </td>
@@ -192,7 +207,8 @@
                        step="0.01"
                        name="allocated"
                        form="add-goal-form"
-                       placeholder="0">
+                       placeholder="0"
+                       aria-label="Allocated">
               </div>
             </td>
             <td class="num led-inline led-inline-3" data-label="Months">
@@ -202,7 +218,8 @@
                      min="1"
                      name="months"
                      form="add-goal-form"
-                     placeholder="1">
+                     placeholder="1"
+                     aria-label="Months">
             </td>
             <td>
               <label class="flex items-center gap-1.5 text-[11px] text-ink-soft">

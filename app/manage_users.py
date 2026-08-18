@@ -1,11 +1,10 @@
 import argparse
 import sys
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from sqlalchemy import select
 
-from app import crud, models
+from app import crud
 from app.database import SessionLocal
 
 
@@ -29,16 +28,7 @@ def assign_orphans(email: str) -> None:
             print(f"No user with email {email!r}.", file=sys.stderr)
             raise SystemExit(1)
 
-        owned_models: tuple[type[Any], ...] = (
-            models.Channel,
-            models.PayoutPeriod,
-            models.Expense,
-            models.Transfer,
-            models.Goal,
-            models.CreditLine,
-            models.Asset,
-        )
-        for model in owned_models:
+        for model in crud.ORPHANABLE_MODELS:
             rows = db.scalars(select(model).where(model.user_id.is_(None))).all()
             for row in rows:
                 row.user_id = user.id
@@ -65,7 +55,7 @@ def create_key(max_uses: int, expires_days: int | None) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage finance-tracker user accounts.")
+    parser = argparse.ArgumentParser(description="Manage Vantage user accounts.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     create_parser = subparsers.add_parser(

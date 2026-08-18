@@ -6,7 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ request.session.csrf_token }}">
     <meta name="currency-symbol" content="{{ currency_symbol }}">
-    <title>Finance Tracker</title>
+    <title>Vantage</title>
+    <link rel="icon"
+          type="image/svg+xml"
+          href="{{ url_for('static', path='favicon.svg') }}">
+    <link rel="apple-touch-icon"
+          href="{{ url_for('static', path='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
           rel="stylesheet">
@@ -21,11 +26,8 @@
            hx-target="#page-content"
            hx-swap="innerHTML"
            hx-push-url="true">
-        <div class="rail-head" id="rail-head">
-          <div class="rail-brand" id="rail-brand">
-            {% set greeting_name = current_user.display_name if current_user and current_user.display_name else (current_user.email.split('@')[0] if current_user else '') %}
-            <span class="rail-greeting" title="What's up, {{ greeting_name }}!">What's up, {{ greeting_name }}!</span>
-          </div>
+        <div class="rail-head">
+          <div class="rail-brand" id="rail-brand">{{ macros.brand_wordmark() }}</div>
           <button class="shrink-0 bg-paper-dim text-ink-soft rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-line"
                   id="collapse-toggle"
                   type="button">
@@ -33,9 +35,13 @@
           </button>
         </div>
         {% set nav_items = [('/', 'Overview', 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'), ('/expenses', 'Expenses', 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z'), ('/cashflow', 'Cash Flow', 'M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5'), ('/goals', 'Goals', 'M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5'), ('/credit', 'Credit', 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z'), ('/assets', 'Assets', 'M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z')] %}
+        {% if is_admin %}
+          {% set nav_items = nav_items + [('/admin', 'Admin', 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z')] %}
+        {% endif %}
         {% for href, label, icon_path in nav_items %}
           <a class="tab{{ ' tab-active' if request.url.path == href else '' }}"
-             href="{{ href }}">
+             href="{{ href }}"
+             aria-label="{{ label }}">
             <svg class="tab-icon"
                  viewBox="0 0 24 24"
                  fill="none"
@@ -47,7 +53,8 @@
           </a>
         {% endfor %}
         <a class="tab mt-auto{{ ' tab-active' if request.url.path == '/account' else '' }}"
-           href="/account">
+           href="/account"
+           aria-label="Account">
           {% if current_user and current_user.avatar_data %}
             <img class="tab-icon rounded-full object-cover"
                  src="/account/avatar"
@@ -65,7 +72,8 @@
         </a>
         <button type="button"
                 id="theme-toggle"
-                class="tab w-full text-left bg-transparent cursor-pointer js-theme-toggle">
+                class="tab w-full text-left bg-transparent cursor-pointer js-theme-toggle"
+                aria-label="Dark mode">
           <svg class="tab-icon js-theme-icon-light"
                viewBox="0 0 24 24"
                fill="none"
@@ -87,7 +95,8 @@
                  name="csrf_token"
                  value="{{ request.session.csrf_token }}">
           <button type="submit"
-                  class="tab w-full text-left bg-transparent cursor-pointer">
+                  class="tab w-full text-left bg-transparent cursor-pointer"
+                  aria-label="Log out">
             <svg class="tab-icon"
                  viewBox="0 0 24 24"
                  fill="none"
@@ -211,7 +220,10 @@
     </div>
     <div id="confirm-modal"
          class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
-      <div class="card w-full max-w-sm mx-4">
+      <div class="card w-full max-w-sm mx-4"
+           role="dialog"
+           aria-modal="true"
+           aria-describedby="confirm-modal-message">
         <p id="confirm-modal-message" class="text-sm text-ink mb-4"></p>
         <div class="flex justify-end gap-2">
           <button type="button" id="confirm-modal-cancel" class="btn-secondary">Cancel</button>
@@ -221,7 +233,10 @@
     </div>
     <div id="alert-modal"
          class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
-      <div class="card w-full max-w-sm mx-4">
+      <div class="card w-full max-w-sm mx-4"
+           role="dialog"
+           aria-modal="true"
+           aria-describedby="alert-modal-message">
         <p id="alert-modal-message" class="text-sm text-ink mb-4"></p>
         <div class="flex justify-end">
           <button type="button" id="alert-modal-ok" class="add-btn mt-0">OK</button>
@@ -255,6 +270,7 @@
       const lightIcons = document.querySelectorAll(".js-theme-icon-light");
       const darkIcons = document.querySelectorAll(".js-theme-icon-dark");
       const themeLabels = document.querySelectorAll(".js-theme-label");
+      const themeToggles = document.querySelectorAll(".js-theme-toggle");
 
       function effectiveTheme() {
         const stored = localStorage.getItem("theme");
@@ -269,6 +285,11 @@
         lightIcons.forEach((el) => el.classList.toggle("hidden", isDark));
         darkIcons.forEach((el) => el.classList.toggle("hidden", !isDark));
         themeLabels.forEach((el) => { el.textContent = isDark ? "Light mode" : "Dark mode"; });
+        // Keep the accessible name in sync too -- the rail's .tab-label span
+        // (which themeLabels above updates) is hidden while the rail is
+        // collapsed, so the button's own aria-label is what a screen reader
+        // actually announces at that point (see #76).
+        themeToggles.forEach((el) => { el.setAttribute("aria-label", isDark ? "Light mode" : "Dark mode"); });
       }
 
       function toggleTheme() {
@@ -283,7 +304,6 @@
       applyTheme();
 
       const rail = document.getElementById("rail");
-      const railHead = document.getElementById("rail-head");
       const railBrand = document.getElementById("rail-brand");
       const icon = document.getElementById("collapse-icon");
       const labels = () => document.querySelectorAll(".tab-label");
@@ -300,9 +320,6 @@
       function applyCollapsed(collapsed, { animate = true } = {}) {
         rail.classList.toggle("w-52", !collapsed);
         rail.classList.toggle("w-16", collapsed);
-        railHead.classList.toggle("flex-col", collapsed);
-        railHead.classList.toggle("gap-2", collapsed);
-        railHead.classList.toggle("justify-between", !collapsed);
         icon.textContent = collapsed ? "›" : "‹";
 
         clearTimeout(fadeHideTimeout);
@@ -371,6 +388,54 @@
         if (evt.key === "Escape") closeMoreSheet();
       });
 
+      // Shared focus-trap/restore behavior for the confirm/alert modals --
+      // see #77. Neither modal previously had dialog semantics (no Escape,
+      // no role=dialog, no focus trap), unlike the more-sheet/preset-popover
+      // patterns above which at least close on Escape.
+      let modalReturnFocus = null;
+
+      function focusableIn(container) {
+        return Array.from(
+          container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        ).filter((el) => !el.disabled && el.offsetParent !== null);
+      }
+
+      function openModal(modal) {
+        modalReturnFocus = document.activeElement;
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+        const focusable = focusableIn(modal);
+        if (focusable.length) focusable[0].focus();
+      }
+
+      function closeModal(modal) {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        if (modalReturnFocus) {
+          modalReturnFocus.focus();
+          modalReturnFocus = null;
+        }
+      }
+
+      function isModalOpen(modal) {
+        return !modal.classList.contains("hidden");
+      }
+
+      function trapModalTab(evt, modal) {
+        if (evt.key !== "Tab") return;
+        const focusable = focusableIn(modal);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (evt.shiftKey && document.activeElement === first) {
+          evt.preventDefault();
+          last.focus();
+        } else if (!evt.shiftKey && document.activeElement === last) {
+          evt.preventDefault();
+          first.focus();
+        }
+      }
+
       const confirmModal = document.getElementById("confirm-modal");
       const confirmMessage = document.getElementById("confirm-modal-message");
       const confirmOkBtn = document.getElementById("confirm-modal-confirm");
@@ -378,8 +443,7 @@
       let pendingConfirm = null;
 
       function closeConfirmModal() {
-        confirmModal.classList.add("hidden");
-        confirmModal.classList.remove("flex");
+        closeModal(confirmModal);
         pendingConfirm = null;
       }
 
@@ -388,8 +452,7 @@
         evt.preventDefault();
         confirmMessage.textContent = evt.detail.question;
         pendingConfirm = evt.detail.issueRequest;
-        confirmModal.classList.remove("hidden");
-        confirmModal.classList.add("flex");
+        openModal(confirmModal);
       });
 
       confirmOkBtn.addEventListener("click", () => {
@@ -409,20 +472,28 @@
       const alertOkBtn = document.getElementById("alert-modal-ok");
 
       function closeAlertModal() {
-        alertModal.classList.add("hidden");
-        alertModal.classList.remove("flex");
+        closeModal(alertModal);
       }
 
       function showAlert(message) {
         alertMessage.textContent = message;
-        alertModal.classList.remove("hidden");
-        alertModal.classList.add("flex");
+        openModal(alertModal);
       }
 
       alertOkBtn.addEventListener("click", closeAlertModal);
 
       alertModal.addEventListener("click", (evt) => {
         if (evt.target === alertModal) closeAlertModal();
+      });
+
+      document.addEventListener("keydown", (evt) => {
+        if (isModalOpen(confirmModal)) {
+          if (evt.key === "Escape") closeConfirmModal();
+          else trapModalTab(evt, confirmModal);
+        } else if (isModalOpen(alertModal)) {
+          if (evt.key === "Escape") closeAlertModal();
+          else trapModalTab(evt, alertModal);
+        }
       });
 
       document.body.addEventListener("htmx:responseError", (evt) => {

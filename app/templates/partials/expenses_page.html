@@ -73,15 +73,21 @@
                       hx-swap="outerHTML"
                       hx-encoding="multipart/form-data"
                       class="edit-channel-{{ channel.id }} hidden items-center gap-2 flex-wrap">
-                  <input class="field" type="text" name="name" value="{{ channel.name }}">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Name"
+                         value="{{ channel.name }}">
                   <input class="w-10 h-8 rounded border border-line cursor-pointer"
                          type="color"
                          name="color"
+                         aria-label="Color"
                          value="{{ channel.color }}">
                   <input class="field text-xs"
                          type="file"
                          name="logo"
-                         accept="image/png,image/jpeg,image/webp,image/gif">
+                         accept="image/png,image/jpeg,image/webp,image/gif"
+                         aria-label="Logo">
                   {% if channel.logo_data %}
                     <button type="button"
                             class="icon-btn hover:bg-rust-soft hover:text-rust"
@@ -103,7 +109,8 @@
                 <div class="edit-channel-{{ channel.id }} hidden items-center gap-1">
                   <select class="field"
                           name="channel_type"
-                          form="channel-edit-form-{{ channel.id }}">
+                          form="channel-edit-form-{{ channel.id }}"
+                          aria-label="Type">
                     <option value="">No type</option>
                     {% for ct in channel_types %}
                       <option value="{{ ct }}"
@@ -197,14 +204,19 @@
              name="name"
              form="add-channel-form"
              placeholder="Channel name"
+             aria-label="Channel name"
              oninput="this.form.elements.badge_label.value = ''"
              required>
       <input class="w-10 h-8 rounded border border-line cursor-pointer"
              type="color"
              name="color"
              form="add-channel-form"
-             value="#8a8a8a">
-      <select class="field w-40" name="channel_type" form="add-channel-form">
+             value="#8a8a8a"
+             aria-label="Color">
+      <select class="field w-40"
+              name="channel_type"
+              form="add-channel-form"
+              aria-label="Type">
         <option value="">No type</option>
         {% for ct in channel_types %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
       </select>
@@ -213,7 +225,8 @@
              name="logo"
              form="add-channel-form"
              accept="image/png,image/jpeg,image/webp,image/gif"
-             title="Optional custom logo image (overrides the preset badge)">
+             title="Optional custom logo image (overrides the preset badge)"
+             aria-label="Logo">
       <input type="hidden" name="badge_label" form="add-channel-form">
       <div class="flex items-center gap-2">
         <button class="add-btn mt-0" type="submit" form="add-channel-form">Add</button>
@@ -241,6 +254,7 @@
       <table class="led">
         <colgroup>
           <col class="w-24">
+          <col class="w-24">
           <col class="w-32">
           <col class="min-w-28">
           <col class="w-36">
@@ -248,6 +262,7 @@
         <thead>
           <tr>
             <th>Label</th>
+            <th class="text-right">Payout day</th>
             <th class="text-right">Income</th>
             <th class="text-right">Receiving channel</th>
             <th></th>
@@ -256,7 +271,26 @@
         <tbody>
           {% for period in payout_periods %}
             <tr>
-              <td data-label="Label">{{ period.label }}</td>
+              <td data-label="Label">
+                {{ period.label }}
+                {% if period.id in overdue_payout_period_ids %}
+                  <span class="overdue-dot"
+                        title="Payday ({{ period.payout_day }}) has passed — ready to close this cycle?"></span>
+                {% endif %}
+              </td>
+              <td class="num" data-label="Payout day">
+                <span class="view-payout-{{ period.id }}">{{ period.payout_day if period.payout_day else "—" }}</span>
+                <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
+                  <input class="field field-mono w-16"
+                         type="number"
+                         min="1"
+                         max="31"
+                         name="payout_day"
+                         form="edit-payout-form-{{ period.id }}"
+                         aria-label="Payout day"
+                         value="{{ period.payout_day or '' }}">
+                </div>
+              </td>
               <td class="num" data-label="Income">
                 <span class="view-payout-{{ period.id }}">{{ macros.peso(period.income_amount) }}</span>
                 <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
@@ -266,6 +300,7 @@
                          step="0.01"
                          name="income_amount"
                          form="edit-payout-form-{{ period.id }}"
+                         aria-label="Income"
                          value="{{ period.income_amount }}">
                 </div>
               </td>
@@ -280,7 +315,8 @@
                 <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
                   <select class="field"
                           name="receiving_channel_id"
-                          form="edit-payout-form-{{ period.id }}">
+                          form="edit-payout-form-{{ period.id }}"
+                          aria-label="Receiving channel">
                     <option value="">No channel</option>
                     {% for channel in channels %}
                       <option value="{{ channel.id }}"
@@ -292,6 +328,14 @@
               </td>
               <td class="led-actions">
                 <div class="view-payout-{{ period.id }} flex items-center gap-1">
+                  <a class="icon-btn"
+                     title="Cycle history"
+                     aria-label="Cycle history"
+                     href="/payout-periods/{{ period.id }}/cycles"
+                     hx-boost="true"
+                     hx-target="#page-content"
+                     hx-swap="innerHTML"
+                     hx-push-url="true">{{ macros.icon_history() }}</a>
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
                           title="Edit"
@@ -320,10 +364,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(4, 'payout periods') }}
+            {{ macros.empty_row(5, 'payout periods') }}
           {% endfor %}
           <tr class="tr-add-btn">
-            <td colspan="4">
+            <td colspan="5">
               <button type="button"
                       id="add-payout-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 2 else '' }}"
@@ -340,7 +384,18 @@
                      name="label"
                      form="add-payout-form"
                      placeholder="e.g. 15th"
+                     aria-label="Label"
                      required>
+            </td>
+            <td class="num" data-label="Payout day">
+              <input class="field field-mono w-16"
+                     type="number"
+                     min="1"
+                     max="31"
+                     name="payout_day"
+                     form="add-payout-form"
+                     placeholder="Day"
+                     aria-label="Payout day">
             </td>
             <td class="num" data-label="Income">
               <div class="flex items-center justify-end gap-1">
@@ -350,11 +405,15 @@
                        step="0.01"
                        name="income_amount"
                        form="add-payout-form"
-                       placeholder="Income">
+                       placeholder="Income"
+                       aria-label="Income">
               </div>
             </td>
             <td class="text-right" data-label="Receiving channel">
-              <select class="field" name="receiving_channel_id" form="add-payout-form">
+              <select class="field"
+                      name="receiving_channel_id"
+                      form="add-payout-form"
+                      aria-label="Receiving channel">
                 <option value="">No channel</option>
                 {% for channel in channels %}
                   <option value="{{ channel.id }}"
@@ -386,6 +445,7 @@
              name="q"
              value="{{ q }}"
              placeholder="Filter by name&hellip;"
+             aria-label="Filter expenses by name"
              hx-preserve
              hx-get="/expenses"
              hx-trigger="keyup changed delay:300ms, search"
@@ -403,6 +463,8 @@
           <col class="min-w-28">
           <col class="w-24">
           <col class="w-40">
+          <col class="w-16">
+          <col class="w-16">
           <col class="w-24">
           <col class="w-36">
         </colgroup>
@@ -411,6 +473,8 @@
             <th>Name</th>
             <th>Payout</th>
             <th>Channel</th>
+            <th>Due</th>
+            <th>Paid</th>
             <th class="text-right">Amount</th>
             <th></th>
           </tr>
@@ -418,11 +482,32 @@
         <tbody>
           {% for expense in expenses %}
             <tr>
-              <td class="led-inline led-inline-2" data-label="Name">{{ expense.name }}</td>
+              <td class="led-inline led-inline-2" data-label="Name">
+                {{ expense.name }}
+                {% if not expense.active %}<span class="pill pill-gold">Paused</span>{% endif %}
+              </td>
               <td class="led-inline led-inline-2" data-label="Payout">{{ expense.payout_period.label }}</td>
               <td class="led-inline led-inline-2" data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+              <td class="led-inline led-inline-2" data-label="Due">{{ expense.due_day or "—" }}</td>
+              <td class="led-inline led-inline-2" data-label="Paid">
+                <input type="checkbox"
+                       aria-label="Paid"
+                       hx-patch="/expenses/{{ expense.id }}/paid"
+                       hx-target="#expenses-page"
+                       hx-swap="outerHTML"
+                       hx-trigger="change"
+                       name="paid"
+                       {{ "checked" if expense.paid else "" }}>
+              </td>
               <td class="num led-inline led-inline-2" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               <td class="led-actions">
+                <button class="icon-btn"
+                        title="{{ 'Pause' if expense.active else 'Resume' }}"
+                        aria-label="{{ 'Pause' if expense.active else 'Resume' }}"
+                        hx-patch="/expenses/{{ expense.id }}/active"
+                        hx-vals='{"active": "{{ "false" if expense.active else "true" }}"}'
+                        hx-target="#expenses-page"
+                        hx-swap="outerHTML">{{ macros.icon_pause() if expense.active else macros.icon_play() }}</button>
                 <button class="icon-btn"
                         title="Delete"
                         aria-label="Delete"
@@ -433,10 +518,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(5, 'expenses') }}
+            {{ macros.empty_row(7, 'expenses') }}
           {% endfor %}
           <tr class="tr-add-btn">
-            <td colspan="5">
+            <td colspan="7">
               <button type="button"
                       id="add-expense-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 3 else '' }}"
@@ -453,12 +538,14 @@
                      name="name"
                      form="add-expense-form"
                      placeholder="Expense name"
+                     aria-label="Expense name"
                      required>
             </td>
             <td class="led-inline led-inline-2" data-label="Payout">
               <select class="field"
                       name="payout_period_id"
                       form="add-expense-form"
+                      aria-label="Payout period"
                       required>
                 {% for period in payout_periods %}
                   <option value="{{ period.id }}"
@@ -469,7 +556,11 @@
               </select>
             </td>
             <td class="led-inline led-inline-2" data-label="Channel">
-              <select class="field" name="channel_id" form="add-expense-form" required>
+              <select class="field"
+                      name="channel_id"
+                      form="add-expense-form"
+                      aria-label="Channel"
+                      required>
                 {% for channel in channels %}
                   <option value="{{ channel.id }}"
                           {{ "selected" if onboarding_step == 3 and channel.id == onboarding_default_expense_channel_id else "" }}>
@@ -478,6 +569,17 @@
                 {% endfor %}
               </select>
             </td>
+            <td class="led-inline led-inline-2" data-label="Due">
+              <input class="field field-mono w-16"
+                     type="number"
+                     min="1"
+                     max="31"
+                     name="due_day"
+                     form="add-expense-form"
+                     placeholder="Day"
+                     aria-label="Due day">
+            </td>
+            <td class="led-inline led-inline-2" data-label="Paid"></td>
             <td class="num led-inline led-inline-2" data-label="Amount">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
@@ -487,6 +589,7 @@
                        name="amount"
                        form="add-expense-form"
                        placeholder="Amount"
+                       aria-label="Amount"
                        required>
               </div>
             </td>

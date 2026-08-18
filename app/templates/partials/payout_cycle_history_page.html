@@ -1,0 +1,88 @@
+{% import "macros.html" as macros with context %}
+<div id="payout-cycle-history-page">
+  <div class="page-head">
+    <div>
+      <div class="page-title">{{ period.label }} &mdash; cycle history</div>
+      <div class="page-sub">
+        <a href="/expenses" class="text-ink-soft hover:text-ink">&larr; Back to Expenses</a>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">
+      Cycles
+      <span class="pill">{{ cycles|length }} closed</span>
+    </div>
+    <div class="cycle-rail">
+      <a href="/payout-periods/{{ period.id }}/cycles"
+         hx-get="/payout-periods/{{ period.id }}/cycles"
+         hx-target="#payout-cycle-history-page"
+         hx-swap="outerHTML"
+         hx-push-url="true"
+         class="cycle-chip{{ ' cycle-chip-active' if selected_cycle is none else '' }}">Live template</a>
+      {% for cycle in cycles %}
+        <a href="/payout-periods/{{ period.id }}/cycles?cycle_id={{ cycle.id }}"
+           hx-get="/payout-periods/{{ period.id }}/cycles?cycle_id={{ cycle.id }}"
+           hx-target="#payout-cycle-history-page"
+           hx-swap="outerHTML"
+           hx-push-url="true"
+           class="cycle-chip{{ ' cycle-chip-active' if selected_cycle and selected_cycle.id == cycle.id else '' }}">
+          {{ cycle.closed_at.strftime("%b %d, %Y") }}
+        </a>
+      {% endfor %}
+    </div>
+    {% if not cycles %}
+      <p class="text-sm text-ink-soft mt-3">
+        No cycles closed yet &mdash; closing one locks today's balances as a dated record you can look back on later, without changing the live template below.
+      </p>
+    {% endif %}
+  </div>
+  <div class="section">
+    <div class="section-title">
+      {% if selected_cycle %}
+        {{ selected_cycle.closed_at.strftime("%B %d, %Y") }}
+        <span class="pill pill-gold">Snapshot &middot; locked</span>
+      {% else %}
+        Live template
+        <span class="pill">Editable</span>
+      {% endif %}
+    </div>
+    <div class="table-wrap">
+      <table class="led">
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th class="text-right">Income</th>
+            <th class="text-right">Transfers</th>
+            <th class="text-right">Expenses</th>
+            <th class="text-right">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for balance in balances %}
+            <tr>
+              <td>
+                {{ macros.badge_from_name(balance.channel_name, balance.channel_color) }}
+                {{ balance.channel_name }}
+              </td>
+              <td class="num">{{ macros.peso(balance.income) }}</td>
+              <td class="num">{{ macros.peso(balance.transfers_net) }}</td>
+              <td class="num">{{ macros.peso(balance.expenses_total) }}</td>
+              <td class="num{{ ' card-value-neg' if balance.net < 0 else '' }}">{{ macros.peso(balance.net) }}</td>
+            </tr>
+          {% else %}
+            {{ macros.empty_row(5, 'channel activity') }}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not selected_cycle %}
+      <form hx-post="/payout-periods/{{ period.id }}/cycles"
+            hx-target="#payout-cycle-history-page"
+            hx-swap="outerHTML"
+            hx-confirm="Close this cycle? This locks today's balances as a dated record for {{ period.label }} — it won't change the live template.">
+        <button type="submit" class="add-btn mt-3">Close this cycle</button>
+      </form>
+    {% endif %}
+  </div>
+</div>

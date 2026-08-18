@@ -7,15 +7,18 @@
     </div>
   </div>
   <div class="flex flex-wrap gap-4 mb-5">
-    <div class="card flex-1 min-w-[10rem]">
+    <div class="card flex-1 min-w-[10rem]"
+         title="Sum of everything on the Assets page — doesn't include money sitting in your channels/accounts.">
       <div class="card-label">Total assets</div>
       <div class="card-value">{{ macros.peso(total_assets) }}</div>
     </div>
-    <div class="card flex-1 min-w-[10rem]">
+    <div class="card flex-1 min-w-[10rem]"
+         title="Sum of what's currently used on your Credit lines — doesn't include Goals or upcoming Expenses.">
       <div class="card-label">Total liabilities</div>
       <div class="card-value">{{ macros.peso(total_liabilities) }}</div>
     </div>
-    <div class="card flex-1 min-w-[10rem]">
+    <div class="card flex-1 min-w-[10rem]"
+         title="Total assets minus total liabilities, as defined above.">
       <div class="card-label">Net worth</div>
       <div class="card-value {{ 'card-value-neg' if net_worth < 0 else '' }}">{{ macros.peso(net_worth) }}</div>
     </div>
@@ -55,12 +58,14 @@
           <colgroup>
             <col class="min-w-28">
             <col class="w-40">
+            <col class="w-16">
             <col class="w-32">
           </colgroup>
           <thead>
             <tr>
               <th>Expense</th>
               <th>Channel</th>
+              <th>Due</th>
               <th>Amount</th>
             </tr>
           </thead>
@@ -69,16 +74,17 @@
               <tr>
                 <td data-label="Expense">{{ expense.name }}</td>
                 <td data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+                <td data-label="Due">{{ expense.due_day or "—" }}</td>
                 <td class="num" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
               </tr>
             {% else %}
-              {{ macros.empty_row(3, 'expenses due this period') }}
+              {{ macros.empty_row(4, 'expenses due this period') }}
             {% endfor %}
           </tbody>
           {% if upcoming_expenses %}
             <tfoot>
               <tr>
-                <td colspan="2" class="text-ink-soft">Total</td>
+                <td colspan="3" class="text-ink-soft">Total</td>
                 <td class="num">{{ macros.peso(upcoming_expenses_total) }}</td>
               </tr>
             </tfoot>

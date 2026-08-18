@@ -1,14 +1,18 @@
+import calendar
 import json
+import logging
 import math
 import secrets
 import zoneinfo
-from datetime import UTC, datetime
-from typing import Any
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, Literal, NamedTuple
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+
+logger = logging.getLogger("app.oauth")
 
 # --- Channels ---------------------------------------------------------------
 
@@ -63,6 +67,10 @@ class ChannelInUseError(Exception):
     """Raised when deleting a channel that is still referenced elsewhere."""
 
 
+class PayoutPeriodInUseError(Exception):
+    """Raised when deleting a payout period that is still referenced elsewhere."""
+
+
 class OwnershipError(Exception):
     """Raised when a referenced row doesn't belong to the acting user."""
 
@@ -76,6 +84,16 @@ def _require_owned(
 ) -> None:
     if id_ is not None and _owned(db, model, id_, user_id) is None:
         raise OwnershipError(f"{label} not found.")
+
+
+def _delete_owned(db: Session, model: type[Any], id_: int, user_id: int | None) -> None:
+    """Delete-if-owned for entities with no extra cleanup/validation on
+    delete (contrast delete_channel/delete_payout_period's in-use checks or
+    delete_goal's child cleanup, which stay bespoke)."""
+    row = _owned(db, model, id_, user_id)
+    if row is not None:
+        db.delete(row)
+        db.commit()
 
 
 # --- Users --------------------------------------------------------------------
@@ -117,11 +135,14 @@ def get_user(db: Session, user_id: int) -> models.User | None:
 
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
-    return db.scalar(select(models.User).where(models.User.email == email))
+    # Case-insensitive: an OAuth provider's verified email casing isn't
+    # guaranteed to match how the user (or an operator via manage_users.py)
+    # originally typed it -- see issue #71.
+    return db.scalar(select(models.User).where(models.User.email == email.strip().lower()))
 
 
 def create_user(db: Session, email: str) -> models.User:
-    user = models.User(email=email)
+    user = models.User(email=email.strip().lower())
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -149,6 +170,55 @@ def create_oauth_identity(
     db.commit()
     db.refresh(identity)
     return identity
+
+
+OAuthLoginError = Literal["already_has_account", "no_account", "invalid_key"]
+
+
+class OAuthLoginResult(NamedTuple):
+    user: models.User | None
+    error: OAuthLoginError | None
+
+
+def resolve_oauth_login(
+    db: Session,
+    provider: str,
+    provider_user_id: str,
+    email: str,
+    pending_invite_key: str,
+    pending_intent: str,
+) -> OAuthLoginResult:
+    """The account-linking decision tree for an OAuth callback: identity
+    lookup -> email match -> auto-link -> invite-key validation -> account
+    creation. Pulled out of app/routers/oauth.py (see issue #82) so the
+    router can stay thin (parse -> call -> respond) like every other router
+    in this app -- this was the one place business logic lived directly in
+    a route handler."""
+    identity = get_oauth_identity(db, provider, provider_user_id)
+    if identity is not None:
+        if pending_intent == "signup":
+            return OAuthLoginResult(user=None, error="already_has_account")
+        return OAuthLoginResult(user=identity.user, error=None)
+
+    existing_user = get_user_by_email(db, email)
+    if existing_user is not None:
+        if pending_intent == "signup":
+            return OAuthLoginResult(user=None, error="already_has_account")
+        create_oauth_identity(db, existing_user, provider, provider_user_id, email)
+        return OAuthLoginResult(user=existing_user, error=None)
+
+    if not pending_invite_key:
+        return OAuthLoginResult(user=None, error="no_account")
+
+    signup_key = get_active_signup_key(db, pending_invite_key)
+    if signup_key is None:
+        return OAuthLoginResult(user=None, error="invalid_key")
+
+    user = create_user(db, email)
+    redeem_signup_key(db, signup_key)
+    logger.info("New account created via signup key: %r", email)
+    create_oauth_identity(db, user, provider, provider_user_id, email)
+    return OAuthLoginResult(user=user, error=None)
 
 
 def update_profile(
@@ -217,6 +287,39 @@ def needs_onboarding(db: Session, user: models.User) -> bool:
     if not list_payout_periods(db, user.id):
         return True
     return not _has_any_expenses(db, user.id)
+
+
+def _has_any_transfers(db: Session, user_id: int) -> bool:
+    stmt = select(models.Transfer.id).where(models.Transfer.user_id == user_id).limit(1)
+    return db.scalar(stmt) is not None
+
+
+def needs_nudge(db: Session, user_id: int, section: str, is_empty: bool) -> bool:
+    """Whether the first-visit nudge banner for `section` (one of "cashflow",
+    "goals", "credit", "assets" -- see issue #138) should show. Only while
+    the section is still empty *and* hasn't been explicitly dismissed --
+    auto-clears the moment either flips, same "auto-completes on real data"
+    spirit as the Channels/PayoutPeriods/Expenses flow above, just
+    per-section instead of a single global timestamp."""
+    if not is_empty:
+        return False
+    stmt = (
+        select(models.OnboardingNudge.id)
+        .where(models.OnboardingNudge.user_id == user_id, models.OnboardingNudge.section == section)
+        .limit(1)
+    )
+    return db.scalar(stmt) is None
+
+
+def dismiss_nudge(db: Session, user_id: int, section: str) -> None:
+    existing = db.scalar(
+        select(models.OnboardingNudge).where(
+            models.OnboardingNudge.user_id == user_id, models.OnboardingNudge.section == section
+        )
+    )
+    if existing is None:
+        db.add(models.OnboardingNudge(user_id=user_id, section=section))
+        db.commit()
 
 
 def skip_onboarding(db: Session, user: models.User) -> None:
@@ -398,12 +501,15 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
         or db.query(models.GoalContribution)
         .filter_by(channel_id=channel_id, user_id=user_id)
         .first()
+        or db.query(models.Goal).filter_by(channel_id=channel_id, user_id=user_id).first()
+        or db.query(models.CreditLine).filter_by(channel_id=channel_id, user_id=user_id).first()
+        or db.query(models.Asset).filter_by(channel_id=channel_id, user_id=user_id).first()
     )
     if in_use is not None:
         raise ChannelInUseError(
             "This channel is still used by a payout period, expense, transfer, "
-            "or goal contribution, and can't be deleted until those are removed "
-            "or reassigned."
+            "goal contribution, goal, credit line, or asset, and can't be "
+            "deleted until those are removed or reassigned."
         )
 
     db.query(models.ChannelPlacement).filter_by(channel_id=channel_id, user_id=user_id).delete()
@@ -436,6 +542,7 @@ def create_payout_period(
         label=data.label,
         income_amount=data.income_amount,
         receiving_channel_id=data.receiving_channel_id,
+        payout_day=data.payout_day,
         display_order=(max_order or 0) + 1,
         user_id=user_id,
     )
@@ -453,6 +560,7 @@ def update_payout_period(
     if period is not None:
         period.income_amount = data.income_amount
         period.receiving_channel_id = data.receiving_channel_id
+        period.payout_day = data.payout_day
         db.commit()
         db.refresh(period)
     return period
@@ -460,9 +568,35 @@ def update_payout_period(
 
 def delete_payout_period(db: Session, payout_period_id: int, user_id: int) -> None:
     period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
-    if period is not None:
-        db.delete(period)
-        db.commit()
+    if period is None:
+        return
+
+    in_use = (
+        db.query(models.Expense)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.Transfer)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.GoalContribution)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.ChannelPlacement)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+        or db.query(models.GoalPlacement)
+        .filter_by(payout_period_id=payout_period_id, user_id=user_id)
+        .first()
+    )
+    if in_use is not None:
+        raise PayoutPeriodInUseError(
+            "This payout period is still used by an expense, transfer, goal "
+            "contribution, or canvas placement, and can't be deleted until "
+            "those are removed or reassigned."
+        )
+
+    db.delete(period)
+    db.commit()
 
 
 # --- Expenses -----------------------------------------------------------------
@@ -495,10 +629,27 @@ def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int | None
 
 
 def delete_expense(db: Session, expense_id: int, user_id: int) -> None:
+    _delete_owned(db, models.Expense, expense_id, user_id)
+
+
+def set_expense_paid(db: Session, expense_id: int, user_id: int, paid: bool) -> None:
+    """A simple manual paid/unpaid marker -- see Expense.paid's docstring
+    for why this doesn't auto-reset per cycle (issue #85)."""
     expense = _owned(db, models.Expense, expense_id, user_id)
-    if expense is not None:
-        db.delete(expense)
-        db.commit()
+    if expense is None:
+        raise OwnershipError("Expense not found.")
+    expense.paid = paid
+    db.commit()
+
+
+def set_expense_active(db: Session, expense_id: int, user_id: int, active: bool) -> None:
+    """Pause/resume a recurring expense without deleting it -- see
+    Expense.active's docstring (issue #86)."""
+    expense = _owned(db, models.Expense, expense_id, user_id)
+    if expense is None:
+        raise OwnershipError("Expense not found.")
+    expense.active = active
+    db.commit()
 
 
 # --- Transfers ------------------------------------------------------------------
@@ -548,10 +699,7 @@ def update_transfer(
 
 
 def delete_transfer(db: Session, transfer_id: int, user_id: int) -> None:
-    transfer = _owned(db, models.Transfer, transfer_id, user_id)
-    if transfer is not None:
-        db.delete(transfer)
-        db.commit()
+    _delete_owned(db, models.Transfer, transfer_id, user_id)
 
 
 # --- Goal contributions -------------------------------------------------------
@@ -878,50 +1026,77 @@ def preview_canvas(
 # --- Channel balances -----------------------------------------------------------
 
 
+def _all_channel_balances(
+    db: Session, user_id: int
+) -> tuple[dict[int, dict[int, float]], dict[int, list[tuple[models.Channel, float]]]]:
+    """Every payout period's carry-in and channel balances, computed once per
+    request in a single display_order pass -- each period's ending balances
+    become the next period's carry-in, fed forward directly, rather than each
+    period independently re-deriving every prior period's full balance
+    calculation (which was exponential: computing period k re-triggered a
+    fresh computation of periods 0..k-1, each of which re-triggered periods
+    0..k-2, and so on). This is the O(n) replacement; callers that need one
+    period's data should index into the returned dicts rather than calling
+    this per period in a loop."""
+    channels = list_channels(db, user_id)
+    periods = list_payout_periods(db, user_id)
+    # Paused expenses (Expense.active=False) are excluded here -- see #86 --
+    # so they don't count toward the period's balance without needing to
+    # touch the row's identity (still shown, unfiltered, on the Expenses
+    # page itself via list_expenses()).
+    all_expenses = [e for e in list_expenses(db, user_id) if e.active]
+
+    carry_in_by_period: dict[int, dict[int, float]] = {}
+    balances_by_period: dict[int, list[tuple[models.Channel, float]]] = {}
+    carry: dict[int, float] = {}
+    for period in periods:
+        carry_in_by_period[period.id] = carry
+        expenses = [e for e in all_expenses if e.payout_period_id == period.id]
+        transfers = list_transfers(db, period.id, user_id)
+        goal_contributions = list_goal_contributions(db, period.id, user_id)
+
+        balances: list[tuple[models.Channel, float]] = []
+        for channel in channels:
+            net = carry.get(channel.id, 0.0)
+            if period.receiving_channel_id == channel.id:
+                net += float(period.income_amount)
+            net += sum(float(t.amount) for t in transfers if t.to_channel_id == channel.id)
+            net -= sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
+            net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+            net -= sum(float(gc.amount) for gc in goal_contributions if gc.channel_id == channel.id)
+            balances.append((channel, net))
+        balances_by_period[period.id] = balances
+        carry = {c.id: net for c, net in balances}
+
+    return carry_in_by_period, balances_by_period
+
+
 def _carry_in_for_period(db: Session, payout_period_id: int, user_id: int) -> dict[int, float]:
     """Each channel's ending balance from the payout period before this one (in
-    display_order), so a month's leftover cash chains forward period to period."""
-    carry: dict[int, float] = {}
-    for period in list_payout_periods(db, user_id):
-        if period.id == payout_period_id:
-            break
-        carry = {c.id: net for c, net in channel_balances(db, period.id, user_id)}
-    return carry
+    display_order), so a month's leftover cash chains forward period to period.
+    Single-period convenience wrapper around `_all_channel_balances` -- don't
+    call this in a per-period loop, call `_all_channel_balances` once instead."""
+    carry_in_by_period, _ = _all_channel_balances(db, user_id)
+    return carry_in_by_period.get(payout_period_id, {})
 
 
 def channel_balances(
     db: Session, payout_period_id: int, user_id: int
 ) -> list[tuple[models.Channel, float]]:
-    carry_in = _carry_in_for_period(db, payout_period_id, user_id)
-    payout_period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
-    channels = list_channels(db, user_id)
-    expenses = [e for e in list_expenses(db, user_id) if e.payout_period_id == payout_period_id]
-    transfers = list_transfers(db, payout_period_id, user_id)
-    goal_contributions = list_goal_contributions(db, payout_period_id, user_id)
-
-    balances = []
-    for channel in channels:
-        net = carry_in.get(channel.id, 0.0)
-        if payout_period is not None and payout_period.receiving_channel_id == channel.id:
-            net += float(payout_period.income_amount)
-        net += sum(float(t.amount) for t in transfers if t.to_channel_id == channel.id)
-        net -= sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
-        net -= sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
-        net -= sum(float(gc.amount) for gc in goal_contributions if gc.channel_id == channel.id)
-        balances.append((channel, net))
-    return balances
+    """Single-period convenience wrapper around `_all_channel_balances` -- don't
+    call this in a per-period loop (each call recomputes every period), call
+    `_all_channel_balances` once instead and index into its result."""
+    _, balances_by_period = _all_channel_balances(db, user_id)
+    return balances_by_period.get(payout_period_id, [])
 
 
-def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
-    unfunded_channels = [
-        c.name for c, net in channel_balances(db, payout_period_id, user_id) if net < 0
-    ]
-
-    goals = list_goals(db, user_id)
-    payout_period_count = len(list_payout_periods(db, user_id))
-    contributed = {
-        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
-    }
+def _cashflow_warnings_from_balances(
+    balances: list[tuple[models.Channel, float]],
+    goals: list[models.Goal],
+    payout_period_count: int,
+    contributed: dict[int, float],
+) -> dict[str, list[str]]:
+    unfunded_channels = [c.name for c, net in balances if net < 0]
     underfunded_goals = [
         g.name
         for g in goals
@@ -930,13 +1105,166 @@ def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[
     return {"unfunded_channels": unfunded_channels, "underfunded_goals": underfunded_goals}
 
 
+def cashflow_warnings(db: Session, payout_period_id: int, user_id: int) -> dict[str, list[str]]:
+    balances = channel_balances(db, payout_period_id, user_id)
+    goals = list_goals(db, user_id)
+    payout_period_count = len(list_payout_periods(db, user_id))
+    contributed = {
+        c.goal_id: float(c.amount) for c in list_goal_contributions(db, payout_period_id, user_id)
+    }
+    return _cashflow_warnings_from_balances(balances, goals, payout_period_count, contributed)
+
+
 def overview_warnings(db: Session, user_id: int) -> list[dict]:
+    periods = list_payout_periods(db, user_id)
+    _, balances_by_period = _all_channel_balances(db, user_id)
+    goals = list_goals(db, user_id)
+    payout_period_count = len(periods)
+
     entries = []
-    for period in list_payout_periods(db, user_id):
-        warnings = cashflow_warnings(db, period.id, user_id)
+    for period in periods:
+        contributed = {
+            c.goal_id: float(c.amount) for c in list_goal_contributions(db, period.id, user_id)
+        }
+        warnings = _cashflow_warnings_from_balances(
+            balances_by_period.get(period.id, []), goals, payout_period_count, contributed
+        )
         if warnings["unfunded_channels"] or warnings["underfunded_goals"]:
             entries.append({"period": period, "warnings": warnings})
     return entries
+
+
+# --- Payout cycles ----------------------------------------------------------
+
+
+def list_payout_cycles(
+    db: Session, payout_period_id: int, user_id: int
+) -> list[models.PayoutCycle]:
+    stmt = (
+        select(models.PayoutCycle)
+        .where(
+            models.PayoutCycle.payout_period_id == payout_period_id,
+            models.PayoutCycle.user_id == user_id,
+        )
+        .order_by(models.PayoutCycle.closed_at.desc())
+    )
+    return list(db.scalars(stmt))
+
+
+def list_payout_cycle_balances(
+    db: Session, payout_cycle_id: int
+) -> list[models.PayoutCycleBalance]:
+    stmt = (
+        select(models.PayoutCycleBalance)
+        .where(models.PayoutCycleBalance.payout_cycle_id == payout_cycle_id)
+        .order_by(models.PayoutCycleBalance.id)
+    )
+    return list(db.scalars(stmt))
+
+
+def _live_cycle_balances(
+    db: Session, period: models.PayoutPeriod, user_id: int
+) -> list[models.PayoutCycleBalance]:
+    """The live template's current per-channel breakdown, in the exact shape
+    a closed PayoutCycle's balances would be -- shared by close_payout_cycle
+    (persisted) and the "viewing the live template" case in
+    payout_cycle_history_page_data (transient, never db.add()ed, just reused
+    for the template to render both cases identically). `net` includes
+    carry-in from prior periods (the real running balance, same as
+    channel_balances() everywhere else in the app); income/transfers_net/
+    expenses_total describe only this period's own activity, and generally
+    won't sum to `net` on their own -- see PayoutCycleBalance's docstring."""
+    channels = list_channels(db, user_id)
+    transfers = list_transfers(db, period.id, user_id)
+    expenses = [
+        e for e in list_expenses(db, user_id) if e.payout_period_id == period.id and e.active
+    ]
+    net_by_channel_id = {c.id: net for c, net in channel_balances(db, period.id, user_id)}
+
+    balances = []
+    for channel in channels:
+        income = float(period.income_amount) if period.receiving_channel_id == channel.id else 0.0
+        transfers_net = sum(
+            float(t.amount) for t in transfers if t.to_channel_id == channel.id
+        ) - sum(float(t.amount) for t in transfers if t.from_channel_id == channel.id)
+        expenses_total = sum(float(e.amount) for e in expenses if e.channel_id == channel.id)
+        net = net_by_channel_id.get(channel.id, 0.0)
+        if income == 0 and transfers_net == 0 and expenses_total == 0 and net == 0:
+            continue  # skip channels with no activity this cycle
+        balances.append(
+            models.PayoutCycleBalance(
+                channel_name=channel.name,
+                channel_color=channel.color,
+                income=income,
+                transfers_net=transfers_net,
+                expenses_total=expenses_total,
+                net=net,
+            )
+        )
+    return balances
+
+
+def close_payout_cycle(db: Session, payout_period_id: int, user_id: int) -> models.PayoutCycle:
+    """Snapshot the given payout period's current channel balances into a
+    new dated PayoutCycle -- explicit, user-triggered only (no auto-snapshot
+    on some inferred date, since PayoutPeriod has no real calendar anchor).
+    The live template (period, its transfers, its expenses) is left
+    completely untouched -- closing a cycle is purely additive, so there's
+    no data-loss risk and no "did I already close this month" bookkeeping
+    to get wrong. See issue #84."""
+    period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
+    if period is None:
+        raise OwnershipError("Payout period not found.")
+
+    live_balances = _live_cycle_balances(db, period, user_id)
+
+    cycle = models.PayoutCycle(
+        user_id=user_id,
+        payout_period_id=payout_period_id,
+        label=period.label,
+        income_amount=period.income_amount,
+        receiving_channel_name=(
+            period.receiving_channel.name if period.receiving_channel else None
+        ),
+    )
+    db.add(cycle)
+    db.flush()  # assigns cycle.id, needed for the balance rows below
+
+    for balance in live_balances:
+        balance.payout_cycle_id = cycle.id
+        db.add(balance)
+
+    db.commit()
+    db.refresh(cycle)
+    return cycle
+
+
+def payout_cycle_history_page_data(
+    db: Session, payout_period_id: int, user_id: int, cycle_id: int | None
+) -> dict:
+    period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
+    if period is None:
+        raise OwnershipError("Payout period not found.")
+
+    cycles = list_payout_cycles(db, payout_period_id, user_id)
+    selected_cycle = None
+    if cycle_id is not None:
+        selected_cycle = next((c for c in cycles if c.id == cycle_id), None)
+        if selected_cycle is None:
+            raise OwnershipError("Cycle not found.")
+
+    balances = (
+        list_payout_cycle_balances(db, selected_cycle.id)
+        if selected_cycle is not None
+        else _live_cycle_balances(db, period, user_id)
+    )
+
+    return {
+        "period": period,
+        "cycles": cycles,
+        "selected_cycle": selected_cycle,
+        "balances": balances,
+    }
 
 
 # --- Assets ---------------------------------------------------------------
@@ -971,10 +1299,7 @@ def update_asset(
 
 
 def delete_asset(db: Session, asset_id: int, user_id: int) -> None:
-    asset = _owned(db, models.Asset, asset_id, user_id)
-    if asset is not None:
-        db.delete(asset)
-        db.commit()
+    _delete_owned(db, models.Asset, asset_id, user_id)
 
 
 def assets_page_data(db: Session, user_id: int) -> dict:
@@ -983,6 +1308,7 @@ def assets_page_data(db: Session, user_id: int) -> dict:
         "assets": assets,
         "total_assets": sum(float(a.amount) for a in assets),
         "channels": list_channels(db, user_id),
+        "show_nudge": needs_nudge(db, user_id, "assets", is_empty=not assets),
     }
 
 
@@ -1104,6 +1430,7 @@ def goals_page_data(db: Session, user_id: int) -> dict:
             for g in goals
         ],
         "channels": list_channels(db, user_id),
+        "show_nudge": needs_nudge(db, user_id, "goals", is_empty=not goals),
     }
 
 
@@ -1146,10 +1473,7 @@ def update_credit_line(
 
 
 def delete_credit_line(db: Session, credit_line_id: int, user_id: int) -> None:
-    credit_line = _owned(db, models.CreditLine, credit_line_id, user_id)
-    if credit_line is not None:
-        db.delete(credit_line)
-        db.commit()
+    _delete_owned(db, models.CreditLine, credit_line_id, user_id)
 
 
 def credit_utilization(credit_line: models.CreditLine) -> dict:
@@ -1163,6 +1487,7 @@ def credit_page_data(db: Session, user_id: int) -> dict:
     return {
         "credit_lines": [{"line": c, **credit_utilization(c)} for c in lines],
         "channels": list_channels(db, user_id),
+        "show_nudge": needs_nudge(db, user_id, "credit", is_empty=not lines),
     }
 
 
@@ -1185,7 +1510,14 @@ def overview_page_data(db: Session, user_id: int) -> dict:
     total_liabilities = sum(float(c.used) for c in credit_lines)
     period = next_payout_period(db, user_id)
     upcoming_expenses = (
-        [e for e in list_expenses(db, user_id) if e.payout_period_id == period.id]
+        sorted(
+            (
+                e
+                for e in list_expenses(db, user_id)
+                if e.payout_period_id == period.id and e.active and not e.paid
+            ),
+            key=lambda e: (e.due_day is None, e.due_day),
+        )
         if period is not None
         else []
     )
@@ -1207,6 +1539,58 @@ def channel_presets_by_group() -> dict[str, list[dict[str, str]]]:
     for preset in CHANNEL_PRESETS:
         groups.setdefault(preset["group"], []).append(preset)
     return groups
+
+
+def _most_recent_monthly_occurrence(day: int, today: date) -> date:
+    """The most recent calendar date <= today whose day-of-month is `day`,
+    clamped to the last day of a shorter month (e.g. day=31 in April -> 30)."""
+    year, month = today.year, today.month
+    clamped = min(day, calendar.monthrange(year, month)[1])
+    candidate = date(year, month, clamped)
+    if candidate <= today:
+        return candidate
+    month -= 1
+    if month == 0:
+        month, year = 12, year - 1
+    clamped = min(day, calendar.monthrange(year, month)[1])
+    return date(year, month, clamped)
+
+
+def overdue_payout_period_ids(
+    db: Session, user_id: int, payout_periods: list[models.PayoutPeriod]
+) -> set[int]:
+    """Periods whose payout_day has passed this month with no PayoutCycle
+    closed since -- a UI hint only (see #134), not enforcement. Closing a
+    cycle clears the hint until next month's payday passes again. Periods
+    with no payout_day set never show it -- that field is optional."""
+    candidates = [p for p in payout_periods if p.payout_day is not None]
+    if not candidates:
+        return set()
+
+    today = datetime.now(UTC).date()
+    # dict(Result.tuples()) is ambiguous -- Result exposes .keys(), which
+    # makes dict() try mapping-style construction (subscripting the Result
+    # itself) instead of treating it as an iterable of pairs. .all() first
+    # materializes a plain list of tuples, sidestepping that.
+    latest_closed_by_period: dict[int, datetime] = dict(
+        db.execute(
+            select(models.PayoutCycle.payout_period_id, func.max(models.PayoutCycle.closed_at))
+            .where(models.PayoutCycle.user_id == user_id)
+            .group_by(models.PayoutCycle.payout_period_id)
+        )
+        .tuples()
+        .all()
+    )
+
+    overdue = set()
+    for period in candidates:
+        assert period.payout_day is not None  # narrowed by the `candidates` filter above
+        occurrence = _most_recent_monthly_occurrence(period.payout_day, today)
+        latest_closed = latest_closed_by_period.get(period.id)
+        if latest_closed is not None and latest_closed.date() >= occurrence:
+            continue
+        overdue.add(period.id)
+    return overdue
 
 
 def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
@@ -1238,6 +1622,7 @@ def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
         "channel_types": CHANNEL_TYPES,
         "channel_preset_groups": channel_presets_by_group(),
         "payout_periods": payout_periods,
+        "overdue_payout_period_ids": overdue_payout_period_ids(db, user_id, payout_periods),
         "expenses": list_expenses(db, user_id, q),
         "q": q or "",
         "onboarding_step": onboarding_step,
@@ -1311,17 +1696,27 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     payout_periods = list_payout_periods(db, user_id)
     channels = list_channels(db, user_id)
     goals = list_goals(db, user_id)
-    all_expenses = list_expenses(db, user_id)
+    # Same exclusion as _all_channel_balances -- keeps the canvas's per-
+    # channel expense breakdown consistent with the balances it's shown
+    # alongside (a paused expense doesn't visually deduct here either).
+    all_expenses = [e for e in list_expenses(db, user_id) if e.active]
     payout_period_count = len(payout_periods)
     goal_entries: list[dict[str, Any]] = [
         {"goal": g, "per_payout": goal_payout_amount(g, payout_period_count)} for g in goals
     ]
+    # Computed once for the whole request (O(n) in the number of payout
+    # periods) rather than once per period -- see `_all_channel_balances`.
+    carry_in_by_period, balances_by_period = _all_channel_balances(db, user_id)
     payout_data = []
     for period in payout_periods:
         expenses = [e for e in all_expenses if e.payout_period_id == period.id]
         transfers = _order_transfers(channels, list_transfers(db, period.id, user_id))
         goal_contributions = list_goal_contributions(db, period.id, user_id)
-        balances = channel_balances(db, period.id, user_id)
+        balances = balances_by_period.get(period.id, [])
+        # Matches `cashflow_warnings`'s own (non-summing, last-write-wins)
+        # dict construction so the embedded "warnings" below stay identical
+        # to a direct `cashflow_warnings(db, period.id, user_id)` call.
+        contributed_for_warnings = {c.goal_id: float(c.amount) for c in goal_contributions}
         contributed_by_goal: dict[int, float] = {}
         for gc in goal_contributions:
             contributed_by_goal[gc.goal_id] = contributed_by_goal.get(gc.goal_id, 0.0) + float(
@@ -1374,8 +1769,10 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
                 "balances": balances,
                 "balance_by_channel": {c.id: net for c, net in balances},
                 "contributed_by_goal": contributed_by_goal,
-                "carry_in": _carry_in_for_period(db, period.id, user_id),
-                "warnings": cashflow_warnings(db, period.id, user_id),
+                "carry_in": carry_in_by_period.get(period.id, {}),
+                "warnings": _cashflow_warnings_from_balances(
+                    balances, goals, payout_period_count, contributed_for_warnings
+                ),
                 "expenses_by_channel": expenses_by_channel,
                 "position_by_channel": position_by_channel,
                 "position_by_goal": position_by_goal,
@@ -1389,4 +1786,182 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
         "channels": channels,
         "goals": goal_entries,
         "payout_data": payout_data,
+        # Page-level, not per-period -- Cash Flow shows one section per
+        # payout period, but the nudge is about the section/feature itself
+        # (Transfers), so "empty" means no transfers anywhere yet, not
+        # "this one period has none".
+        "show_nudge": needs_nudge(
+            db, user_id, "cashflow", is_empty=not _has_any_transfers(db, user_id)
+        ),
+    }
+
+
+# --- Admin --------------------------------------------------------------------
+# See issue #65. Gated by require_admin (app/auth.py), not a per-crud-call
+# check -- these functions operate across *all* users deliberately (an
+# admin's whole job here is cross-user visibility/hygiene), unlike every
+# other crud.py function which scopes to one user_id.
+
+# Same table set app/manage_users.py's assign-orphans CLI command handles --
+# it now imports this constant rather than keeping its own separate copy,
+# so the two can't drift apart.
+ORPHANABLE_MODELS: tuple[type[Any], ...] = (
+    models.Channel,
+    models.PayoutPeriod,
+    models.Expense,
+    models.Transfer,
+    models.Goal,
+    models.CreditLine,
+    models.Asset,
+    models.PayoutCycle,
+)
+
+
+def mask_email(email: str) -> str:
+    """Partially obscure an email for display in the admin dashboard --
+    keeps the first couple of local-part characters and the full domain
+    (still useful for an admin to recognize/distinguish accounts) but
+    replaces the rest of the local part with asterisks."""
+    local, _, domain = email.partition("@")
+    if not domain:
+        return "*" * len(email)
+    visible = local[:2]
+    return f"{visible}{'*' * max(1, len(local) - len(visible))}@{domain}"
+
+
+def list_users_for_admin(db: Session) -> list[dict[str, Any]]:
+    users = list(db.scalars(select(models.User).order_by(models.User.created_at.desc())))
+    rows = []
+    for user in users:
+        providers = sorted(
+            {
+                identity.provider
+                for identity in db.scalars(
+                    select(models.OAuthIdentity).where(models.OAuthIdentity.user_id == user.id)
+                )
+            }
+        )
+        channel_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(models.Channel)
+                .where(models.Channel.user_id == user.id)
+            )
+            or 0
+        )
+        expense_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(models.Expense)
+                .where(models.Expense.user_id == user.id)
+            )
+            or 0
+        )
+        rows.append(
+            {
+                "user": user,
+                "masked_email": mask_email(user.email),
+                "providers": providers,
+                "channel_count": channel_count,
+                "expense_count": expense_count,
+            }
+        )
+    return rows
+
+
+def delete_user_and_data(db: Session, user_id: int) -> None:
+    """Delete a user and every row they own, in FK-dependency order (children
+    before parents -- there's no ON DELETE CASCADE at the DB level, FKs
+    default to RESTRICT, so deleting parents first would fail). There was
+    previously no way to do this at all, CLI or otherwise -- see issue #65."""
+    cycle_ids = list(
+        db.scalars(select(models.PayoutCycle.id).where(models.PayoutCycle.user_id == user_id))
+    )
+    if cycle_ids:
+        db.query(models.PayoutCycleBalance).filter(
+            models.PayoutCycleBalance.payout_cycle_id.in_(cycle_ids)
+        ).delete(synchronize_session=False)
+    for model in (
+        models.GoalContribution,
+        models.ChannelPlacement,
+        models.GoalPlacement,
+        models.Transfer,
+        models.Expense,
+        models.PayoutCycle,
+        models.Goal,
+        models.CreditLine,
+        models.Asset,
+        models.PayoutPeriod,
+        models.Channel,
+        models.OAuthIdentity,
+    ):
+        db.query(model).filter_by(user_id=user_id).delete()
+    db.query(models.User).filter_by(id=user_id).delete()
+    db.commit()
+
+
+def list_signup_keys(db: Session) -> list[models.SignupKey]:
+    return list(db.scalars(select(models.SignupKey).order_by(models.SignupKey.created_at.desc())))
+
+
+def signup_key_status(key: models.SignupKey) -> Literal["active", "exhausted", "expired"]:
+    if key.use_count >= key.max_uses:
+        return "exhausted"
+    expires_at = key.expires_at
+    if expires_at is not None:
+        if expires_at.tzinfo is None:
+            # SQLite (used in tests) doesn't persist tzinfo on DateTime(timezone=True) columns.
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
+            return "expired"
+    return "active"
+
+
+def revoke_signup_key(db: Session, key_id: int) -> None:
+    db.query(models.SignupKey).filter_by(id=key_id).delete()
+    db.commit()
+
+
+def orphan_counts(db: Session) -> list[tuple[str, int]]:
+    return [
+        (
+            model.__tablename__,
+            db.scalar(select(func.count()).select_from(model).where(model.user_id.is_(None))) or 0,
+        )
+        for model in ORPHANABLE_MODELS
+    ]
+
+
+def assign_orphans_for_table(db: Session, table_name: str, target_user_id: int) -> int:
+    model = next((m for m in ORPHANABLE_MODELS if m.__tablename__ == table_name), None)
+    if model is None:
+        raise ValueError(f"Unknown orphanable table: {table_name!r}")
+    rows = db.scalars(select(model).where(model.user_id.is_(None))).all()
+    for row in rows:
+        row.user_id = target_user_id
+    db.commit()
+    return len(rows)
+
+
+def admin_page_data(db: Session) -> dict[str, Any]:
+    total_users = db.scalar(select(func.count()).select_from(models.User)) or 0
+    week_ago = datetime.now(UTC) - timedelta(days=7)
+    recent_signups = (
+        db.scalar(
+            select(func.count()).select_from(models.User).where(models.User.created_at >= week_ago)
+        )
+        or 0
+    )
+    signup_keys = list_signup_keys(db)
+    counts = orphan_counts(db)
+    return {
+        "users": list_users_for_admin(db),
+        "signup_keys": [(key, signup_key_status(key)) for key in signup_keys],
+        "orphan_counts": counts,
+        "stats": {
+            "total_users": total_users,
+            "recent_signups": recent_signups,
+            "active_keys": sum(1 for k in signup_keys if signup_key_status(k) == "active"),
+            "orphan_total": sum(count for _, count in counts),
+        },
     }

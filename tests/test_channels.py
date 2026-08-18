@@ -16,6 +16,21 @@ def test_create_channel_appears_on_page(client: TestClient) -> None:
     assert "BPI" in response.text
 
 
+def test_create_channel_rejects_whitespace_only_name(client: TestClient) -> None:
+    response = client.post("/channels", data={"name": "   ", "color": "#8a8a8a"})
+    assert response.status_code == 422
+
+
+def test_update_channel_rejects_whitespace_only_name(client: TestClient) -> None:
+    create = client.post("/channels", data={"name": "Maya", "color": "#0FA968"})
+    match = re.search(r'/channels/(\d+)"', create.text)
+    assert match is not None
+    channel_id = match.group(1)
+
+    response = client.patch(f"/channels/{channel_id}", data={"name": "   ", "color": "#0FA968"})
+    assert response.status_code == 422
+
+
 def test_update_channel_renames_it(client: TestClient) -> None:
     create = client.post("/channels", data={"name": "Maya", "color": "#0FA968"})
     assert "Maya" in create.text
@@ -57,6 +72,41 @@ def test_delete_channel_in_use_by_payout_period_is_rejected(client: TestClient) 
     client.post(
         "/payout-periods",
         data={"label": "15th", "income_amount": "1000", "receiving_channel_id": channel_id},
+    )
+
+    response = client.delete(f"/channels/{channel_id}")
+    assert response.status_code == 409
+    assert "still used" in response.json()["detail"]
+
+
+def test_delete_channel_in_use_by_goal_is_rejected(client: TestClient) -> None:
+    channel_id = _create_channel(client, "GCash")
+    client.post(
+        "/goals",
+        data={"name": "CAR DP", "target": "100000", "months": "6", "channel_id": channel_id},
+    )
+
+    response = client.delete(f"/channels/{channel_id}")
+    assert response.status_code == 409
+    assert "still used" in response.json()["detail"]
+
+
+def test_delete_channel_in_use_by_credit_line_is_rejected(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI Credit")
+    client.post(
+        "/credit",
+        data={"name": "BPI Card", "limit": "50000", "used": "0", "channel_id": channel_id},
+    )
+
+    response = client.delete(f"/channels/{channel_id}")
+    assert response.status_code == 409
+    assert "still used" in response.json()["detail"]
+
+
+def test_delete_channel_in_use_by_asset_is_rejected(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Time Deposit")
+    client.post(
+        "/assets", data={"name": "Emergency Fund", "amount": "10000", "channel_id": channel_id}
     )
 
     response = client.delete(f"/channels/{channel_id}")

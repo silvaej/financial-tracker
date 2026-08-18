@@ -13,6 +13,15 @@
           style="background: {{ channel.color }}">{{ initials }}</span>
   {% endif %}
 {% endmacro %}
+{% macro badge_from_name(name, color, size=18) %}
+  {# For contexts with only a denormalized channel name/color, not a real
+     Channel row (e.g. PayoutCycleBalance snapshots, #84) -- no logo/
+     badge_label to fall back through, just the initials treatment. #}
+  {% set words = name.split() %}
+  {% set initials = (words[0][0] ~ (words[1][0] if words|length > 1 else "")) | upper %}
+  <span class="badge {{ 'badge-md' if size >= 18 else 'badge-sm' }}"
+        style="background: {{ color }}">{{ initials }}</span>
+{% endmacro %}
 {% macro channel_name(channel, max_len=18) %}
   <span title="{{ channel.name }}">{{ channel.name|truncate(max_len, True, '…') }}</span>
 {% endmacro %}
@@ -40,6 +49,32 @@
 {% endmacro %}
 {% macro empty_state(label) %}
   <div class="text-center text-ink-soft text-sm py-6">No {{ label }} yet</div>
+{% endmacro %}
+{% macro nudge_banner(show, dismiss_url, target, title, copy) %}
+  {# First-visit nudge for Cash Flow/Goals/Credit/Assets -- see issue #138.
+     Independent per section (unlike the sequential 3-step Expenses banner),
+     so this is called once per page with that page's own dismiss route. #}
+  {% if show %}
+    <div class="nudge-banner">
+      <div class="nudge-icon">
+        <svg viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+        </svg>
+      </div>
+      <div class="nudge-copy">
+        <strong>{{ title }}</strong>
+        {{ copy }}
+      </div>
+      <button type="button"
+              class="nudge-dismiss"
+              hx-post="{{ dismiss_url }}"
+              hx-target="{{ target }}"
+              hx-swap="outerHTML">Got it</button>
+    </div>
+  {% endif %}
 {% endmacro %}
 {% macro peso(amount) -%}
   {{- '-' if amount < 0 else '' }}{{ currency_symbol }}{{ "{:,.2f}".format(amount|abs) }}
@@ -99,6 +134,33 @@
     <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
   </svg>
 {% endmacro %}
+{% macro icon_pause() %}
+  <svg class="w-4 h-4"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+  </svg>
+{% endmacro %}
+{% macro icon_play() %}
+  <svg class="w-4 h-4"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+  </svg>
+{% endmacro %}
+{% macro icon_history() %}
+  <svg class="w-3.5 h-3.5"
+       viewBox="0 0 24 24"
+       fill="none"
+       stroke="currentColor"
+       stroke-width="1.7">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+{% endmacro %}
 {% macro icon_check() %}
   <svg class="w-3.5 h-3.5"
        viewBox="0 0 24 24"
@@ -107,6 +169,12 @@
        stroke-width="2">
     <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
   </svg>
+{% endmacro %}
+{% macro brand_wordmark(size='md') %}
+  {# "beta" reads as a version marker (like a trademark tag), not a promotional
+     badge -- deliberately plain superscript text in the mono face rather than
+     a filled pill. See issue #131. #}
+  <div class="brand-wordmark brand-wordmark-{{ size }}">Vantage<span class="brand-wordmark-beta">beta</span></div>
 {% endmacro %}
 {% macro icon_google() %}
   <svg class="w-[18px] h-[18px]" viewBox="0 0 18 18">

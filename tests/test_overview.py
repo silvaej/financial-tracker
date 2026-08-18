@@ -56,6 +56,51 @@ def test_overview_upcoming_expenses_banner(client: TestClient) -> None:
     assert "2,500.50" in response.text
 
 
+def test_overview_upcoming_expenses_sorted_by_due_day(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Payroll")
+    period_id = _create_payout_period(client, "15th", "32000", channel_id)
+
+    client.post(
+        "/expenses",
+        data={
+            "name": "No due day",
+            "amount": "100",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    client.post(
+        "/expenses",
+        data={
+            "name": "Due later",
+            "amount": "200",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+            "due_day": "20",
+        },
+    )
+    client.post(
+        "/expenses",
+        data={
+            "name": "Due soonest",
+            "amount": "300",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+            "due_day": "5",
+        },
+    )
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    text = response.text
+    # Expenses without a due_day should sort after ones with one, and among
+    # those with a due_day, the soonest (smallest) should come first.
+    pos_soonest = text.index("Due soonest")
+    pos_later = text.index("Due later")
+    pos_no_due_day = text.index("No due day")
+    assert pos_soonest < pos_later < pos_no_due_day
+
+
 def test_overview_no_upcoming_banner_without_payout_periods(client: TestClient) -> None:
     client.post("/assets", data={"name": "Some Asset", "amount": "100"})
 
@@ -179,3 +224,45 @@ def test_overview_surfaces_unfunded_channel_warning(client: TestClient) -> None:
 def test_unknown_section_still_404s(client: TestClient) -> None:
     response = client.get("/nonsense")
     assert response.status_code == 404
+
+
+def test_paid_expenses_drop_off_the_upcoming_list(client: TestClient) -> None:
+    """Regression test for #137: marking an expense paid (#85) didn't remove
+    it from Overview's "Upcoming" section or its total, defeating the point
+    of marking it paid -- "upcoming" should mean "still owed"."""
+    channel_id = _create_channel(client, "Payroll")
+    period_id = _create_payout_period(client, "15th", "32000", channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Meralco",
+            "amount": "2500.50",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)/paid", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    response = client.get("/overview")
+    assert "Meralco" in response.text
+
+    client.patch(f"/expenses/{expense_id}/paid", data={"paid": "true"})
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Meralco" not in response.text
+    assert "expenses due this period" in response.text  # empty-state row, no expenses left unpaid
+
+
+def test_summary_cards_explain_what_they_mean(client: TestClient) -> None:
+    """Regression test for #136: the stat cards had no explanation of what
+    feeds them (e.g. "Total liabilities" only counts CreditLine.used, not
+    Goals or Expenses -- easy to assume otherwise)."""
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert 'title="Sum of everything on the Assets page' in response.text
+    assert "title=\"Sum of what's currently used on your Credit lines" in response.text
+    assert 'title="Total assets minus total liabilities' in response.text

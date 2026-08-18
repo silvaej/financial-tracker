@@ -16,6 +16,10 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
     )
 
 
+def _parse_due_day(raw: str) -> int | None:
+    return int(raw) if raw else None
+
+
 @router.get("")
 def index(
     request: Request,
@@ -38,6 +42,7 @@ def create_expense(
     amount: float = Form(...),
     payout_period_id: int = Form(...),
     channel_id: int = Form(...),
+    due_day: str = Form(""),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
@@ -45,10 +50,44 @@ def create_expense(
         crud.create_expense(
             db,
             schemas.ExpenseCreate(
-                name=name, amount=amount, payout_period_id=payout_period_id, channel_id=channel_id
+                name=name,
+                amount=amount,
+                payout_period_id=payout_period_id,
+                channel_id=channel_id,
+                due_day=_parse_due_day(due_day),
             ),
             current_user.id,
         )
+    except crud.OwnershipError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _render_page(request, db, current_user.id)
+
+
+@router.patch("/{expense_id}/paid")
+def update_expense_paid(
+    request: Request,
+    expense_id: int,
+    paid: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    try:
+        crud.set_expense_paid(db, expense_id, current_user.id, paid)
+    except crud.OwnershipError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _render_page(request, db, current_user.id)
+
+
+@router.patch("/{expense_id}/active")
+def update_expense_active(
+    request: Request,
+    expense_id: int,
+    active: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    try:
+        crud.set_expense_active(db, expense_id, current_user.id, active)
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _render_page(request, db, current_user.id)

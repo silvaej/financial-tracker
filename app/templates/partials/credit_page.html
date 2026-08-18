@@ -6,6 +6,7 @@
       <div class="page-sub">Credit lines and how close they are to their limit</div>
     </div>
   </div>
+  {{ macros.nudge_banner(show_nudge, "/credit/nudge/dismiss", "#credit-page", "Keep an eye on utilization", "Add a credit card or line here to see how close it is to its limit at a glance.") }}
   <div class="section">
     <div class="section-title">Credit lines<span class="pill">{{ credit_lines|length }} total</span></div>
     <form id="add-credit-form"
@@ -44,7 +45,11 @@
                       hx-target="#credit-page"
                       hx-swap="outerHTML"
                       class="edit-credit-{{ line.id }} hidden items-center gap-2">
-                  <input class="field" type="text" name="name" value="{{ line.name }}">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Name"
+                         value="{{ line.name }}">
                 </form>
               </td>
               <td class="led-inline led-inline-2" data-label="Channel">
@@ -56,7 +61,10 @@
                   {% endif %}
                 </span>
                 <div class="edit-credit-{{ line.id }} hidden items-center gap-1">
-                  <select class="field" name="channel_id" form="credit-edit-form-{{ line.id }}">
+                  <select class="field"
+                          name="channel_id"
+                          form="credit-edit-form-{{ line.id }}"
+                          aria-label="Channel">
                     <option value="">No channel</option>
                     {% for channel in channels %}
                       <option value="{{ channel.id }}"
@@ -75,6 +83,7 @@
                          step="0.01"
                          name="limit"
                          form="credit-edit-form-{{ line.id }}"
+                         aria-label="Limit"
                          value="{{ line.limit }}">
                 </div>
               </td>
@@ -87,6 +96,7 @@
                          step="0.01"
                          name="used"
                          form="credit-edit-form-{{ line.id }}"
+                         aria-label="Used"
                          value="{{ line.used }}">
                 </div>
               </td>
@@ -150,10 +160,14 @@
                      name="name"
                      form="add-credit-form"
                      placeholder="Credit line name"
+                     aria-label="Credit line name"
                      required>
             </td>
             <td class="led-inline led-inline-2" data-label="Channel">
-              <select class="field" name="channel_id" form="add-credit-form">
+              <select class="field"
+                      name="channel_id"
+                      form="add-credit-form"
+                      aria-label="Channel">
                 <option value="">No channel</option>
                 {% for channel in channels %}
                   <option value="{{ channel.id }}">{{ channel.name }}</option>
@@ -169,6 +183,7 @@
                        name="limit"
                        form="add-credit-form"
                        placeholder="Limit"
+                       aria-label="Limit"
                        required>
               </div>
             </td>
@@ -180,7 +195,8 @@
                        step="0.01"
                        name="used"
                        form="add-credit-form"
-                       placeholder="0">
+                       placeholder="0"
+                       aria-label="Used">
               </div>
             </td>
             <td></td>

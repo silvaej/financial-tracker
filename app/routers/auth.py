@@ -17,6 +17,7 @@ from app import crud, models
 from app.auth import get_current_user
 from app.database import get_db
 from app.image_uploads import read_image_upload
+from app.rate_limit import limiter
 from app.templating import templates
 
 router = APIRouter(tags=["auth"])
@@ -26,6 +27,7 @@ MAX_AVATAR_BYTES = 300 * 1024
 
 
 @router.get("/login")
+@limiter.limit("30/minute")
 def login_form(request: Request) -> Response:
     if request.session.get("user_id") is not None:
         return RedirectResponse(url="/", status_code=303)
@@ -46,6 +48,7 @@ def _key_check_context(db: Session, invite_key: str) -> dict[str, object]:
 
 
 @router.get("/signup")
+@limiter.limit("30/minute")
 def signup_form(request: Request, invite_key: str = "", db: Session = Depends(get_db)) -> Response:
     if request.session.get("user_id") is not None:
         return RedirectResponse(url="/", status_code=303)
@@ -60,6 +63,7 @@ def signup_form(request: Request, invite_key: str = "", db: Session = Depends(ge
 
 
 @router.get("/signup/check-key")
+@limiter.limit("30/minute")
 def check_signup_key(
     request: Request, invite_key: str = "", db: Session = Depends(get_db)
 ) -> Response:

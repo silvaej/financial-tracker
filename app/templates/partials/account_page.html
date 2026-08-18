@@ -42,9 +42,11 @@
         </div>
       </div>
       <div class="flex-1 min-w-0">
-        <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Display name</span>
+        <label for="display_name"
+               class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Display name</label>
         <input class="field"
                type="text"
+               id="display_name"
                name="display_name"
                form="profile-form"
                maxlength="100"
@@ -61,8 +63,9 @@
              value="{{ request.session.csrf_token }}">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
         <div>
-          <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Currency</span>
-          <select class="field" name="currency_code">
+          <label for="currency_code"
+                 class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Currency</label>
+          <select class="field" id="currency_code" name="currency_code">
             {% for code, label in currency_options %}
               <option value="{{ code }}"
                       {{ "selected" if current_user.currency_code == code else "" }}>{{ label }}
@@ -71,8 +74,9 @@
           </select>
         </div>
         <div>
-          <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Timezone</span>
-          <select class="field" name="timezone">
+          <label for="timezone"
+                 class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5 block">Timezone</label>
+          <select class="field" id="timezone" name="timezone">
             <option value="">No timezone set</option>
             {% for tz in timezone_options %}
               <option value="{{ tz }}"
