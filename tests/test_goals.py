@@ -266,3 +266,29 @@ def test_goal_round_up_toggle_reflected_on_page(client: TestClient) -> None:
     assert response.status_code == 200
     assert 'name="round_up_to_hundred"' in response.text
     assert re.search(r'name="round_up_to_hundred"[^>]*checked', response.text)
+
+
+# --- Onboarding nudge (#138) --------------------------------------------------
+
+
+def test_shows_nudge_when_no_goals_yet(client: TestClient) -> None:
+    response = client.get("/goals")
+    assert response.status_code == 200
+    assert "nudge-banner" in response.text
+    assert "Save toward something specific" in response.text
+
+
+def test_nudge_disappears_once_a_goal_exists(client: TestClient) -> None:
+    response = client.post(
+        "/goals", data={"name": "Emergency Fund", "target": "1000", "months": "1"}
+    )
+    assert "nudge-banner" not in response.text
+
+
+def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -> None:
+    response = client.post("/goals/nudge/dismiss")
+    assert response.status_code == 200
+    assert "nudge-banner" not in response.text
+
+    response = client.get("/goals")
+    assert "nudge-banner" not in response.text

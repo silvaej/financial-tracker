@@ -128,3 +128,39 @@ def test_fully_funded_goal_has_no_warning(client: TestClient) -> None:
     response = client.get("/cashflow")
     assert response.status_code == 200
     assert "isn't fully funded" not in response.text
+
+
+# --- Onboarding nudge (#138) --------------------------------------------------
+
+
+def test_shows_nudge_when_no_transfers_yet(client: TestClient) -> None:
+    response = client.get("/cashflow")
+    assert response.status_code == 200
+    assert "nudge-banner" in response.text
+    assert "Route your money onward" in response.text
+
+
+def test_nudge_disappears_once_a_transfer_exists(client: TestClient) -> None:
+    a = _create_channel(client, "Channel A")
+    b = _create_channel(client, "Channel B")
+    period_id = _create_payout_period(client, "15th", "1000", a)
+
+    response = client.post(
+        "/transfers",
+        data={
+            "payout_period_id": period_id,
+            "from_channel_id": a,
+            "to_channel_id": b,
+            "amount": "100",
+        },
+    )
+    assert "nudge-banner" not in response.text
+
+
+def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -> None:
+    response = client.post("/cashflow/nudge/dismiss")
+    assert response.status_code == 200
+    assert "nudge-banner" not in response.text
+
+    response = client.get("/cashflow")
+    assert "nudge-banner" not in response.text

@@ -301,3 +301,26 @@ class PayoutCycleBalance(Base):
     net: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
 
     payout_cycle: Mapped[PayoutCycle] = relationship()
+
+
+class OnboardingNudge(Base):
+    """Per-(user, section) dismissal for the first-visit nudge banners on
+    Cash Flow/Goals/Credit/Assets -- see issue #138. Distinct from
+    User.onboarding_completed_at (the Channels/PayoutPeriods/Expenses
+    3-step flow, which this doesn't touch): those three are genuinely
+    sequential, these four are independent, so each section is tracked
+    separately rather than folded into the same single timestamp. A row's
+    mere existence means "dismissed" -- crud.needs_nudge() also checks
+    whether the section still has no data, so the banner auto-clears the
+    moment either the user dismisses it or adds something, without
+    needing to distinguish the two."""
+
+    __tablename__ = "onboarding_nudges"
+    __table_args__ = (UniqueConstraint("user_id", "section"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    section: Mapped[str] = mapped_column(String(20), nullable=False)
+    dismissed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

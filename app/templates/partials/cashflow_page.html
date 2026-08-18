@@ -8,6 +8,7 @@
       </div>
     </div>
   </div>
+  {{ macros.nudge_banner(show_nudge, "/cashflow/nudge/dismiss", "#cashflow-page", "Route your money onward", "Income lands in one channel first — add a Transfer to move it from there to wherever it actually needs to end up, like a savings account or the wallet you pay bills from.") }}
   {% for data in payout_data %}
     <div class="section">
       <div class="section-title">{{ data.period.label }} cash flow</div>

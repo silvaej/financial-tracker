@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app import crud
 from app.auth import get_current_user
 from app.main import app
-from tests.conftest import TestingSessionLocal
+from tests.conftest import TEST_USER_ID, TestingSessionLocal
 from tests.conftest import oauth_login as _oauth_login
 
 
@@ -237,3 +237,55 @@ def test_skip_onboarding_requires_login(real_client: TestClient) -> None:
     response = real_client.post("/onboarding/skip", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+# --- Per-section nudge (#138) -------------------------------------------------
+# Crud-level coverage for crud.needs_nudge()/dismiss_nudge() -- the four
+# section-specific TestClient tests (test_goals.py, test_credit.py,
+# test_assets.py, test_cashflow.py) cover the actual pages; these cover the
+# underlying logic directly, including cases none of those four need to
+# repeat (independence between sections, dismissal surviving data later
+# being added).
+
+
+def test_needs_nudge_stays_dismissed_after_data_is_added_later(client: TestClient) -> None:
+    """A dismissal is permanent -- adding data afterwards shouldn't matter,
+    since needs_nudge() already returns False once is_empty=False regardless
+    of the dismissal row. This pins that "dismissed while empty" doesn't
+    somehow get treated differently from "dismissed then later has data"."""
+    user_id = TEST_USER_ID
+    db = TestingSessionLocal()
+    try:
+        assert crud.needs_nudge(db, user_id, "goals", is_empty=True) is True
+        crud.dismiss_nudge(db, user_id, "goals")
+        assert crud.needs_nudge(db, user_id, "goals", is_empty=True) is False
+        # Once real data exists, is_empty=False is passed in by the caller
+        # (goals_page_data) regardless of the dismissal row -- still False.
+        assert crud.needs_nudge(db, user_id, "goals", is_empty=False) is False
+    finally:
+        db.close()
+
+
+def test_needs_nudge_sections_are_independent(client: TestClient) -> None:
+    user_id = TEST_USER_ID
+    db = TestingSessionLocal()
+    try:
+        crud.dismiss_nudge(db, user_id, "goals")
+        assert crud.needs_nudge(db, user_id, "goals", is_empty=True) is False
+        assert crud.needs_nudge(db, user_id, "credit", is_empty=True) is True
+    finally:
+        db.close()
+
+
+def test_dismiss_nudge_is_idempotent(client: TestClient) -> None:
+    """Dismissing an already-dismissed section shouldn't raise (e.g. a
+    duplicate double-click/request) or create a second row -- the
+    UniqueConstraint on (user_id, section) would reject that."""
+    user_id = TEST_USER_ID
+    db = TestingSessionLocal()
+    try:
+        crud.dismiss_nudge(db, user_id, "assets")
+        crud.dismiss_nudge(db, user_id, "assets")
+        assert crud.needs_nudge(db, user_id, "assets", is_empty=True) is False
+    finally:
+        db.close()

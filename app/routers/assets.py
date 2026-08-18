@@ -81,3 +81,13 @@ def delete_asset(
 ) -> HTMLResponse:
     crud.delete_asset(db, asset_id, current_user.id)
     return _render_page(request, db, current_user.id)
+
+
+@router.post("/nudge/dismiss")
+def dismiss_nudge(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.dismiss_nudge(db, current_user.id, "assets")
+    return _render_page(request, db, current_user.id)

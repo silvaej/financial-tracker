@@ -124,3 +124,27 @@ def test_credit_warn_pill_shown_for_over_limit_line(client: TestClient) -> None:
     assert response.status_code == 200
     assert "warn-red" in response.text
     assert "Over limit" in response.text
+
+
+# --- Onboarding nudge (#138) --------------------------------------------------
+
+
+def test_shows_nudge_when_no_credit_lines_yet(client: TestClient) -> None:
+    response = client.get("/credit")
+    assert response.status_code == 200
+    assert "nudge-banner" in response.text
+    assert "Keep an eye on utilization" in response.text
+
+
+def test_nudge_disappears_once_a_credit_line_exists(client: TestClient) -> None:
+    response = client.post("/credit", data={"name": "Maya Black", "limit": "1000", "used": "0"})
+    assert "nudge-banner" not in response.text
+
+
+def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -> None:
+    response = client.post("/credit/nudge/dismiss")
+    assert response.status_code == 200
+    assert "nudge-banner" not in response.text
+
+    response = client.get("/credit")
+    assert "nudge-banner" not in response.text
