@@ -114,17 +114,33 @@
     @apply w-52 shrink-0 bg-card border-r border-line flex flex-col gap-1 py-5 transition-[width] duration-200 ease-in-out;
   }
   .rail-head {
+    /* Deliberately a *fixed* row layout at every rail width -- base.html's
+       applyCollapsed() used to toggle this into a column layout while
+       collapsed (brand stacked above the collapse-toggle button), which
+       reserves sum(brand-height, gap, button-height) instead of
+       max(brand-height, button-height). That's taller than the row
+       layout, and the classList.toggle() applying it happens instantly on
+       click, not animated in step with .rail's own 200ms width
+       transition -- so for that first frame, .rail-head snaps taller,
+       pushing every .tab below it down, then snaps back once the width
+       animation finishes. Confirmed via a screen recording after the
+       previous fix (removing the greeting, see .rail-brand below) turned
+       out to only shrink the jump, not eliminate it -- row vs column is
+       still two different heights regardless of how many lines .rail-brand
+       holds. Never switching layout mode at all removes the height
+       difference entirely: .rail-brand still fades/clips as the rail
+       narrows (see its own overflow-hidden below), it just never gets a
+       second row to itself. See issue #140. */
     @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-line;
   }
   .rail-brand {
-    /* Just the wordmark now -- see issue #140. Used to also hold a
-       personalized greeting stacked underneath, but that turned the
-       expanded (row) vs collapsed (column) .rail-head layouts into a much
-       bigger height difference once there were two lines instead of one,
-       making the already-jarring row<->column snap on collapse/expand
-       even more visible. Removed rather than trying to animate the
-       row/column switch itself. */
-    @apply min-w-0 transition-opacity duration-150;
+    /* overflow-hidden so the wordmark clips instead of overflowing/
+       wrapping as .rail-head's fixed row layout (above) narrows along
+       with .rail during the collapse/expand transition -- same
+       whitespace-nowrap/overflow-hidden clipping idea #143 already uses
+       for .tab-label, applied here since .rail-head no longer switches to
+       a column layout to give this room. */
+    @apply min-w-0 overflow-hidden transition-opacity duration-150;
   }
 
   /* Wordmark -- see issue #131. Reused as-is (just a different `size`) in
