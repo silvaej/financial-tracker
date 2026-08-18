@@ -224,3 +224,14 @@ def test_overview_surfaces_unfunded_channel_warning(client: TestClient) -> None:
 def test_unknown_section_still_404s(client: TestClient) -> None:
     response = client.get("/nonsense")
     assert response.status_code == 404
+
+
+def test_summary_cards_explain_what_they_mean(client: TestClient) -> None:
+    """Regression test for #136: the stat cards had no explanation of what
+    feeds them (e.g. "Total liabilities" only counts CreditLine.used, not
+    Goals or Expenses -- easy to assume otherwise)."""
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert 'title="Sum of everything on the Assets page' in response.text
+    assert "title=\"Sum of what's currently used on your Credit lines" in response.text
+    assert 'title="Total assets minus total liabilities' in response.text
