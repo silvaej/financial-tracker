@@ -58,3 +58,10 @@ def test_total_assets_kpi_reflects_sum(client: TestClient) -> None:
     response = client.get("/assets")
     assert response.status_code == 200
     assert "300.75" in response.text
+
+
+def test_total_assets_card_explains_what_it_means(client: TestClient) -> None:
+    """Regression test for #136 (same gap covered on Overview)."""
+    response = client.get("/assets")
+    assert response.status_code == 200
+    assert 'title="Sum of everything below' in response.text
