@@ -216,18 +216,28 @@
   }
 
   .page {
-    /* Capped + centered so content stops growing past a comfortable width
-       on a wide monitor instead of stretching tables/forms edge-to-edge --
-       see issue #139. Centering (not left-anchored against the rail) was
-       the user's explicit choice over the alternative shown in the design
-       mockup. max-w-7xl (1280px) rather than .auth-shell's narrower
-       max-w-4xl: this app's own denser tables (Admin's Users table,
-       cycle-history balance tables) need more room than a login card does.
-       .page stays the flex-1 scroll container (overflow-y-auto) -- margin:
-       auto centering it within the flex row's remaining space works the
-       same way .auth-shell already centers itself on the login/signup
-       pages, just as a flex child here instead of a block one. */
-    @apply flex-1 max-w-7xl mx-auto px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8 bg-paper overflow-y-auto overflow-x-hidden;
+    /* Full-width scroll container -- overflow-y-auto stays here so its
+       native scrollbar sits at the true browser-window edge. The width
+       cap/centering (see issue #139) lives on [id$="-page"] below instead
+       of here: putting max-width+mx-auto directly on this same element
+       first shipped, but capping the *scrolling* element also pulls its
+       scrollbar in with it, stranding it partway across the screen
+       instead of at the window edge -- reported (with a live measurement
+       confirming the exact math: page capped to 1280px, viewport ~1912px,
+       scrollbar sitting ~280px short of the true edge) after #139 shipped
+       centered. Splitting "what scrolls" from "what's width-capped" fixes
+       that without giving up centering. */
+    @apply flex-1 px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8 bg-paper overflow-y-auto overflow-x-hidden;
+  }
+  /* Every page partial's root element is <div id="{section}-page">
+     (expenses-page, goals-page, cashflow-page, ...) -- targeting that
+     naming convention directly means the cap/centering applies to
+     whatever htmx swaps into #page-content on every navigation, without
+     needing every partial template to carry its own wrapper div (which a
+     bare CSS class on .page's *children* couldn't reliably do, since the
+     immediate child is each partial's own differently-named root). */
+  [id$="-page"] {
+    @apply max-w-7xl mx-auto;
   }
   .page-head {
     @apply flex items-baseline justify-between gap-3 flex-wrap mb-5;
