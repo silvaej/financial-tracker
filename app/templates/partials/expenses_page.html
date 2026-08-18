@@ -331,7 +331,11 @@
                   <a class="icon-btn"
                      title="Cycle history"
                      aria-label="Cycle history"
-                     href="/payout-periods/{{ period.id }}/cycles">{{ macros.icon_history() }}</a>
+                     href="/payout-periods/{{ period.id }}/cycles"
+                     hx-boost="true"
+                     hx-target="#page-content"
+                     hx-swap="innerHTML"
+                     hx-push-url="true">{{ macros.icon_history() }}</a>
                   <button type="button"
                           class="icon-btn hover:bg-accent/15 hover:text-accent"
                           title="Edit"
