@@ -32,7 +32,25 @@ def test_admin_can_view_dashboard(client: TestClient, as_admin: None) -> None:
     response = client.get("/admin")
     assert response.status_code == 200
     assert "Admin" in response.text
-    assert "test@example.com" in response.text
+    assert "te**@example.com" in response.text
+
+
+def test_admin_dashboard_masks_user_emails(client: TestClient, as_admin: None, db: Session) -> None:
+    """Regression test: raw emails shouldn't leak into the admin dashboard's
+    HTML anywhere -- the user list or the orphan-assignment dropdown --
+    only the masked form should appear."""
+    other = crud.create_user(db, "somebody@example.com")
+    crud.create_channel(db, schemas.ChannelCreate(name="Orphan Wallet"), user_id=None)
+    db.commit()
+    other_id = other.id
+
+    response = client.get("/admin")
+    assert response.status_code == 200
+    assert "test@example.com" not in response.text
+    assert "somebody@example.com" not in response.text
+    assert "te**@example.com" in response.text
+    assert "so******@example.com" in response.text
+    assert f'<option value="{other_id}">so******@example.com</option>' in response.text
 
 
 def test_admin_dashboard_shows_orphan_counts(

@@ -1817,6 +1817,18 @@ ORPHANABLE_MODELS: tuple[type[Any], ...] = (
 )
 
 
+def mask_email(email: str) -> str:
+    """Partially obscure an email for display in the admin dashboard --
+    keeps the first couple of local-part characters and the full domain
+    (still useful for an admin to recognize/distinguish accounts) but
+    replaces the rest of the local part with asterisks."""
+    local, _, domain = email.partition("@")
+    if not domain:
+        return "*" * len(email)
+    visible = local[:2]
+    return f"{visible}{'*' * max(1, len(local) - len(visible))}@{domain}"
+
+
 def list_users_for_admin(db: Session) -> list[dict[str, Any]]:
     users = list(db.scalars(select(models.User).order_by(models.User.created_at.desc())))
     rows = []
@@ -1848,6 +1860,7 @@ def list_users_for_admin(db: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "user": user,
+                "masked_email": mask_email(user.email),
                 "providers": providers,
                 "channel_count": channel_count,
                 "expense_count": expense_count,
