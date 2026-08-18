@@ -274,6 +274,13 @@
     @apply bg-accent/10 text-accent border-accent;
   }
 
+  /* Hints that a payout period's payout_day has passed with no cycle closed
+     since -- see #134. Plain dot, not a .warn-pill: this is a nudge next to
+     an existing label, not a standalone status needing its own text. */
+  .overdue-dot {
+    @apply inline-block w-2 h-2 rounded-full bg-rust align-middle;
+  }
+
   .led {
     @apply w-full min-w-max table-fixed text-[13.5px] border-collapse;
   }

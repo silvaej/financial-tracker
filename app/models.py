@@ -111,6 +111,12 @@ class PayoutPeriod(Base):
     receiving_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id"), nullable=True
     )
+    # Optional day-of-month this period's payday falls on -- same pattern as
+    # Expense.due_day. Purely a hint (crud.overdue_payout_period_ids uses it
+    # to flag periods whose payday has passed with no cycle closed since),
+    # not a real calendar anchor: `label` stays free text, and nothing else
+    # in the app infers dates from it. See issue #134.
+    payout_day: Mapped[int | None] = mapped_column(nullable=True)
 
     receiving_channel: Mapped[Channel | None] = relationship()
 
