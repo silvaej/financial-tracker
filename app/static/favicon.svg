@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#2f56e8" />
+  <text x="16"
+        y="23"
+        font-family="-apple-system, 'Segoe UI', Inter, system-ui, sans-serif"
+        font-weight="800"
+        font-size="19"
+        fill="#ffffff"
+        text-anchor="middle">V</text>
+</svg>

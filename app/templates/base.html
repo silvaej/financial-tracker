@@ -7,6 +7,11 @@
     <meta name="csrf-token" content="{{ request.session.csrf_token }}">
     <meta name="currency-symbol" content="{{ currency_symbol }}">
     <title>Vantage</title>
+    <link rel="icon"
+          type="image/svg+xml"
+          href="{{ url_for('static', path='favicon.svg') }}">
+    <link rel="apple-touch-icon"
+          href="{{ url_for('static', path='favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
           rel="stylesheet">
