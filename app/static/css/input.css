@@ -117,10 +117,32 @@
     @apply flex items-center justify-between px-5 pb-4 mb-3 border-b border-line;
   }
   .rail-brand {
-    @apply flex items-center gap-2.5 min-w-0 transition-opacity duration-150;
+    @apply flex flex-col gap-1 min-w-0 transition-opacity duration-150;
   }
   .rail-greeting {
     @apply font-serif font-semibold text-sm text-ink truncate;
+  }
+
+  /* Wordmark -- see issue #131. Reused as-is (just a different `size`) in
+     the rail nav and on login/signup, so it lives as one macro
+     (macros.html's brand_wordmark) rather than being duplicated per
+     template. Accent-colored rather than plain ink: it's the one existing
+     brand color already used for active tabs/links, so the wordmark reads
+     as the same identity instead of introducing a second brand color. */
+  .brand-wordmark {
+    @apply inline-flex items-start font-serif font-extrabold tracking-tight text-accent leading-none;
+  }
+  .brand-wordmark-md {
+    @apply text-base;
+  }
+  .brand-wordmark-lg {
+    @apply text-xl;
+  }
+  .brand-wordmark-beta {
+    /* True superscript position/register (mono face, tracked-out caps) --
+       deliberately not a filled pill, reads as a trademark-style tag next
+       to the mark rather than a promotional badge. */
+    @apply font-mono text-[9px] font-bold uppercase tracking-wider text-ink-soft ml-1 relative -top-0.5;
   }
   .tab {
     @apply flex items-center gap-2.5 text-sm font-medium text-ink-soft px-5 py-2.5 border-l-[3px] border-transparent hover:bg-paper-dim hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent;

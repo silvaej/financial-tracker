@@ -55,7 +55,7 @@ def create_key(max_uses: int, expires_days: int | None) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage finance-tracker user accounts.")
+    parser = argparse.ArgumentParser(description="Manage Vantage user accounts.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     create_parser = subparsers.add_parser(
