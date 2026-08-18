@@ -238,3 +238,26 @@ def test_closing_a_cycle_clears_the_overdue_dot(client: TestClient) -> None:
 
     index = client.get("/expenses")
     assert "overdue-dot" not in index.text
+
+
+def test_cycle_history_link_is_htmx_boosted(client: TestClient) -> None:
+    """Regression test for #135: the link fell through to a full browser
+    navigation instead of an htmx swap, since #page-content itself isn't
+    boosted (only #rail/#tabbar/#more-sheet-overlay are) -- see
+    app/templates/base.html."""
+    create = client.post(
+        "/payout-periods",
+        data={"label": "15th", "income_amount": "1000", "receiving_channel_id": ""},
+    )
+    match = re.search(r"/payout-periods/(\d+)", create.text)
+    assert match is not None
+    period_id = match.group(1)
+
+    href = f'href="/payout-periods/{period_id}/cycles"'
+    assert href in create.text
+    link_tag = re.search(rf"<a[^>]*{re.escape(href)}[^>]*>", create.text, re.DOTALL)
+    assert link_tag is not None
+    assert 'hx-boost="true"' in link_tag.group()
+    assert 'hx-target="#page-content"' in link_tag.group()
+    assert 'hx-swap="innerHTML"' in link_tag.group()
+    assert 'hx-push-url="true"' in link_tag.group()
