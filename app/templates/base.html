@@ -26,7 +26,7 @@
            hx-target="#page-content"
            hx-swap="innerHTML"
            hx-push-url="true">
-        <div class="rail-head" id="rail-head">
+        <div class="rail-head">
           <div class="rail-brand" id="rail-brand">{{ macros.brand_wordmark() }}</div>
           <button class="shrink-0 bg-paper-dim text-ink-soft rounded w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-line"
                   id="collapse-toggle"
@@ -304,7 +304,6 @@
       applyTheme();
 
       const rail = document.getElementById("rail");
-      const railHead = document.getElementById("rail-head");
       const railBrand = document.getElementById("rail-brand");
       const icon = document.getElementById("collapse-icon");
       const labels = () => document.querySelectorAll(".tab-label");
@@ -321,9 +320,6 @@
       function applyCollapsed(collapsed, { animate = true } = {}) {
         rail.classList.toggle("w-52", !collapsed);
         rail.classList.toggle("w-16", collapsed);
-        railHead.classList.toggle("flex-col", collapsed);
-        railHead.classList.toggle("gap-2", collapsed);
-        railHead.classList.toggle("justify-between", !collapsed);
         icon.textContent = collapsed ? "›" : "‹";
 
         clearTimeout(fadeHideTimeout);
