@@ -291,6 +291,29 @@
     @apply bg-gold-soft text-gold;
   }
 
+  /* First-visit nudge banners on Cash Flow/Goals/Credit/Assets -- see
+     issue #138. Same accent-tinted language as .onboard-banner above,
+     simplified: no progress bar (nothing sequential across these four
+     independent sections), no "Step X of Y" label. */
+  .nudge-banner {
+    @apply flex items-start gap-3.5 bg-accent/10 border border-accent/20 rounded-lg px-4 py-3 mb-5;
+  }
+  .nudge-icon {
+    @apply w-6 h-6 rounded-md bg-accent text-white flex items-center justify-center shrink-0;
+  }
+  .nudge-icon svg {
+    @apply w-3.5 h-3.5;
+  }
+  .nudge-copy {
+    @apply flex-1 text-sm text-ink;
+  }
+  .nudge-copy strong {
+    @apply block text-[10.5px] font-bold uppercase tracking-wide text-accent mb-0.5;
+  }
+  .nudge-dismiss {
+    @apply bg-transparent border-0 text-ink-soft text-xs font-semibold cursor-pointer whitespace-nowrap self-center hover:text-ink hover:underline;
+  }
+
   /* Payout cycle history's clickable timeline of "Live template" + each
      closed cycle -- see #84. Mirrors .preset-trigger's button-chip
      language rather than introducing a new visual style. */

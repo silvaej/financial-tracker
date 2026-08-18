@@ -65,3 +65,29 @@ def test_total_assets_card_explains_what_it_means(client: TestClient) -> None:
     response = client.get("/assets")
     assert response.status_code == 200
     assert 'title="Sum of everything below' in response.text
+
+
+# --- Onboarding nudge (#138) --------------------------------------------------
+
+
+def test_shows_nudge_when_no_assets_yet(client: TestClient) -> None:
+    response = client.get("/assets")
+    assert response.status_code == 200
+    assert "nudge-banner" in response.text
+    assert "See your real net worth" in response.text
+
+
+def test_nudge_disappears_once_an_asset_exists(client: TestClient) -> None:
+    response = client.post("/assets", data={"name": "BPI IMI", "amount": "100"})
+    assert "nudge-banner" not in response.text
+
+
+def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -> None:
+    response = client.post("/assets/nudge/dismiss")
+    assert response.status_code == 200
+    assert "nudge-banner" not in response.text
+
+    # Stays dismissed on a fresh page load, not just the response to the
+    # dismiss request itself.
+    response = client.get("/assets")
+    assert "nudge-banner" not in response.text

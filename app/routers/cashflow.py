@@ -10,6 +10,12 @@ from app.templating import templates
 router = APIRouter(prefix="/cashflow", tags=["cashflow"])
 
 
+def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "partials/cashflow_page.html", crud.cashflow_page_data(db, user_id)
+    )
+
+
 @router.get("")
 def index(
     request: Request,
@@ -22,6 +28,16 @@ def index(
     return templates.TemplateResponse(
         request, template, crud.cashflow_page_data(db, current_user.id)
     )
+
+
+@router.post("/nudge/dismiss")
+def dismiss_nudge(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.dismiss_nudge(db, current_user.id, "cashflow")
+    return _render_page(request, db, current_user.id)
 
 
 @router.post("/{payout_period_id}/save")

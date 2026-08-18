@@ -141,3 +141,13 @@ def delete_goal(
 ) -> HTMLResponse:
     crud.delete_goal(db, goal_id, current_user.id)
     return _render_page(request, db, current_user.id)
+
+
+@router.post("/nudge/dismiss")
+def dismiss_nudge(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.dismiss_nudge(db, current_user.id, "goals")
+    return _render_page(request, db, current_user.id)

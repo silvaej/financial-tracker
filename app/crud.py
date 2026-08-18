@@ -289,6 +289,39 @@ def needs_onboarding(db: Session, user: models.User) -> bool:
     return not _has_any_expenses(db, user.id)
 
 
+def _has_any_transfers(db: Session, user_id: int) -> bool:
+    stmt = select(models.Transfer.id).where(models.Transfer.user_id == user_id).limit(1)
+    return db.scalar(stmt) is not None
+
+
+def needs_nudge(db: Session, user_id: int, section: str, is_empty: bool) -> bool:
+    """Whether the first-visit nudge banner for `section` (one of "cashflow",
+    "goals", "credit", "assets" -- see issue #138) should show. Only while
+    the section is still empty *and* hasn't been explicitly dismissed --
+    auto-clears the moment either flips, same "auto-completes on real data"
+    spirit as the Channels/PayoutPeriods/Expenses flow above, just
+    per-section instead of a single global timestamp."""
+    if not is_empty:
+        return False
+    stmt = (
+        select(models.OnboardingNudge.id)
+        .where(models.OnboardingNudge.user_id == user_id, models.OnboardingNudge.section == section)
+        .limit(1)
+    )
+    return db.scalar(stmt) is None
+
+
+def dismiss_nudge(db: Session, user_id: int, section: str) -> None:
+    existing = db.scalar(
+        select(models.OnboardingNudge).where(
+            models.OnboardingNudge.user_id == user_id, models.OnboardingNudge.section == section
+        )
+    )
+    if existing is None:
+        db.add(models.OnboardingNudge(user_id=user_id, section=section))
+        db.commit()
+
+
 def skip_onboarding(db: Session, user: models.User) -> None:
     user.onboarding_completed_at = datetime.now(UTC)
     db.commit()
@@ -1275,6 +1308,7 @@ def assets_page_data(db: Session, user_id: int) -> dict:
         "assets": assets,
         "total_assets": sum(float(a.amount) for a in assets),
         "channels": list_channels(db, user_id),
+        "show_nudge": needs_nudge(db, user_id, "assets", is_empty=not assets),
     }
 
 
@@ -1396,6 +1430,7 @@ def goals_page_data(db: Session, user_id: int) -> dict:
             for g in goals
         ],
         "channels": list_channels(db, user_id),
+        "show_nudge": needs_nudge(db, user_id, "goals", is_empty=not goals),
     }
 
 
@@ -1452,6 +1487,7 @@ def credit_page_data(db: Session, user_id: int) -> dict:
     return {
         "credit_lines": [{"line": c, **credit_utilization(c)} for c in lines],
         "channels": list_channels(db, user_id),
+        "show_nudge": needs_nudge(db, user_id, "credit", is_empty=not lines),
     }
 
 
@@ -1750,6 +1786,13 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
         "channels": channels,
         "goals": goal_entries,
         "payout_data": payout_data,
+        # Page-level, not per-period -- Cash Flow shows one section per
+        # payout period, but the nudge is about the section/feature itself
+        # (Transfers), so "empty" means no transfers anywhere yet, not
+        # "this one period has none".
+        "show_nudge": needs_nudge(
+            db, user_id, "cashflow", is_empty=not _has_any_transfers(db, user_id)
+        ),
     }
 
 

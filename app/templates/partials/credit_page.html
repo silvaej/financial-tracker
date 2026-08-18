@@ -6,6 +6,7 @@
       <div class="page-sub">Credit lines and how close they are to their limit</div>
     </div>
   </div>
+  {{ macros.nudge_banner(show_nudge, "/credit/nudge/dismiss", "#credit-page", "Keep an eye on utilization", "Add a credit card or line here to see how close it is to its limit at a glance.") }}
   <div class="section">
     <div class="section-title">Credit lines<span class="pill">{{ credit_lines|length }} total</span></div>
     <form id="add-credit-form"
