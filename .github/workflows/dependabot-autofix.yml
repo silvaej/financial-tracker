@@ -1,0 +1,140 @@
+name: Dependabot auto-fix
+
+# Two independent problems, both handled here:
+#
+# 1. Every Dependabot PR bumping a package that ISN'T a direct dependency
+#    (i.e. doesn't appear in pyproject.toml) only edits requirements.txt --
+#    it never touches poetry.lock, because Dependabot's pip-ecosystem scan
+#    treats the committed requirements.txt as its own flat manifest,
+#    independent of Poetry's dependency graph. Regenerating requirements.txt
+#    from poetry.lock (a plain `poetry export`) would SILENTLY REVERT that
+#    bump back to the old version, since poetry.lock was never updated. So
+#    this job runs `poetry update <package>` FIRST -- if Poetry's resolver
+#    can actually reach the bumped version given current constraints, this
+#    updates poetry.lock for real; if it can't (blocked by another
+#    package's pin), nothing changes and the PR is left for manual review
+#    rather than silently merged with the old version.
+# 2. An occasional tooling bump (e.g. ruff) introduces new lint/format
+#    violations of its own -- auto-fixed the same way a human would.
+#
+# Auto-merge is then enabled for patch/minor bumps once the real checks
+# pass; major bumps always stop for manual review.
+on:
+  push:
+    branches:
+      - "dependabot/**"
+
+env:
+  POETRY_VERSION: "2.4.1"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-autofix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    # Guards against an infinite loop: our own fix-commit below is pushed
+    # with DEPENDABOT_PAT (a real user), not dependabot[bot], so it won't
+    # re-trigger this job.
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      # A commit pushed with the default GITHUB_TOKEN does NOT trigger the
+      # PR's own required checks to re-run (GitHub's recursion guard), so
+      # the fix would land but the PR would stay stuck on stale/pending
+      # checks forever. DEPENDABOT_PAT is a real credential specifically so
+      # this push behaves like a normal human push and checks re-run.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.DEPENDABOT_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install "poetry==${POETRY_VERSION}" poetry-plugin-export
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Parse the bump from the PR title
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_PAT }}
+        run: |
+          pr_number=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR found for this branch yet, exiting."
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          title=$(gh pr view "$pr_number" --json title --jq '.title')
+          echo "PR #$pr_number: $title"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          poetry run python scripts/classify_version_bump.py "$title" >> "$GITHUB_OUTPUT"
+
+      - name: Try to actually resolve the bumped package via Poetry
+        if: steps.bump.outputs.package != ''
+        run: poetry update "${{ steps.bump.outputs.package }}" --no-interaction
+
+      - name: Auto-fix lint/format fallout from the bump
+        run: |
+          poetry run ruff check . --fix
+          poetry run ruff format .
+
+      - name: Regenerate requirements.txt
+        run: poetry export -f requirements.txt --output requirements.txt --without-hashes
+
+      - name: Commit fix, if any
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Nothing to fix."
+          else
+            git add -A
+            git commit -m "(chore) auto-fix dependency bump (poetry resolve + requirements.txt/ruff)"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
+
+      - name: Enable auto-merge for patch/minor bumps that actually resolved
+        if: steps.bump.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_PAT }}
+          PR_NUMBER: ${{ steps.bump.outputs.pr_number }}
+          PACKAGE: ${{ steps.bump.outputs.package }}
+          OLD: ${{ steps.bump.outputs.old }}
+          NEW: ${{ steps.bump.outputs.new }}
+          CLASSIFICATION: ${{ steps.bump.outputs.classification }}
+        run: |
+          if [ "$CLASSIFICATION" = "unknown" ]; then
+            gh pr comment "$PR_NUMBER" --body "Couldn't parse the version bump from this PR's title, so it's left for manual review."
+            exit 0
+          fi
+
+          if [ -n "$PACKAGE" ]; then
+            resolved=$(poetry show "$PACKAGE" 2>/dev/null | grep -m1 '^ version' | awk '{print $3}')
+            if [ "$resolved" != "$NEW" ]; then
+              gh pr comment "$PR_NUMBER" --body "Dependabot proposed $PACKAGE $OLD -> $NEW, but Poetry's resolver can only reach $resolved given current constraints (likely blocked by another package's pin). Left for manual review -- bumping this for real probably needs a wider dependency change."
+              exit 0
+            fi
+          fi
+
+          if [ "$CLASSIFICATION" = "major" ]; then
+            gh pr comment "$PR_NUMBER" --body "Auto-fix applied where needed, but this is a **major** version bump ($OLD -> $NEW) so it's left for manual review rather than auto-merged."
+            exit 0
+          fi
+
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
