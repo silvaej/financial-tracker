@@ -278,7 +278,10 @@ def test_channel_balances_carry_forward_across_many_periods() -> None:
             assert balance_by_channel[channel_a.id] == pytest.approx(expected[i][0])
             assert balance_by_channel[channel_b.id] == pytest.approx(expected[i][1])
             if i == 0:
-                assert entry["carry_in"] == {}
+                # Seeded from each channel's Channel.current_amount (default 0
+                # here, see issue #162), not an empty dict -- period 0 has no
+                # prior period, but it does have this baseline.
+                assert entry["carry_in"] == {channel_a.id: 0.0, channel_b.id: 0.0}
             else:
                 assert entry["carry_in"][channel_a.id] == pytest.approx(expected[i - 1][0])
                 assert entry["carry_in"][channel_b.id] == pytest.approx(expected[i - 1][1])

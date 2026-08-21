@@ -126,7 +126,13 @@ def test_editing_live_transfer_after_close_does_not_change_the_snapshot(
 
     live = client.get(f"/payout-periods/{period_id}/cycles")
     assert "-₱450.00" in live.text  # live view reflects the edit
-    assert "₱550.00" in live.text  # and the balance recomputed from it (1000 - 450)
+    # Not ₱550.00 (1000 - 450) -- closing the cycle above incremented Channel
+    # A's persistent current_amount by its delta (700 - 0 = 700, see #162),
+    # and _all_channel_balances seeds the live/"Projected" recompute's carry-in
+    # from that same current_amount. So the live view now correctly includes
+    # that baseline too: 700 (carried Actual) + 1000 (income) - 450 (edited
+    # transfer) = 1250.
+    assert "₱1,250.00" in live.text
 
 
 def test_cycle_history_requires_ownership(client: TestClient) -> None:

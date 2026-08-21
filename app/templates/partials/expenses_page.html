@@ -51,12 +51,14 @@
         <colgroup>
           <col class="min-w-28">
           <col class="w-36">
+          <col class="w-32">
           <col class="w-28">
         </colgroup>
         <thead>
           <tr>
             <th>Name</th>
             <th>Type</th>
+            <th class="text-right">Actual balance</th>
             <th></th>
           </tr>
         </thead>
@@ -120,6 +122,19 @@
                   </select>
                 </div>
               </td>
+              <td class="num" data-label="Actual balance">
+                <span class="view-channel-{{ channel.id }}">{{ macros.peso(channel.current_amount) }}</span>
+                <div class="edit-channel-{{ channel.id }} hidden items-center justify-end gap-1">
+                  <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
+                  <input class="field field-mono w-24"
+                         type="number"
+                         step="0.01"
+                         name="current_amount"
+                         form="channel-edit-form-{{ channel.id }}"
+                         aria-label="Actual balance"
+                         value="{{ channel.current_amount }}">
+                </div>
+              </td>
               <td class="led-actions">
                 <div class="view-channel-{{ channel.id }} flex items-center gap-1">
                   <button type="button"
@@ -150,7 +165,7 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(3, 'channels') }}
+            {{ macros.empty_row(4, 'channels') }}
           {% endfor %}
         </tbody>
       </table>

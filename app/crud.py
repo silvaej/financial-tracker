@@ -400,6 +400,7 @@ def update_channel(
         channel.name = data.name
         channel.color = data.color
         channel.channel_type = data.channel_type
+        channel.current_amount = data.current_amount
         db.commit()
         db.refresh(channel)
     return channel
@@ -1048,7 +1049,11 @@ def _all_channel_balances(
 
     carry_in_by_period: dict[int, dict[int, float]] = {}
     balances_by_period: dict[int, list[tuple[models.Channel, float]]] = {}
-    carry: dict[int, float] = {}
+    # Seeded from each channel's persistent "Actual" balance (see issue #162)
+    # rather than an implicit 0 -- this is the single choke point every caller
+    # (channel_balances, cashflow_page_data, preview_canvas, _live_cycle_balances)
+    # inherits the baseline through.
+    carry: dict[int, float] = {c.id: float(c.current_amount) for c in channels}
     for period in periods:
         carry_in_by_period[period.id] = carry
         expenses = [e for e in all_expenses if e.payout_period_id == period.id]
@@ -1211,12 +1216,23 @@ def close_payout_cycle(db: Session, payout_period_id: int, user_id: int) -> mode
     The live template (period, its transfers, its expenses) is left
     completely untouched -- closing a cycle is purely additive, so there's
     no data-loss risk and no "did I already close this month" bookkeeping
-    to get wrong. See issue #84."""
+    to get wrong. See issue #84.
+
+    Also increments each channel's persistent Channel.current_amount ("Actual"
+    balance, see issue #162) by this period's own delta (net - carry_in), not
+    the full carried net -- PayoutPeriod is a reused recurring template, not a
+    dated one-off, so crediting the full net would double-count a channel's
+    already-counted carry-in on every subsequent close."""
     period = _owned(db, models.PayoutPeriod, payout_period_id, user_id)
     if period is None:
         raise OwnershipError("Payout period not found.")
 
     live_balances = _live_cycle_balances(db, period, user_id)
+
+    channels = list_channels(db, user_id)
+    carry_in_by_period, balances_by_period = _all_channel_balances(db, user_id)
+    carry_in = carry_in_by_period.get(payout_period_id, {})
+    net_by_channel_id = {c.id: net for c, net in balances_by_period.get(payout_period_id, [])}
 
     cycle = models.PayoutCycle(
         user_id=user_id,
@@ -1233,6 +1249,10 @@ def close_payout_cycle(db: Session, payout_period_id: int, user_id: int) -> mode
     for balance in live_balances:
         balance.payout_cycle_id = cycle.id
         db.add(balance)
+
+    for channel in channels:
+        delta = net_by_channel_id.get(channel.id, 0.0) - carry_in.get(channel.id, 0.0)
+        channel.current_amount = float(channel.current_amount) + delta
 
     db.commit()
     db.refresh(cycle)
