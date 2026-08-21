@@ -60,6 +60,7 @@ async def update_channel(
     name: str = Form(...),
     color: str = Form(...),
     channel_type: str = Form(""),
+    current_amount: float = Form(0),
     logo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
@@ -68,7 +69,12 @@ async def update_channel(
     crud.update_channel(
         db,
         channel_id,
-        schemas.ChannelUpdate(name=name, color=color, channel_type=channel_type or None),
+        schemas.ChannelUpdate(
+            name=name,
+            color=color,
+            channel_type=channel_type or None,
+            current_amount=current_amount,
+        ),
         current_user.id,
     )
     if logo_payload is not None:

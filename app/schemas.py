@@ -20,6 +20,7 @@ class ChannelUpdate(BaseModel):
     name: NonEmptyStr
     color: str
     channel_type: str | None = None
+    current_amount: float = 0
 
 
 class PayoutPeriodCreate(BaseModel):

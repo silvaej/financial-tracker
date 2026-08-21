@@ -97,6 +97,11 @@ class Channel(Base):
     badge_label: Mapped[str | None] = mapped_column(String(4), nullable=True)
     logo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     logo_mimetype: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # User-editable running "Actual" balance, distinct from the fully-recomputed
+    # live "Projected" chain -- see issue #162. Seeds the carry-in baseline in
+    # _all_channel_balances and is incremented (by a period's own delta, not its
+    # full carried net) when a payout cycle is closed.
+    current_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
 
 
 class PayoutPeriod(Base):
