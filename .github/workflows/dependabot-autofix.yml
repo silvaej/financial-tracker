@@ -17,8 +17,9 @@ name: Dependabot auto-fix
 # 2. An occasional tooling bump (e.g. ruff) introduces new lint/format
 #    violations of its own -- auto-fixed the same way a human would.
 #
-# Auto-merge is then enabled for patch/minor bumps once the real checks
-# pass; major bumps always stop for manual review.
+# Deliberately does NOT auto-merge anything -- it just gets the PR to a
+# clean, honestly-passing (or clearly-explained) state and leaves the
+# actual merge decision to a human.
 on:
   push:
     branches:
@@ -109,7 +110,7 @@ jobs:
             git push origin "HEAD:${{ github.ref_name }}"
           fi
 
-      - name: Enable auto-merge for patch/minor bumps that actually resolved
+      - name: Report auto-fix result (never merges -- that's a manual call)
         if: steps.bump.outputs.pr_number != ''
         env:
           GH_TOKEN: ${{ secrets.DEPENDABOT_PAT }}
@@ -120,21 +121,16 @@ jobs:
           CLASSIFICATION: ${{ steps.bump.outputs.classification }}
         run: |
           if [ "$CLASSIFICATION" = "unknown" ]; then
-            gh pr comment "$PR_NUMBER" --body "Couldn't parse the version bump from this PR's title, so it's left for manual review."
+            gh pr comment "$PR_NUMBER" --body "Couldn't parse the version bump from this PR's title -- requirements.txt/ruff auto-fix (if any) was still applied."
             exit 0
           fi
 
           if [ -n "$PACKAGE" ]; then
             resolved=$(poetry show "$PACKAGE" 2>/dev/null | grep -m1 '^ version' | awk '{print $3}')
             if [ "$resolved" != "$NEW" ]; then
-              gh pr comment "$PR_NUMBER" --body "Dependabot proposed $PACKAGE $OLD -> $NEW, but Poetry's resolver can only reach $resolved given current constraints (likely blocked by another package's pin). Left for manual review -- bumping this for real probably needs a wider dependency change."
+              gh pr comment "$PR_NUMBER" --body "Dependabot proposed $PACKAGE $OLD -> $NEW, but Poetry's resolver can only reach $resolved given current constraints (likely blocked by another package's pin). Bumping this for real probably needs a wider dependency change."
               exit 0
             fi
           fi
 
-          if [ "$CLASSIFICATION" = "major" ]; then
-            gh pr comment "$PR_NUMBER" --body "Auto-fix applied where needed, but this is a **major** version bump ($OLD -> $NEW) so it's left for manual review rather than auto-merged."
-            exit 0
-          fi
-
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          gh pr comment "$PR_NUMBER" --body "Auto-fix applied (requirements.txt regenerated / ruff re-run as needed, via a real \`poetry update $PACKAGE\`). Ready for manual review and merge."
