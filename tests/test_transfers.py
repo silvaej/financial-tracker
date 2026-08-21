@@ -326,8 +326,8 @@ def test_cashflow_page_data_completes_quickly_with_many_periods() -> None:
         start = time.perf_counter()
         crud.cashflow_page_data(db, TEST_USER_ID)
         elapsed = time.perf_counter() - start
-        assert (
-            elapsed < 2.0
-        ), f"cashflow_page_data took {elapsed:.2f}s for 20 periods -- likely exponential again"
+        assert elapsed < 2.0, (
+            f"cashflow_page_data took {elapsed:.2f}s for 20 periods -- likely exponential again"
+        )
     finally:
         db.close()
