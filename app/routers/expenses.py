@@ -69,6 +69,38 @@ def create_expense(
     return _render_page(request, db, current_user.id)
 
 
+@router.patch("/{expense_id}")
+def update_expense(
+    request: Request,
+    expense_id: int,
+    name: str = Form(...),
+    amount: float = Form(...),
+    payout_period_id: int = Form(...),
+    channel_id: int = Form(...),
+    category_id: str = Form(""),
+    due_day: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    try:
+        crud.update_expense(
+            db,
+            expense_id,
+            schemas.ExpenseUpdate(
+                name=name,
+                amount=amount,
+                payout_period_id=payout_period_id,
+                channel_id=channel_id,
+                category_id=_parse_category_id(category_id),
+                due_day=_parse_due_day(due_day),
+            ),
+            current_user.id,
+        )
+    except crud.OwnershipError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _render_page(request, db, current_user.id)
+
+
 @router.patch("/{expense_id}/paid")
 def update_expense_paid(
     request: Request,

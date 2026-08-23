@@ -605,19 +605,91 @@
           {% for expense in expenses %}
             <tr>
               <td class="led-inline led-inline-2" data-label="Name">
-                {{ expense.name }}
-                {% if not expense.active %}<span class="pill pill-gold">Paused</span>{% endif %}
+                <span class="view-expense-{{ expense.id }}">
+                  {{ expense.name }}
+                  {% if not expense.active %}<span class="pill pill-gold">Paused</span>{% endif %}
+                </span>
+                <form id="expense-edit-form-{{ expense.id }}"
+                      hx-patch="/expenses/{{ expense.id }}"
+                      hx-target="#expenses-page"
+                      hx-swap="outerHTML"
+                      class="edit-expense-{{ expense.id }} hidden items-center gap-2">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Expense name"
+                         value="{{ expense.name }}"
+                         required>
+                </form>
               </td>
-              <td class="led-inline led-inline-2" data-label="Payout">{{ expense.payout_period.label }}</td>
-              <td class="led-inline led-inline-2" data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+              <td class="led-inline led-inline-2" data-label="Payout">
+                <span class="view-expense-{{ expense.id }}">{{ expense.payout_period.label }}</span>
+                <div class="edit-expense-{{ expense.id }} hidden items-center gap-1">
+                  <select class="field"
+                          name="payout_period_id"
+                          form="expense-edit-form-{{ expense.id }}"
+                          aria-label="Payout period"
+                          required>
+                    {% for period in payout_periods %}
+                      <option value="{{ period.id }}"
+                              {{ "selected" if period.id == expense.payout_period_id else "" }}>{{ period.label }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              <td class="led-inline led-inline-2" data-label="Channel">
+                <span class="view-expense-{{ expense.id }}">{{ macros.channel_label(expense.channel) }}</span>
+                <div class="edit-expense-{{ expense.id }} hidden items-center gap-1">
+                  <select class="field"
+                          name="channel_id"
+                          form="expense-edit-form-{{ expense.id }}"
+                          aria-label="Channel"
+                          required>
+                    {% for channel in channels %}
+                      <option value="{{ channel.id }}"
+                              {{ "selected" if channel.id == expense.channel_id else "" }}>{{ channel.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
               <td class="led-inline led-inline-2" data-label="Category">
-                {% if expense.category %}
-                  {{ macros.badge_from_name(expense.category.name, expense.category.color) }} {{ expense.category.name }}
-                {% else %}
-                  &mdash;
-                {% endif %}
+                <span class="view-expense-{{ expense.id }}">
+                  {% if expense.category %}
+                    {{ macros.badge_from_name(expense.category.name, expense.category.color) }} {{ expense.category.name }}
+                  {% else %}
+                    &mdash;
+                  {% endif %}
+                </span>
+                <div class="edit-expense-{{ expense.id }} hidden items-center gap-1">
+                  <select class="field"
+                          name="category_id"
+                          form="expense-edit-form-{{ expense.id }}"
+                          aria-label="Category">
+                    <option value="">No category</option>
+                    {% for category in expense_categories %}
+                      <option value="{{ category.id }}"
+                              {{ "selected" if category.id == expense.category_id else "" }}>{{ category.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
               </td>
-              <td class="led-inline led-inline-2" data-label="Due">{{ expense.due_day or "—" }}</td>
+              <td class="led-inline led-inline-2" data-label="Due">
+                <span class="view-expense-{{ expense.id }}">{{ expense.due_day or "—" }}</span>
+                <div class="edit-expense-{{ expense.id }} hidden items-center gap-1">
+                  <input class="field field-mono w-16"
+                         type="number"
+                         min="1"
+                         max="31"
+                         name="due_day"
+                         form="expense-edit-form-{{ expense.id }}"
+                         placeholder="Day"
+                         aria-label="Due day"
+                         value="{{ expense.due_day or '' }}">
+                </div>
+              </td>
               <td class="led-inline led-inline-2" data-label="Paid">
                 <input type="checkbox"
                        aria-label="Paid"
@@ -628,22 +700,54 @@
                        name="paid"
                        {{ "checked" if expense.paid else "" }}>
               </td>
-              <td class="num led-inline led-inline-2" data-label="Amount">{{ macros.peso(expense.amount) }}</td>
+              <td class="num led-inline led-inline-2" data-label="Amount">
+                <span class="view-expense-{{ expense.id }}">{{ macros.peso(expense.amount) }}</span>
+                <div class="edit-expense-{{ expense.id }} hidden items-center justify-end gap-1">
+                  <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
+                  <input class="field field-mono w-24"
+                         type="number"
+                         step="0.01"
+                         name="amount"
+                         form="expense-edit-form-{{ expense.id }}"
+                         aria-label="Amount"
+                         value="{{ expense.amount }}"
+                         required>
+                </div>
+              </td>
               <td class="led-actions">
-                <button class="icon-btn"
-                        title="{{ 'Pause' if expense.active else 'Resume' }}"
-                        aria-label="{{ 'Pause' if expense.active else 'Resume' }}"
-                        hx-patch="/expenses/{{ expense.id }}/active"
-                        hx-vals='{"active": "{{ "false" if expense.active else "true" }}"}'
-                        hx-target="#expenses-page"
-                        hx-swap="outerHTML">{{ macros.icon_pause() if expense.active else macros.icon_play() }}</button>
-                <button class="icon-btn"
-                        title="Delete"
-                        aria-label="Delete"
-                        hx-delete="/expenses/{{ expense.id }}"
-                        hx-target="#expenses-page"
-                        hx-swap="outerHTML"
-                        hx-confirm="Delete this expense?">{{ macros.icon_delete() }}</button>
+                <div class="view-expense-{{ expense.id }} flex items-center gap-1">
+                  <button type="button"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Edit"
+                          aria-label="Edit"
+                          onclick="toggleEditMode('expense-{{ expense.id }}')">{{ macros.icon_edit() }}</button>
+                  <button class="icon-btn"
+                          title="{{ 'Pause' if expense.active else 'Resume' }}"
+                          aria-label="{{ 'Pause' if expense.active else 'Resume' }}"
+                          hx-patch="/expenses/{{ expense.id }}/active"
+                          hx-vals='{"active": "{{ "false" if expense.active else "true" }}"}'
+                          hx-target="#expenses-page"
+                          hx-swap="outerHTML">{{ macros.icon_pause() if expense.active else macros.icon_play() }}</button>
+                  <button class="icon-btn"
+                          title="Delete"
+                          aria-label="Delete"
+                          hx-delete="/expenses/{{ expense.id }}"
+                          hx-target="#expenses-page"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete this expense?">{{ macros.icon_delete() }}</button>
+                </div>
+                <div class="edit-expense-{{ expense.id }} hidden items-center gap-1">
+                  <button type="submit"
+                          form="expense-edit-form-{{ expense.id }}"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Save"
+                          aria-label="Save">{{ macros.icon_save() }}</button>
+                  <button type="button"
+                          class="icon-btn hover:bg-paper-dim hover:text-ink"
+                          title="Cancel"
+                          aria-label="Cancel"
+                          onclick="cancelEdit('expense-{{ expense.id }}', 'expense-edit-form-{{ expense.id }}')">{{ macros.icon_cancel() }}</button>
+                </div>
               </td>
             </tr>
           {% else %}

@@ -57,6 +57,15 @@ class ExpenseCreate(BaseModel):
     due_day: int | None = Field(default=None, ge=1, le=31)
 
 
+class ExpenseUpdate(BaseModel):
+    name: NonEmptyStr
+    amount: float = Field(gt=0)
+    payout_period_id: int
+    channel_id: int
+    category_id: int | None = None
+    due_day: int | None = Field(default=None, ge=1, le=31)
+
+
 class TransferCreate(BaseModel):
     payout_period_id: int
     from_channel_id: int
