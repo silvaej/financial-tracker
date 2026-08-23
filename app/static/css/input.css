@@ -274,6 +274,18 @@
   .card-label {
     @apply text-[11px] uppercase tracking-wide text-ink-soft font-semibold mb-1.5;
   }
+  .mobile-gate {
+    @apply hidden fixed inset-0 z-50 items-center justify-center bg-paper p-6;
+  }
+  .mobile-gate-card {
+    @apply flex flex-col items-center gap-3 text-center max-w-xs py-8;
+  }
+  .mobile-gate-title {
+    @apply font-serif text-lg text-ink;
+  }
+  .mobile-gate-copy {
+    @apply text-sm text-ink-soft;
+  }
   .card-value {
     @apply font-mono text-xl font-semibold text-ink;
   }
@@ -849,6 +861,23 @@
   }
   .provider-btn:disabled {
     @apply opacity-45 cursor-not-allowed hover:bg-transparent;
+  }
+}
+
+/* Temporary gate (see issue #168): the app's mobile responsive layout below
+   already works (card-reflow tables, bottom tabbar, "more" sheet nav -- see
+   the @media (max-width: 640px) block below), but has enough rough edges
+   that it's hidden behind this notice for now. Trivially reversible later
+   by deleting this block; the responsive CSS/JS it hides is left untouched. */
+@media (max-width: 767px) {
+  #mobile-gate {
+    display: flex;
+  }
+  #page-content,
+  .rail,
+  .tabbar,
+  .sheet-overlay {
+    display: none !important;
   }
 }
 
