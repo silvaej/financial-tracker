@@ -104,6 +104,35 @@
         </label>
         <button type="submit" class="add-btn mt-1">Save profile</button>
       </form>
+      <div class="pt-3.5 mt-3.5 border-t border-line">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-ink-soft mb-1.5">Palette</p>
+        <p class="text-xs text-ink-soft mb-3">
+          Choose an accent palette for the app. Saved to your account, so it follows you across devices.
+        </p>
+        <div class="palette-grid">
+          {% for p in palette_options %}
+            <button type="button"
+                    class="palette-swatch{{ ' selected' if current_user.palette == p.key else '' }}"
+                    style="--sw-accent: {{ p.accent }}"
+                    hx-post="/account/palette"
+                    hx-vals='{"palette": "{{ p.key }}"}'
+                    hx-target="#account-page"
+                    hx-swap="outerHTML"
+                    onclick="document.documentElement.setAttribute('data-palette', '{{ p.key }}')">
+              <span class="palette-swatch-check">&check;</span>
+              <span class="palette-swatch-dots">
+                <span style="background: {{ p.accent }}"></span>
+                <span style="background: {{ p.gold }}"></span>
+                <span style="background: {{ p.rust }}"></span>
+              </span>
+              <span class="palette-swatch-name">
+                {{ p.label }}
+                {% if p.key == "ledger" %}<span class="font-normal text-ink-soft">(default)</span>{% endif %}
+              </span>
+            </button>
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </div>
 </div>

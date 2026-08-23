@@ -734,6 +734,63 @@ def test_update_profile_unchecked_notify_box_is_saved_as_false(
         db.close()
 
 
+def test_update_palette_persists_and_marks_selected(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    response = real_client.post("/account/palette", data={"palette": "forest"})
+    assert response.status_code == 200
+    assert "Profile updated" in response.text
+    assert 'class="palette-swatch selected"' in response.text
+
+    db = TestingSessionLocal()
+    try:
+        user = crud.get_user_by_email(db, "alice@example.com")
+        assert user is not None
+        assert user.palette == "forest"
+    finally:
+        db.close()
+
+    # Also reflected in the <html data-palette="..."> attribute on the next
+    # full page render -- see issue #170.
+    page = real_client.get("/account")
+    assert 'data-palette="forest"' in page.text
+
+
+def test_update_palette_rejects_unknown_value(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    response = real_client.post("/account/palette", data={"palette": "neon"})
+    assert response.status_code == 400
+    assert "valid palette" in response.text
+
+    db = TestingSessionLocal()
+    try:
+        user = crud.get_user_by_email(db, "alice@example.com")
+        assert user is not None
+        assert user.palette == "ledger"
+    finally:
+        db.close()
+
+
+def test_account_page_defaults_to_ledger_palette(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    page = real_client.get("/account")
+    assert 'data-palette="ledger"' in page.text
+    assert "Slate" in page.text
+    assert "Forest" in page.text
+    assert "Sunset" in page.text
+
+
 def test_update_profile_rejects_invalid_currency(
     real_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

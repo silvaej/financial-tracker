@@ -44,6 +44,12 @@ class User(Base):
     )
     timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notify_cash_flow_warnings: Mapped[bool] = mapped_column(default=True)
+    # A named accent/gold/rust token set, distinct from light/dark mode (see
+    # issue #170) -- validated against crud.PALETTE_KEYS before ever being
+    # written, so this column itself doesn't need a CHECK constraint.
+    palette: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="ledger", server_default="ledger"
+    )
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

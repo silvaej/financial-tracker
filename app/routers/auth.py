@@ -89,6 +89,7 @@ def _account_context(**extra: object) -> dict[str, object]:
         "currency_options": crud.CURRENCY_OPTIONS,
         "timezone_options": crud.TIMEZONE_OPTIONS,
         "max_avatar_bytes": MAX_AVATAR_BYTES,
+        "palette_options": crud.PALETTE_OPTIONS,
         **extra,
     }
 
@@ -138,6 +139,23 @@ def update_profile(
         timezone=timezone or None,
         notify_cash_flow_warnings=notify_cash_flow_warnings,
     )
+    return _account_response(request, _account_context(profile_success=True))
+
+
+@router.post("/account/palette")
+def update_palette(
+    request: Request,
+    palette: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> Response:
+    if palette not in crud.PALETTE_KEYS:
+        return _account_response(
+            request,
+            _account_context(profile_error="Please choose a valid palette."),
+            status_code=400,
+        )
+    crud.update_palette(db, current_user, palette)
     return _account_response(request, _account_context(profile_success=True))
 
 
