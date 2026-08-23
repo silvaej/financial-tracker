@@ -397,7 +397,7 @@
     @apply px-2.5 py-1.5 border-b border-line align-middle;
   }
   .num {
-    @apply font-mono text-right;
+    @apply font-mono;
   }
 
   /* Card-grid layout for repeating entities (Goals, Credit lines) shown as

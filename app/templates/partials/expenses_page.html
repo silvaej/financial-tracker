@@ -51,14 +51,14 @@
         <colgroup>
           <col class="min-w-28">
           <col class="w-36">
-          <col class="w-32">
-          <col class="w-28">
+          <col class="w-24">
+          <col class="w-20">
         </colgroup>
         <thead>
           <tr>
             <th>Name</th>
             <th>Type</th>
-            <th class="text-right">Actual balance</th>
+            <th>Actual balance</th>
             <th></th>
           </tr>
         </thead>
@@ -268,18 +268,18 @@
     <div class="table-wrap">
       <table class="led">
         <colgroup>
-          <col class="w-24">
-          <col class="w-24">
-          <col class="w-32">
           <col class="min-w-28">
+          <col class="w-24">
+          <col class="w-24">
           <col class="w-36">
+          <col class="w-20">
         </colgroup>
         <thead>
           <tr>
             <th>Label</th>
-            <th class="text-right">Payout day</th>
-            <th class="text-right">Income</th>
-            <th class="text-right">Receiving channel</th>
+            <th>Payout day</th>
+            <th>Income</th>
+            <th>Receiving channel</th>
             <th></th>
           </tr>
         </thead>
@@ -319,7 +319,7 @@
                          value="{{ period.income_amount }}">
                 </div>
               </td>
-              <td class="text-right" data-label="Receiving channel">
+              <td data-label="Receiving channel">
                 <span class="view-payout-{{ period.id }}">
                   {% if period.receiving_channel %}
                     {{ macros.channel_label(period.receiving_channel) }}
@@ -424,7 +424,7 @@
                        aria-label="Income">
               </div>
             </td>
-            <td class="text-right" data-label="Receiving channel">
+            <td data-label="Receiving channel">
               <select class="field"
                       name="receiving_channel_id"
                       form="add-payout-form"
@@ -477,11 +477,11 @@
         <colgroup>
           <col class="min-w-28">
           <col class="w-24">
-          <col class="w-40">
+          <col class="w-36">
           <col class="w-16">
           <col class="w-16">
           <col class="w-24">
-          <col class="w-36">
+          <col class="w-20">
         </colgroup>
         <thead>
           <tr>
@@ -490,7 +490,7 @@
             <th>Channel</th>
             <th>Due</th>
             <th>Paid</th>
-            <th class="text-right">Amount</th>
+            <th>Amount</th>
             <th></th>
           </tr>
         </thead>
