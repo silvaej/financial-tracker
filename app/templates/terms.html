@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Terms of Service — Vantage</title>
+    <link rel="icon"
+          type="image/svg+xml"
+          href="{{ url_for('static', path='favicon.svg') }}">
+    <link rel="apple-touch-icon"
+          href="{{ url_for('static', path='favicon.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  </head>
+  <body class="font-sans text-ink bg-paper">
+    {% import "macros.html" as macros %}
+    <div class="min-h-screen flex justify-center p-4 sm:p-10">
+      <div class="max-w-2xl w-full flex flex-col gap-6 py-6">
+        {{ macros.brand_wordmark("lg") }}
+        <div>
+          <div class="page-title">Terms of Service</div>
+          <div class="page-sub">Last updated August 2026</div>
+        </div>
+        <div class="card flex flex-col gap-4 text-sm text-ink-soft leading-relaxed">
+          <p>
+            This is placeholder Terms of Service copy for Vantage, a personal budgeting tool.
+            It is not legal advice and should be reviewed by a lawyer before this app has any
+            users beyond its operator.
+          </p>
+          <div>
+            <p class="font-semibold text-ink mb-1">1. Acceptance of terms</p>
+            <p>
+              By creating an account, you agree to be bound by these Terms of Service. If you do
+              not agree, do not create an account.
+            </p>
+          </div>
+          <div>
+            <p class="font-semibold text-ink mb-1">2. The service</p>
+            <p>
+              Vantage helps you track income, bills, transfers, goals, credit lines, and assets
+              across accounts you manage yourself. It is provided for personal, non-commercial
+              use and is invite-only.
+            </p>
+          </div>
+          <div>
+            <p class="font-semibold text-ink mb-1">3. Your account and data</p>
+            <p>
+              You're responsible for the accuracy of the financial data you enter and for
+              keeping your account credentials (managed through Google or GitHub sign-in)
+              secure. Your data is isolated to your account and not shared with other users.
+            </p>
+          </div>
+          <div>
+            <p class="font-semibold text-ink mb-1">4. Acceptable use</p>
+            <p>
+              Don't use Vantage for anything unlawful, or attempt to access another user's data
+              or disrupt the service.
+            </p>
+          </div>
+          <div>
+            <p class="font-semibold text-ink mb-1">5. No financial advice</p>
+            <p>
+              Vantage is a record-keeping and planning tool. Nothing it displays is financial,
+              investment, or legal advice.
+            </p>
+          </div>
+          <div>
+            <p class="font-semibold text-ink mb-1">6. Service provided "as is"</p>
+            <p>
+              Vantage is provided without warranties of any kind. The operator is not liable for
+              any loss arising from your use of the service, including data loss.
+            </p>
+          </div>
+          <div>
+            <p class="font-semibold text-ink mb-1">7. Changes</p>
+            <p>
+              These terms may change as the app evolves. Continued use after a change means you
+              accept the updated terms.
+            </p>
+          </div>
+        </div>
+        <div class="auth-footer-line">
+          <a class="text-accent font-semibold" href="/signup">Back to sign up</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

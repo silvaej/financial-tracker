@@ -172,7 +172,7 @@ def create_oauth_identity(
     return identity
 
 
-OAuthLoginError = Literal["already_has_account", "no_account", "invalid_key"]
+OAuthLoginError = Literal["already_has_account", "no_account", "invalid_key", "terms_not_accepted"]
 
 
 class OAuthLoginResult(NamedTuple):
@@ -187,6 +187,7 @@ def resolve_oauth_login(
     email: str,
     pending_invite_key: str,
     pending_intent: str,
+    pending_terms_accepted: bool = False,
 ) -> OAuthLoginResult:
     """The account-linking decision tree for an OAuth callback: identity
     lookup -> email match -> auto-link -> invite-key validation -> account
@@ -214,7 +215,16 @@ def resolve_oauth_login(
     if signup_key is None:
         return OAuthLoginResult(user=None, error="invalid_key")
 
+    # Backstop against a tampered/direct request bypassing signup.html's
+    # required checkbox -- see issue #171. Checked here, not earlier, so an
+    # existing-email auto-link (never reaches this branch) and a login
+    # attempt are both unaffected regardless of this flag's value.
+    if not pending_terms_accepted:
+        return OAuthLoginResult(user=None, error="terms_not_accepted")
+
     user = create_user(db, email)
+    user.terms_accepted_at = datetime.now(UTC)
+    db.commit()
     redeem_signup_key(db, signup_key)
     logger.info("New account created via signup key: %r", email)
     create_oauth_identity(db, user, provider, provider_user_id, email)

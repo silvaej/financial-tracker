@@ -139,6 +139,25 @@ def test_signup_form_starts_with_provider_buttons_disabled(client: TestClient) -
     assert "disabled" in response.text
 
 
+def test_signup_form_has_required_terms_checkbox_linking_to_terms_page(
+    client: TestClient,
+) -> None:
+    """Regression test for #171: signup.html's ToS checkbox must be
+    `required` (native HTML5 validation blocks submission without JS) and
+    link to a real /terms page."""
+    response = client.get("/signup")
+    assert response.status_code == 200
+    assert 'name="terms_accepted"' in response.text
+    assert 'name="terms_accepted" required' in response.text
+    assert 'href="/terms"' in response.text
+
+
+def test_terms_page_renders_without_auth(client: TestClient) -> None:
+    response = client.get("/terms")
+    assert response.status_code == 200
+    assert "Terms of Service" in response.text
+
+
 def test_signup_form_prefills_and_validates_invite_key_from_query_param(
     client: TestClient,
 ) -> None:
@@ -178,11 +197,65 @@ def test_oauth_signup_success_creates_account_logs_in_and_redeems_key(
     try:
         user = crud.get_user_by_email(db, "newuser@example.com")
         assert user is not None
+        assert user.terms_accepted_at is not None
         key_row = db.scalar(select(models.SignupKey).where(models.SignupKey.key == key))
         assert key_row is not None
         assert key_row.use_count == 1
     finally:
         db.close()
+
+
+def test_oauth_signup_rejects_without_terms_accepted(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #171: a genuinely-new-user signup must reject
+    (not silently create the account) when the ToS checkbox wasn't
+    accepted -- a backstop against a tampered/direct request bypassing
+    signup.html's required checkbox, mirroring invite-key strictness."""
+    key = _create_signup_key()
+
+    response = _oauth_login(
+        real_client,
+        monkeypatch,
+        email="noterms@example.com",
+        provider_user_id="g-noterms",
+        invite_key=key,
+        intent="signup",
+        terms_accepted=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/signup?")
+    assert "Terms of Service" in unquote_plus(response.headers["location"])
+
+    db = TestingSessionLocal()
+    try:
+        assert crud.get_user_by_email(db, "noterms@example.com") is None
+        key_row = db.scalar(select(models.SignupKey).where(models.SignupKey.key == key))
+        assert key_row is not None
+        assert key_row.use_count == 0
+    finally:
+        db.close()
+
+
+def test_oauth_login_unaffected_by_terms_accepted_flag(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #171: the terms-acceptance gate only applies to
+    resolve_oauth_login's genuinely-new-user branch -- an existing user
+    logging back in (intent="login", no checkbox on that page at all) must
+    never be blocked by this flag, regardless of its value."""
+    _create_user("alice@example.com")
+
+    response = _oauth_login(
+        real_client,
+        monkeypatch,
+        email="alice@example.com",
+        provider_user_id="g-alice",
+        intent="login",
+        terms_accepted=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
 
 
 def test_oauth_signup_via_github_creates_account(

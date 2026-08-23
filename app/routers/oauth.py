@@ -34,6 +34,7 @@ async def oauth_start(
     invite_key: str = "",
     keep_signed_in: bool = False,
     intent: str = "login",
+    terms_accepted: bool = False,
 ) -> Response:
     if provider not in _PROVIDERS:
         raise HTTPException(status_code=404)
@@ -45,6 +46,10 @@ async def oauth_start(
     request.session["pending_invite_key"] = invite_key.strip()
     request.session["pending_keep_signed_in"] = keep_signed_in
     request.session["pending_intent"] = intent if intent in _INTENTS else "login"
+    # Only meaningful for intent="signup" -- login.html has no such checkbox
+    # and always submits false, which crud.resolve_oauth_login() never even
+    # checks outside its genuinely-new-user branch (see issue #171).
+    request.session["pending_terms_accepted"] = terms_accepted
     redirect_uri = str(request.url_for("oauth_callback", provider=provider))
     client = oauth.create_client(provider)
     return await client.authorize_redirect(request, redirect_uri)
@@ -61,6 +66,7 @@ async def oauth_callback(
     pending_invite_key = request.session.pop("pending_invite_key", "")
     pending_keep_signed_in = bool(request.session.pop("pending_keep_signed_in", False))
     pending_intent = request.session.pop("pending_intent", "login")
+    pending_terms_accepted = bool(request.session.pop("pending_terms_accepted", False))
     fallback_path = "/signup" if pending_intent == "signup" else "/login"
 
     client = oauth.create_client(provider)
@@ -78,7 +84,13 @@ async def oauth_callback(
         )
 
     result = crud.resolve_oauth_login(
-        db, provider, provider_user_id, email, pending_invite_key, pending_intent
+        db,
+        provider,
+        provider_user_id,
+        email,
+        pending_invite_key,
+        pending_intent,
+        pending_terms_accepted,
     )
     if result.error == "already_has_account":
         return _redirect_with_error(
@@ -90,6 +102,10 @@ async def oauth_callback(
         )
     if result.error == "invalid_key":
         return _redirect_with_error("/signup", "That invite key is invalid or has expired.")
+    if result.error == "terms_not_accepted":
+        return _redirect_with_error(
+            "/signup", "You must accept the Terms of Service to create an account."
+        )
 
     assert result.user is not None
     start_session(request, result.user.id, keep_signed_in=pending_keep_signed_in)
