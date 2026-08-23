@@ -93,6 +93,87 @@
   --color-rust-soft: rgba(229, 115, 115, 0.16);
 }
 
+/* Selectable accent/gold/rust palettes (see issue #170) -- distinct from
+   the light/dark tokens above, which every palette keeps using unmodified.
+   "ledger" is the app's original look (the unmodified @theme/dark-mode
+   values above already ARE it, so it needs no override block of its own).
+   Each of the other three redefines the same 5 tokens for both light and
+   dark mode, mirroring the exact system-preference-vs-manual-override
+   structure above. crud.PALETTE_OPTIONS is the single source of truth for
+   *which* palettes exist and their light-mode preview colors -- keep that
+   and the blocks below in sync if a palette is ever added/changed. */
+:root[data-palette="slate"] {
+  --color-accent: #51677d;
+  --color-gold: #8a7a5c;
+  --color-gold-soft: #f3f1ee;
+  --color-rust: #93564f;
+  --color-rust-soft: #f4eeed;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="slate"]:not([data-theme="light"]) {
+    --color-accent: #7895b3;
+    --color-gold: #baa989;
+    --color-gold-soft: rgba(186, 169, 137, 0.16);
+    --color-rust: #c2847c;
+    --color-rust-soft: rgba(194, 132, 124, 0.16);
+  }
+}
+:root[data-palette="slate"][data-theme="dark"] {
+  --color-accent: #7895b3;
+  --color-gold: #baa989;
+  --color-gold-soft: rgba(186, 169, 137, 0.16);
+  --color-rust: #c2847c;
+  --color-rust-soft: rgba(194, 132, 124, 0.16);
+}
+
+:root[data-palette="forest"] {
+  --color-accent: #2f7d5a;
+  --color-gold: #8a7a2f;
+  --color-gold-soft: #f3f1e9;
+  --color-rust: #a34a3d;
+  --color-rust-soft: #f6edeb;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="forest"]:not([data-theme="light"]) {
+    --color-accent: #45c48b;
+    --color-gold: #ccb54a;
+    --color-gold-soft: rgba(204, 181, 74, 0.16);
+    --color-rust: #d1796c;
+    --color-rust-soft: rgba(209, 121, 108, 0.16);
+  }
+}
+:root[data-palette="forest"][data-theme="dark"] {
+  --color-accent: #45c48b;
+  --color-gold: #ccb54a;
+  --color-gold-soft: rgba(204, 181, 74, 0.16);
+  --color-rust: #d1796c;
+  --color-rust-soft: rgba(209, 121, 108, 0.16);
+}
+
+:root[data-palette="sunset"] {
+  --color-accent: #d9683f;
+  --color-gold: #c98a2f;
+  --color-gold-soft: #f9f3e9;
+  --color-rust: #b23b55;
+  --color-rust-soft: #f7ebee;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="sunset"]:not([data-theme="light"]) {
+    --color-accent: #eda388;
+    --color-gold: #e5b570;
+    --color-gold-soft: rgba(229, 181, 112, 0.16);
+    --color-rust: #d87288;
+    --color-rust-soft: rgba(216, 114, 136, 0.16);
+  }
+}
+:root[data-palette="sunset"][data-theme="dark"] {
+  --color-accent: #eda388;
+  --color-gold: #e5b570;
+  --color-gold-soft: rgba(229, 181, 112, 0.16);
+  --color-rust: #d87288;
+  --color-rust-soft: rgba(216, 114, 136, 0.16);
+}
+
 /* Tells the browser which native form-control chrome to use -- without this,
    a <select>'s open option-list popup always renders with light/OS-default
    styling regardless of this app's own dark theme, since that popup is
@@ -519,6 +600,38 @@
   }
   .preset-tile-name {
     @apply text-[10.5px] font-semibold text-ink text-center leading-tight truncate max-w-full;
+  }
+
+  /* Palette picker (see issue #170) -- each swatch's own accent color sets
+     --sw-accent inline (the palette it represents, not the *currently
+     active* palette), used for its selected-state ring/check regardless of
+     which palette is actually applied right now. */
+  .palette-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  }
+  .palette-swatch {
+    @apply relative flex flex-col gap-2 text-left bg-paper-dim border-[1.5px] border-line rounded-lg px-3.5 py-3 cursor-pointer;
+  }
+  .palette-swatch.selected {
+    border-color: var(--sw-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sw-accent) 30%, transparent);
+  }
+  .palette-swatch-dots {
+    @apply flex gap-1.5;
+  }
+  .palette-swatch-dots span {
+    @apply w-[18px] h-[18px] rounded-full;
+  }
+  .palette-swatch-name {
+    @apply text-[13px] font-bold text-ink;
+  }
+  .palette-swatch-check {
+    @apply absolute top-2.5 right-2.5 w-4 h-4 rounded-full text-white text-[10px] font-black flex items-center justify-center opacity-0;
+    background: var(--sw-accent);
+  }
+  .palette-swatch.selected .palette-swatch-check {
+    @apply opacity-100;
   }
 
   .bar-track {

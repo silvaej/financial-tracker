@@ -133,6 +133,21 @@ def currency_symbol_for(user: models.User | None) -> str:
 
 TIMEZONE_OPTIONS: tuple[str, ...] = tuple(sorted(zoneinfo.available_timezones()))
 
+# Named accent/gold/rust token sets a user can pick between on the Account
+# page -- see issue #170. Distinct from light/dark mode: each palette works
+# in both. "ledger" is the app's original/default look (matches input.css's
+# base @theme values unmodified); the other three get their own [data-palette]
+# override blocks there. accent/gold/rust here mirror each palette's *light*
+# mode swatch colors, just for rendering the picker's preview dots -- the
+# actual dark-mode variants only exist in input.css, not duplicated here.
+PALETTE_OPTIONS: tuple[dict[str, str], ...] = (
+    {"key": "ledger", "label": "Ledger", "accent": "#2f56e8", "gold": "#a5720f", "rust": "#c53d3d"},
+    {"key": "slate", "label": "Slate", "accent": "#51677d", "gold": "#8a7a5c", "rust": "#93564f"},
+    {"key": "forest", "label": "Forest", "accent": "#2f7d5a", "gold": "#8a7a2f", "rust": "#a34a3d"},
+    {"key": "sunset", "label": "Sunset", "accent": "#d9683f", "gold": "#c98a2f", "rust": "#b23b55"},
+)
+PALETTE_KEYS: frozenset[str] = frozenset(p["key"] for p in PALETTE_OPTIONS)
+
 
 def get_user(db: Session, user_id: int) -> models.User | None:
     return db.get(models.User, user_id)
@@ -248,6 +263,11 @@ def update_profile(
     user.currency_code = currency_code
     user.timezone = timezone
     user.notify_cash_flow_warnings = notify_cash_flow_warnings
+    db.commit()
+
+
+def update_palette(db: Session, user: models.User, palette: str) -> None:
+    user.palette = palette
     db.commit()
 
 

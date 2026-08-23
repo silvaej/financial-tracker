@@ -1,6 +1,7 @@
 {% import "macros.html" as macros with context %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"
+      data-palette="{{ current_user.palette if current_user else 'ledger' }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
