@@ -532,6 +532,48 @@
     @apply h-full rounded-full bg-accent;
   }
 
+  /* Pure-CSS conic-gradient pie chart (see issue #165) -- the gradient
+     itself is dynamic (per-category colors, computed percentages) so it's
+     set via an inline style, same as .bar-fill's width above; only the
+     donut-hole/sizing/layout is static and lives here. */
+  .pie-row {
+    @apply flex items-center gap-9 flex-wrap;
+  }
+  .pie-chart {
+    @apply w-[168px] h-[168px] rounded-full shrink-0 relative;
+  }
+  .pie-chart::after {
+    content: "";
+    @apply absolute inset-7 rounded-full bg-card;
+  }
+  .pie-center {
+    @apply absolute inset-7 flex flex-col items-center justify-center z-10;
+  }
+  .pie-center-label {
+    @apply text-[9.5px] uppercase tracking-wide text-ink-soft font-bold;
+  }
+  .pie-center-value {
+    @apply font-mono font-bold text-base mt-0.5;
+  }
+  .legend {
+    @apply flex-1 min-w-[220px] flex flex-col gap-2;
+  }
+  .legend-row {
+    @apply flex items-center gap-2.5 text-sm;
+  }
+  .swatch {
+    @apply w-2.5 h-2.5 rounded-sm shrink-0;
+  }
+  .legend-name {
+    @apply flex-1;
+  }
+  .legend-amount {
+    @apply font-mono text-[13px];
+  }
+  .legend-pct {
+    @apply font-mono text-xs text-ink-soft w-11 text-right;
+  }
+
   .warn-pill {
     @apply inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap;
   }
