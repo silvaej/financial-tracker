@@ -93,6 +93,30 @@
       </div>
     </div>
   {% endif %}
+  {% if expense_breakdown %}
+    <div class="section">
+      <div class="section-title">Expense breakdown<span class="pill">by category</span></div>
+      <div class="pie-row">
+        <div class="pie-chart"
+             style="background: {{ expense_breakdown.gradient }}">
+          <div class="pie-center">
+            <span class="pie-center-label">Monthly</span>
+            <span class="pie-center-value">{{ macros.peso(expense_breakdown.total) }}</span>
+          </div>
+        </div>
+        <div class="legend">
+          {% for entry in expense_breakdown.entries %}
+            <div class="legend-row">
+              <span class="swatch" style="background: {{ entry.color }}"></span>
+              <span class="legend-name">{{ entry.name }}</span>
+              <span class="legend-amount">{{ macros.peso(entry.total) }}</span>
+              <span class="legend-pct">{{ entry.pct }}%</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
   <div class="section">
     <div class="section-title">Goals<span class="pill">{{ goals|length }} total</span></div>
     {% if goals %}

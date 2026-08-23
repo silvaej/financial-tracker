@@ -1584,6 +1584,67 @@ def next_payout_period(db: Session, user_id: int) -> models.PayoutPeriod | None:
     return periods[0] if periods else None
 
 
+class ExpenseCategoryBreakdownEntry(NamedTuple):
+    name: str
+    color: str
+    total: float
+    pct: int
+
+
+def expense_category_breakdown(db: Session, user_id: int) -> dict[str, Any] | None:
+    """Sums every active recurring expense grouped by category, for
+    Overview's pie chart (see issue #165). Scope is all active expenses
+    regardless of payout period -- matches the app's template-not-instance
+    philosophy, not scoped to a single cycle. Returns None when there's
+    nothing to chart (no active expenses at all)."""
+    totals: dict[int | None, float] = {}
+    for expense in list_expenses(db, user_id):
+        if not expense.active:
+            continue
+        totals[expense.category_id] = totals.get(expense.category_id, 0.0) + float(expense.amount)
+    grand_total = sum(totals.values())
+    if grand_total <= 0:
+        return None
+
+    categories = {c.id: c for c in list_expense_categories(db, user_id)}
+    rows: list[tuple[str, str, float]] = []
+    for category_id, total in totals.items():
+        if category_id is None:
+            continue
+        category = categories.get(category_id)
+        if category is not None:
+            rows.append((category.name, category.color, total))
+    rows.sort(key=lambda row: row[2], reverse=True)
+    # Uncategorized always sorts last, regardless of its own size, rather
+    # than competing for a position among the real categories -- it's a
+    # leftover bucket, not something the user chose to name/color.
+    if totals.get(None, 0.0) > 0:
+        rows.append(("Uncategorized", "var(--color-line)", totals[None]))
+
+    entries = [
+        ExpenseCategoryBreakdownEntry(
+            name=name, color=color, total=total, pct=round(total / grand_total * 100)
+        )
+        for name, color, total in rows
+    ]
+
+    # The conic-gradient's own stops use the exact (unrounded) fractions --
+    # only the legend's displayed percentages are rounded for readability,
+    # so the pie itself never visibly drifts from the real proportions.
+    stops = []
+    cursor = 0.0
+    for _, color, total in rows:
+        start = cursor
+        cursor += total / grand_total * 100
+        stops.append(f"{color} {start:.4f}% {cursor:.4f}%")
+
+    return {
+        "entries": entries,
+        "total": grand_total,
+        "gradient": "conic-gradient(" + ", ".join(stops) + ")",
+    }
+
+
 def overview_page_data(db: Session, user_id: int) -> dict:
     assets = list_assets(db, user_id)
     credit_lines = list_credit_lines(db, user_id)
@@ -1612,6 +1673,7 @@ def overview_page_data(db: Session, user_id: int) -> dict:
         "upcoming_expenses": upcoming_expenses,
         "upcoming_expenses_total": sum(float(e.amount) for e in upcoming_expenses),
         "period_warnings": overview_warnings(db, user_id),
+        "expense_breakdown": expense_category_breakdown(db, user_id),
     }
 
 
