@@ -38,11 +38,22 @@ class PayoutPeriodUpdate(BaseModel):
     payout_day: int | None = Field(default=None, ge=1, le=31)
 
 
+class ExpenseCategoryCreate(BaseModel):
+    name: NonEmptyStr
+    color: str = "#8a8a8a"
+
+
+class ExpenseCategoryUpdate(BaseModel):
+    name: NonEmptyStr
+    color: str
+
+
 class ExpenseCreate(BaseModel):
     name: NonEmptyStr
     amount: float = Field(gt=0)
     payout_period_id: int
     channel_id: int
+    category_id: int | None = None
     due_day: int | None = Field(default=None, ge=1, le=31)
 
 

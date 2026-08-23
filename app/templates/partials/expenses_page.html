@@ -451,6 +451,111 @@
       </table>
     </div>
   </div>
+  <div class="section">
+    <div class="section-title">Categories<span class="pill">{{ expense_categories|length }} total</span></div>
+    <form id="add-category-form"
+          hx-post="/expense-categories"
+          hx-target="#expenses-page"
+          hx-swap="outerHTML">
+    </form>
+    <div class="table-wrap">
+      <table class="led">
+        <colgroup>
+          <col class="min-w-28">
+          <col class="w-20">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for category in expense_categories %}
+            <tr>
+              <td class="led-inline led-inline-2" data-label="Name">
+                <span class="view-category-{{ category.id }} inline-flex items-center gap-1.5">
+                  {{ macros.badge_from_name(category.name, category.color) }} {{ category.name }}
+                </span>
+                <form id="category-edit-form-{{ category.id }}"
+                      hx-patch="/expense-categories/{{ category.id }}"
+                      hx-target="#expenses-page"
+                      hx-swap="outerHTML"
+                      class="edit-category-{{ category.id }} hidden items-center gap-2 flex-wrap">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Name"
+                         value="{{ category.name }}">
+                  <input class="w-10 h-8 rounded border border-line cursor-pointer"
+                         type="color"
+                         name="color"
+                         aria-label="Color"
+                         value="{{ category.color }}">
+                </form>
+              </td>
+              <td class="led-actions">
+                <div class="view-category-{{ category.id }} flex items-center gap-1">
+                  <button type="button"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Edit"
+                          aria-label="Edit"
+                          onclick="toggleEditMode('category-{{ category.id }}')">{{ macros.icon_edit() }}</button>
+                  <button class="icon-btn"
+                          title="Delete"
+                          aria-label="Delete"
+                          hx-delete="/expense-categories/{{ category.id }}"
+                          hx-target="#expenses-page"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete this category?">{{ macros.icon_delete() }}</button>
+                </div>
+                <div class="edit-category-{{ category.id }} hidden items-center gap-1">
+                  <button type="submit"
+                          form="category-edit-form-{{ category.id }}"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Save"
+                          aria-label="Save">{{ macros.icon_save() }}</button>
+                  <button type="button"
+                          class="icon-btn hover:bg-paper-dim hover:text-ink"
+                          title="Cancel"
+                          aria-label="Cancel"
+                          onclick="cancelEdit('category-{{ category.id }}', 'category-edit-form-{{ category.id }}')">{{ macros.icon_cancel() }}</button>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            {{ macros.empty_row(2, 'categories') }}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button"
+            id="add-category-trigger"
+            class="add-btn w-20 justify-center"
+            onclick="toggleAddRow('add-category-row', this)">+ Add</button>
+    <div id="add-category-row"
+         class="hidden items-center gap-2 flex-wrap mt-3">
+      <input class="field flex-1 min-w-[140px]"
+             type="text"
+             name="name"
+             form="add-category-form"
+             placeholder="Category name"
+             aria-label="Category name"
+             required>
+      <input class="w-10 h-8 rounded border border-line cursor-pointer"
+             type="color"
+             name="color"
+             form="add-category-form"
+             value="#8a8a8a"
+             aria-label="Color">
+      <div class="flex items-center gap-2">
+        <button class="add-btn mt-0" type="submit" form="add-category-form">Add</button>
+        <button type="button"
+                class="btn-secondary"
+                onclick="cancelAddRow('add-category-row', 'add-category-trigger', 'add-category-form')">Cancel</button>
+      </div>
+    </div>
+  </div>
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not payout_periods else (' section-onboarding-active' if onboarding_step == 3 else '') }}">
     <div class="section-title">
       <span>Recurring expenses<span class="pill">{{ expenses|length }} items</span></span>
@@ -478,6 +583,7 @@
           <col class="min-w-28">
           <col class="w-24">
           <col class="w-36">
+          <col class="w-36">
           <col class="w-16">
           <col class="w-16">
           <col class="w-24">
@@ -488,6 +594,7 @@
             <th>Name</th>
             <th>Payout</th>
             <th>Channel</th>
+            <th>Category</th>
             <th>Due</th>
             <th>Paid</th>
             <th>Amount</th>
@@ -503,6 +610,13 @@
               </td>
               <td class="led-inline led-inline-2" data-label="Payout">{{ expense.payout_period.label }}</td>
               <td class="led-inline led-inline-2" data-label="Channel">{{ macros.channel_label(expense.channel) }}</td>
+              <td class="led-inline led-inline-2" data-label="Category">
+                {% if expense.category %}
+                  {{ macros.badge_from_name(expense.category.name, expense.category.color) }} {{ expense.category.name }}
+                {% else %}
+                  &mdash;
+                {% endif %}
+              </td>
               <td class="led-inline led-inline-2" data-label="Due">{{ expense.due_day or "—" }}</td>
               <td class="led-inline led-inline-2" data-label="Paid">
                 <input type="checkbox"
@@ -533,10 +647,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(7, 'expenses') }}
+            {{ macros.empty_row(8, 'expenses') }}
           {% endfor %}
           <tr class="tr-add-btn">
-            <td colspan="7">
+            <td colspan="8">
               <button type="button"
                       id="add-expense-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 3 else '' }}"
@@ -581,6 +695,17 @@
                           {{ "selected" if onboarding_step == 3 and channel.id == onboarding_default_expense_channel_id else "" }}>
                     {{ channel.name }}
                   </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="led-inline led-inline-2" data-label="Category">
+              <select class="field"
+                      name="category_id"
+                      form="add-expense-form"
+                      aria-label="Category">
+                <option value="">No category</option>
+                {% for category in expense_categories %}
+                  <option value="{{ category.id }}">{{ category.name }}</option>
                 {% endfor %}
               </select>
             </td>

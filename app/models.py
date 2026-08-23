@@ -133,6 +133,20 @@ class PayoutPeriod(Base):
     receiving_channel: Mapped[Channel | None] = relationship()
 
 
+class ExpenseCategory(Base):
+    """A user-defined tag for grouping Expense rows (e.g. "Utilities",
+    "Subscriptions") -- see issue #164. Same shape/ownership pattern as
+    Channel, deliberately simpler (no type/logo/balance fields)."""
+
+    __tablename__ = "expense_categories"
+    __table_args__ = (UniqueConstraint("user_id", "name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    color: Mapped[str] = mapped_column(String(7), default="#8a8a8a")
+
+
 class Expense(Base):
     __tablename__ = "expenses"
 
@@ -142,6 +156,9 @@ class Expense(Base):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("expense_categories.id"), nullable=True
+    )
     due_day: Mapped[int | None] = mapped_column(nullable=True)
     # A simple manually-maintained marker ("did I pay this bill"), not tied
     # to a specific cycle -- Expense rows are perpetual templates with no
@@ -157,6 +174,7 @@ class Expense(Base):
 
     payout_period: Mapped[PayoutPeriod] = relationship()
     channel: Mapped[Channel] = relationship()
+    category: Mapped[ExpenseCategory | None] = relationship()
 
 
 class Transfer(Base):

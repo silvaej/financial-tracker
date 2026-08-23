@@ -67,6 +67,10 @@ class ChannelInUseError(Exception):
     """Raised when deleting a channel that is still referenced elsewhere."""
 
 
+class ExpenseCategoryInUseError(Exception):
+    """Raised when deleting an expense category that's still tagged on an expense."""
+
+
 class PayoutPeriodInUseError(Exception):
     """Raised when deleting a payout period that is still referenced elsewhere."""
 
@@ -610,6 +614,52 @@ def delete_payout_period(db: Session, payout_period_id: int, user_id: int) -> No
     db.commit()
 
 
+# --- Expense categories ---------------------------------------------------------
+
+
+def list_expense_categories(db: Session, user_id: int | None) -> list[models.ExpenseCategory]:
+    stmt = select(models.ExpenseCategory).where(models.ExpenseCategory.user_id == user_id)
+    return list(db.scalars(stmt.order_by(models.ExpenseCategory.name)))
+
+
+def create_expense_category(
+    db: Session, data: schemas.ExpenseCategoryCreate, user_id: int | None
+) -> models.ExpenseCategory:
+    category = models.ExpenseCategory(name=data.name, color=data.color, user_id=user_id)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def update_expense_category(
+    db: Session, category_id: int, data: schemas.ExpenseCategoryUpdate, user_id: int
+) -> models.ExpenseCategory | None:
+    category = _owned(db, models.ExpenseCategory, category_id, user_id)
+    if category is not None:
+        category.name = data.name
+        category.color = data.color
+        db.commit()
+        db.refresh(category)
+    return category
+
+
+def delete_expense_category(db: Session, category_id: int, user_id: int) -> None:
+    category = _owned(db, models.ExpenseCategory, category_id, user_id)
+    if category is None:
+        return
+
+    in_use = db.query(models.Expense).filter_by(category_id=category_id, user_id=user_id).first()
+    if in_use is not None:
+        raise ExpenseCategoryInUseError(
+            "This category is still used by an expense, and can't be deleted "
+            "until those are removed or reassigned."
+        )
+
+    db.delete(category)
+    db.commit()
+
+
 # --- Expenses -----------------------------------------------------------------
 
 
@@ -625,6 +675,7 @@ def list_expenses(db: Session, user_id: int, q: str | None = None) -> list[model
 def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int | None) -> models.Expense:
     _require_owned(db, models.PayoutPeriod, data.payout_period_id, user_id, "Payout period")
     _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
+    _require_owned(db, models.ExpenseCategory, data.category_id, user_id, "Category")
     expense = models.Expense(**data.model_dump(), user_id=user_id)
     db.add(expense)
     # This expense is necessarily the user's first once onboarding_completed_at
@@ -1653,6 +1704,7 @@ def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
         "channel_preset_groups": channel_presets_by_group(),
         "payout_periods": payout_periods,
         "overdue_payout_period_ids": overdue_payout_period_ids(db, user_id, payout_periods),
+        "expense_categories": list_expense_categories(db, user_id),
         "expenses": list_expenses(db, user_id, q),
         "q": q or "",
         "onboarding_step": onboarding_step,
