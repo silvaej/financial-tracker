@@ -19,6 +19,16 @@
     <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
   </head>
   <body class="font-sans text-ink">
+    <div id="mobile-gate" class="mobile-gate">
+      <div class="card mobile-gate-card">
+        {{ macros.brand_wordmark() }}
+        <p class="mobile-gate-title">Desktop only for now</p>
+        <p class="mobile-gate-copy">
+          Vantage isn't polished for small screens yet. Please come back on a laptop or desktop
+          browser in the meantime.
+        </p>
+      </div>
+    </div>
     <div class="flex h-screen overflow-hidden bg-paper">
       <nav class="rail"
            id="rail"

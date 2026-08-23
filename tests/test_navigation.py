@@ -95,6 +95,17 @@ def test_confirm_and_alert_modals_have_dialog_semantics(client: TestClient) -> N
     assert 'aria-describedby="alert-modal-message"' in text
 
 
+def test_mobile_gate_markup_present_on_plain_page_load(client: TestClient) -> None:
+    """Regression test for #168: the desktop-only notice is always in the
+    DOM (a pure-CSS gate, shown/hidden by a media query, not JS), so a
+    plain full-page load must always render it alongside the normal shell
+    -- there is no server-side viewport detection to assert on instead."""
+    text = client.get("/").text
+    assert 'id="mobile-gate"' in text
+    assert "Desktop only for now" in text
+    assert 'id="rail"' in text
+
+
 def test_favicon_served_and_linked_on_every_page(client: TestClient) -> None:
     """Regression test for #132: there was previously no favicon/apple-touch-
     icon <link> anywhere, on either the authenticated app shell or the
