@@ -33,6 +33,14 @@
           <form method="get" class="flex flex-col gap-5">
             <input type="hidden" name="intent" value="signup">
             {% include "partials/signup_key_section.html" %}
+            <label class="checkbox-row">
+              <input type="checkbox" name="terms_accepted" required>
+              <span>
+                <span class="checkbox-copy">
+                  I agree to the <a class="text-accent font-semibold" href="/terms" target="_blank">Terms of Service</a>
+                </span>
+              </span>
+            </label>
           </form>
           <div class="auth-footer-line">
             Already have an account? <a class="text-accent font-semibold" href="/login">Log in</a>

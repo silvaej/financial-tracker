@@ -35,6 +35,12 @@ def login_form(request: Request) -> Response:
     return templates.TemplateResponse(request, "login.html", {"error": error} if error else {})
 
 
+@router.get("/terms")
+@limiter.limit("30/minute")
+def terms(request: Request) -> Response:
+    return templates.TemplateResponse(request, "terms.html", {})
+
+
 def _key_check_context(db: Session, invite_key: str) -> dict[str, object]:
     invite_key = invite_key.strip()
     key_valid = False

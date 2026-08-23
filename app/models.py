@@ -47,6 +47,13 @@ class User(Base):
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Set only for a genuinely new account created via resolve_oauth_login()
+    # (see issue #171) -- an existing-email auto-link never touches this, and
+    # an operator-created row (manage_users.py create) stays NULL forever,
+    # same "no forced retroactive flow" precedent as onboarding_completed_at.
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Added retroactively for the admin dashboard's "signup date" column
     # (issue #65) -- existing rows get the migration's run time as their
     # value (server_default=now()), not their real signup date, since that

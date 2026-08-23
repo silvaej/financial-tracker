@@ -150,17 +150,26 @@ def oauth_login(
     keep_signed_in: bool = False,
     email_verified: bool = True,
     intent: str = "login",
+    terms_accepted: bool = True,
 ) -> httpx.Response:
     """Drives a client through /auth/<provider>/start + /callback with a faked
     provider exchange -- see app/routers/oauth.py. Reused by every test that
     needs a real (session-cookie based) login without hitting a real provider.
-    `intent` mirrors the hidden form field login.html/signup.html send."""
+    `intent` mirrors the hidden form field login.html/signup.html send.
+    `terms_accepted` mirrors signup.html's required checkbox -- defaults to
+    True so every existing signup-intent call site keeps succeeding; only
+    matters for a genuinely-new-user signup (see crud.resolve_oauth_login)."""
     fake_client = _fake_oauth_client_for(provider, email, provider_user_id, email_verified)
     monkeypatch.setattr(oauth_module.oauth, "create_client", lambda name: fake_client)
 
     client.get(
         f"/auth/{provider}/start",
-        params={"invite_key": invite_key, "keep_signed_in": keep_signed_in, "intent": intent},
+        params={
+            "invite_key": invite_key,
+            "keep_signed_in": keep_signed_in,
+            "intent": intent,
+            "terms_accepted": terms_accepted,
+        },
         follow_redirects=False,
     )
     return client.get(f"/auth/{provider}/callback", follow_redirects=False)
