@@ -20,6 +20,10 @@ def _parse_due_day(raw: str) -> int | None:
     return int(raw) if raw else None
 
 
+def _parse_category_id(raw: str) -> int | None:
+    return int(raw) if raw else None
+
+
 @router.get("")
 def index(
     request: Request,
@@ -42,6 +46,7 @@ def create_expense(
     amount: float = Form(...),
     payout_period_id: int = Form(...),
     channel_id: int = Form(...),
+    category_id: str = Form(""),
     due_day: str = Form(""),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
@@ -54,6 +59,7 @@ def create_expense(
                 amount=amount,
                 payout_period_id=payout_period_id,
                 channel_id=channel_id,
+                category_id=_parse_category_id(category_id),
                 due_day=_parse_due_day(due_day),
             ),
             current_user.id,

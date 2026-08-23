@@ -29,6 +29,7 @@ from app.routers import (
     cashflow,
     channels,
     credit,
+    expense_categories,
     expenses,
     export,
     goal_contributions,
@@ -177,6 +178,7 @@ app.include_router(oauth.router)
 app.include_router(channels.router)
 app.include_router(payout_periods.router)
 app.include_router(payout_cycles.router)
+app.include_router(expense_categories.router)
 app.include_router(expenses.router)
 app.include_router(transfers.router)
 app.include_router(goal_contributions.router)
