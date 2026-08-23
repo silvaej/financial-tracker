@@ -723,6 +723,32 @@ def test_upload_avatar_rejects_non_image_files(
     assert response.status_code == 400
 
 
+def test_upload_oversized_avatar_still_rejected_server_side(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #166: the client-side size pre-check added to the
+    avatar form's onchange handler is defense-in-depth only -- the server
+    must still independently reject an oversized upload with a 400, even
+    when it arrives as an htmx request (HX-Request header set), rather than
+    trusting the browser to have already filtered it out. (The other half
+    of #166's fix -- that this error now surfaces as a toast instead of a
+    full-page navigation replacing the app shell with raw JSON -- is a
+    client-side JS behavior that isn't observable via TestClient, since it
+    doesn't execute htmx's response handling; verified separately in the
+    browser.)"""
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    oversized = b"\xff" * (300 * 1024 + 1)
+    response = real_client.post(
+        "/account/avatar",
+        files={"avatar": ("avatar.png", oversized, "image/png")},
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 400
+    assert "under 300KB" in response.json()["detail"]
+
+
 def test_remove_avatar_falls_back_to_icon(
     real_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

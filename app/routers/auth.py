@@ -82,6 +82,7 @@ def _account_context(**extra: object) -> dict[str, object]:
     return {
         "currency_options": crud.CURRENCY_OPTIONS,
         "timezone_options": crud.TIMEZONE_OPTIONS,
+        "max_avatar_bytes": MAX_AVATAR_BYTES,
         **extra,
     }
 

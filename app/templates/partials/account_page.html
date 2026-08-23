@@ -16,19 +16,17 @@
         {{ macros.user_avatar(current_user, size='xl') }}
         <div class="flex gap-2 mt-2 justify-center">
           <form id="avatar-form"
-                method="post"
-                action="/account/avatar"
-                enctype="multipart/form-data">
-            <input type="hidden"
-                   name="csrf_token"
-                   value="{{ request.session.csrf_token }}">
+                hx-post="/account/avatar"
+                hx-target="#account-page"
+                hx-swap="outerHTML"
+                hx-encoding="multipart/form-data">
             <label class="btn-secondary cursor-pointer">
               Change
               <input type="file"
                      name="avatar"
                      accept="image/png,image/jpeg,image/webp,image/gif"
                      class="hidden"
-                     onchange="this.form.requestSubmit()">
+                     onchange="if (this.files[0] && this.files[0].size > {{ max_avatar_bytes }}) { showAlert('Avatar must be under {{ max_avatar_bytes // 1024 }}KB.'); this.value = ''; } else { this.form.requestSubmit(); }">
             </label>
           </form>
           {% if current_user.avatar_data %}
