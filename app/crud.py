@@ -710,6 +710,25 @@ def create_expense(db: Session, data: schemas.ExpenseCreate, user_id: int | None
     return expense
 
 
+def update_expense(
+    db: Session, expense_id: int, data: schemas.ExpenseUpdate, user_id: int
+) -> models.Expense | None:
+    _require_owned(db, models.PayoutPeriod, data.payout_period_id, user_id, "Payout period")
+    _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
+    _require_owned(db, models.ExpenseCategory, data.category_id, user_id, "Category")
+    expense = _owned(db, models.Expense, expense_id, user_id)
+    if expense is not None:
+        expense.name = data.name
+        expense.amount = data.amount
+        expense.payout_period_id = data.payout_period_id
+        expense.channel_id = data.channel_id
+        expense.category_id = data.category_id
+        expense.due_day = data.due_day
+        db.commit()
+        db.refresh(expense)
+    return expense
+
+
 def delete_expense(db: Session, expense_id: int, user_id: int) -> None:
     _delete_owned(db, models.Expense, expense_id, user_id)
 

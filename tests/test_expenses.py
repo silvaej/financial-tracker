@@ -2,7 +2,7 @@ import re
 
 from fastapi.testclient import TestClient
 
-from app import crud, schemas
+from app import crud, models, schemas
 from tests.conftest import TEST_USER_ID, TestingSessionLocal
 
 
@@ -66,7 +66,7 @@ def test_create_expense_with_due_day(client: TestClient) -> None:
     assert create.status_code == 200
     assert "Rent" in create.text
     # The Due column should render the day-of-month next to the expense.
-    assert re.search(r'data-label="Due">\s*5\s*<', create.text) is not None
+    assert re.search(r'data-label="Due">\s*<span[^>]*>\s*5\s*<', create.text) is not None
 
 
 def test_create_expense_without_due_day_leaves_it_blank(client: TestClient) -> None:
@@ -140,6 +140,138 @@ def test_create_expense_rejects_whitespace_only_name(client: TestClient) -> None
         },
     )
     assert response.status_code == 422
+
+
+def test_update_expense(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    other_channel_id = _create_channel(client, "GCash")
+    period_id = _create_payout_period(client, "15th", channel_id)
+    other_period_id = _create_payout_period(client, "30th", channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    updated = client.patch(
+        f"/expenses/{expense_id}",
+        data={
+            "name": "Groceries (updated)",
+            "amount": "200",
+            "payout_period_id": other_period_id,
+            "channel_id": other_channel_id,
+            "due_day": "10",
+        },
+    )
+    assert updated.status_code == 200
+    assert "Groceries (updated)" in updated.text
+    assert "200.00" in updated.text
+    assert re.search(r'data-label="Due">\s*<span[^>]*>\s*10\s*<', updated.text) is not None
+
+
+def test_update_expense_is_isolated_per_user() -> None:
+    db = TestingSessionLocal()
+    try:
+        other_user_id = TEST_USER_ID + 1
+        db.add(models.User(id=other_user_id, email="other@example.com"))
+        db.commit()
+        other_channel = crud.create_channel(
+            db, schemas.ChannelCreate(name="Someone Else's Wallet"), other_user_id
+        )
+        other_period = crud.create_payout_period(
+            db,
+            schemas.PayoutPeriodCreate(
+                label="15th", income_amount=1000, receiving_channel_id=other_channel.id
+            ),
+            other_user_id,
+        )
+        other_expense = crud.create_expense(
+            db,
+            schemas.ExpenseCreate(
+                name="Someone else's rent",
+                amount=5000,
+                payout_period_id=other_period.id,
+                channel_id=other_channel.id,
+            ),
+            other_user_id,
+        )
+
+        my_channel = crud.create_channel(db, schemas.ChannelCreate(name="Mine"), TEST_USER_ID)
+        my_period = crud.create_payout_period(
+            db,
+            schemas.PayoutPeriodCreate(
+                label="30th", income_amount=500, receiving_channel_id=my_channel.id
+            ),
+            TEST_USER_ID,
+        )
+
+        result = crud.update_expense(
+            db,
+            other_expense.id,
+            schemas.ExpenseUpdate(
+                name="Hijacked",
+                amount=1,
+                payout_period_id=my_period.id,
+                channel_id=my_channel.id,
+            ),
+            TEST_USER_ID,
+        )
+        assert result is None
+
+        untouched = db.get(models.Expense, other_expense.id)
+        assert untouched is not None
+        assert untouched.name == "Someone else's rent"
+        assert float(untouched.amount) == 5000.0
+    finally:
+        db.close()
+
+
+def test_update_expense_requires_owned_fks(client: TestClient) -> None:
+    db = TestingSessionLocal()
+    try:
+        other_user_id = TEST_USER_ID + 1
+        db.add(models.User(id=other_user_id, email="other@example.com"))
+        db.commit()
+        other_channel = crud.create_channel(
+            db, schemas.ChannelCreate(name="Someone Else's Wallet"), other_user_id
+        )
+        other_channel_id = str(other_channel.id)
+    finally:
+        db.close()
+
+    channel_id = _create_channel(client, "BPI")
+    period_id = _create_payout_period(client, "15th", channel_id)
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "payout_period_id": period_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    response = client.patch(
+        f"/expenses/{expense_id}",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "payout_period_id": period_id,
+            "channel_id": other_channel_id,
+        },
+    )
+    assert response.status_code == 404
 
 
 def test_mark_expense_paid_and_unpaid(client: TestClient) -> None:
