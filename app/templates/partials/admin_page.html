@@ -127,7 +127,7 @@
             <col class="w-20">
             <col class="w-24">
             <col class="w-20">
-            <col class="w-16">
+            <col class="w-20">
           </colgroup>
           <thead>
             <tr>
@@ -155,6 +155,14 @@
                 </td>
                 <td class="led-actions">
                   {% if status == "active" %}
+                    <button class="icon-btn js-copy-link hover:bg-accent/15 hover:text-accent"
+                            type="button"
+                            title="Copy signup link"
+                            aria-label="Copy signup link"
+                            data-copy-text="{{ request.base_url }}signup?invite_key={{ key.key }}">
+                      <span class="js-copy-icon">{{ macros.icon_link() }}</span>
+                      <span class="js-copy-icon-done hidden">{{ macros.icon_check() }}</span>
+                    </button>
                     <button class="icon-btn"
                             title="Revoke"
                             aria-label="Revoke"
