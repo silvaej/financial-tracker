@@ -1,4 +1,9 @@
+# Aliased -- OneTimeExpense's own `date` column attribute would otherwise
+# shadow this import by the time SQLAlchemy's Mapped[] annotation scanner
+# resolves it (it inspects the class's own __dict__, which already holds
+# that attribute), raising a MappedAnnotationError at class-definition time.
 from datetime import UTC, datetime
+from datetime import date as PyDate
 
 from sqlalchemy import (
     DateTime,
@@ -186,6 +191,32 @@ class Expense(Base):
     # cancelling a subscription for one cycle shouldn't mean losing its
     # channel/amount/history the way deleting it would. See issue #86.
     active: Mapped[bool] = mapped_column(default=True)
+
+    cycle: Mapped[Cycle] = relationship()
+    channel: Mapped[Channel] = relationship()
+    category: Mapped[ExpenseCategory | None] = relationship()
+
+
+class OneTimeExpense(Base):
+    """A single, non-recurring spend -- same shape as Expense (tied to one
+    Cycle + Channel, subtracted from that cycle's channel balance the same
+    way) but with a real calendar `date` recording when it happened instead
+    of due_day/paid/active, since a one-off has no "next cycle" for those to
+    reset against. The Expenses page's "Clear all" wipes every row a user
+    has via crud.clear_one_time_expenses, rather than a per-row paid marker."""
+
+    __tablename__ = "one_time_expenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("cycles.id"), nullable=False)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("expense_categories.id"), nullable=True
+    )
+    date: Mapped[PyDate] = mapped_column(nullable=False)
 
     cycle: Mapped[Cycle] = relationship()
     channel: Mapped[Channel] = relationship()

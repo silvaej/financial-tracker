@@ -532,6 +532,7 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
     in_use = (
         db.query(models.Cycle).filter_by(receiving_channel_id=channel_id, user_id=user_id).first()
         or db.query(models.Expense).filter_by(channel_id=channel_id, user_id=user_id).first()
+        or db.query(models.OneTimeExpense).filter_by(channel_id=channel_id, user_id=user_id).first()
         or db.query(models.Transfer)
         .filter(
             models.Transfer.user_id == user_id,
@@ -550,9 +551,10 @@ def delete_channel(db: Session, channel_id: int, user_id: int) -> None:
     )
     if in_use is not None:
         raise ChannelInUseError(
-            "This channel is still used by a cycle, expense, transfer, "
-            "goal contribution, goal, credit line, or asset, and can't be "
-            "deleted until those are removed or reassigned."
+            "This channel is still used by a cycle, expense, one-time "
+            "expense, transfer, goal contribution, goal, credit line, or "
+            "asset, and can't be deleted until those are removed or "
+            "reassigned."
         )
 
     db.query(models.ChannelPlacement).filter_by(channel_id=channel_id, user_id=user_id).delete()
@@ -626,6 +628,7 @@ def delete_cycle(db: Session, cycle_id: int, user_id: int) -> None:
 
     in_use = (
         db.query(models.Expense).filter_by(cycle_id=cycle_id, user_id=user_id).first()
+        or db.query(models.OneTimeExpense).filter_by(cycle_id=cycle_id, user_id=user_id).first()
         or db.query(models.Transfer).filter_by(cycle_id=cycle_id, user_id=user_id).first()
         or db.query(models.GoalContribution).filter_by(cycle_id=cycle_id, user_id=user_id).first()
         or db.query(models.ChannelPlacement).filter_by(cycle_id=cycle_id, user_id=user_id).first()
@@ -633,9 +636,9 @@ def delete_cycle(db: Session, cycle_id: int, user_id: int) -> None:
     )
     if in_use is not None:
         raise CycleInUseError(
-            "This cycle is still used by an expense, transfer, goal "
-            "contribution, or canvas placement, and can't be deleted until "
-            "those are removed or reassigned."
+            "This cycle is still used by an expense, one-time expense, "
+            "transfer, goal contribution, or canvas placement, and can't be "
+            "deleted until those are removed or reassigned."
         )
 
     db.delete(cycle)
@@ -677,7 +680,12 @@ def delete_expense_category(db: Session, category_id: int, user_id: int) -> None
     if category is None:
         return
 
-    in_use = db.query(models.Expense).filter_by(category_id=category_id, user_id=user_id).first()
+    in_use = (
+        db.query(models.Expense).filter_by(category_id=category_id, user_id=user_id).first()
+        or db.query(models.OneTimeExpense)
+        .filter_by(category_id=category_id, user_id=user_id)
+        .first()
+    )
     if in_use is not None:
         raise ExpenseCategoryInUseError(
             "This category is still used by an expense, and can't be deleted "
@@ -758,6 +766,68 @@ def set_expense_active(db: Session, expense_id: int, user_id: int, active: bool)
     if expense is None:
         raise OwnershipError("Expense not found.")
     expense.active = active
+    db.commit()
+
+
+# --- One-time expenses ----------------------------------------------------------
+
+
+def list_one_time_expenses(
+    db: Session, user_id: int, q: str | None = None
+) -> list[models.OneTimeExpense]:
+    stmt = (
+        select(models.OneTimeExpense)
+        .where(models.OneTimeExpense.user_id == user_id)
+        .order_by(models.OneTimeExpense.date.desc(), models.OneTimeExpense.id.desc())
+    )
+    if q:
+        stmt = stmt.where(models.OneTimeExpense.name.ilike(f"%{q}%"))
+    return list(db.scalars(stmt))
+
+
+def create_one_time_expense(
+    db: Session, data: schemas.OneTimeExpenseCreate, user_id: int | None
+) -> models.OneTimeExpense:
+    _require_owned(db, models.Cycle, data.cycle_id, user_id, "Cycle")
+    _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
+    _require_owned(db, models.ExpenseCategory, data.category_id, user_id, "Category")
+    expense = models.OneTimeExpense(**data.model_dump(), user_id=user_id)
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+def update_one_time_expense(
+    db: Session, expense_id: int, data: schemas.OneTimeExpenseUpdate, user_id: int
+) -> models.OneTimeExpense | None:
+    _require_owned(db, models.Cycle, data.cycle_id, user_id, "Cycle")
+    _require_owned(db, models.Channel, data.channel_id, user_id, "Channel")
+    _require_owned(db, models.ExpenseCategory, data.category_id, user_id, "Category")
+    expense = _owned(db, models.OneTimeExpense, expense_id, user_id)
+    if expense is not None:
+        expense.name = data.name
+        expense.amount = data.amount
+        expense.cycle_id = data.cycle_id
+        expense.channel_id = data.channel_id
+        expense.category_id = data.category_id
+        expense.date = data.date
+        db.commit()
+        db.refresh(expense)
+    return expense
+
+
+def delete_one_time_expense(db: Session, expense_id: int, user_id: int) -> None:
+    _delete_owned(db, models.OneTimeExpense, expense_id, user_id)
+
+
+def clear_one_time_expenses(db: Session, user_id: int) -> None:
+    """Wipes every one-time expense the user has -- the Expenses page's
+    "Clear all" action. Deliberately unconditional (no per-row selection):
+    the expected flow is log-as-you-go, then clear once they're all
+    accounted for elsewhere, same explicit/all-or-nothing shape as the rest
+    of this app's mutations."""
+    db.query(models.OneTimeExpense).filter_by(user_id=user_id).delete()
     db.commit()
 
 
@@ -1089,7 +1159,10 @@ def preview_canvas(
     carry_in = _carry_in_for_cycle(db, cycle_id, user_id)
     cycle = _owned(db, models.Cycle, cycle_id, user_id)
     channels = list_channels(db, user_id)
-    expenses = [e for e in list_expenses(db, user_id) if e.cycle_id == cycle_id]
+    expenses: list[models.Expense | models.OneTimeExpense] = [
+        e for e in list_expenses(db, user_id) if e.cycle_id == cycle_id
+    ]
+    expenses += [e for e in list_one_time_expenses(db, user_id) if e.cycle_id == cycle_id]
 
     channel_balances_out: dict[int, float] = {}
     for channel in channels:
@@ -1148,6 +1221,12 @@ def _all_channel_balances(
     # touch the row's identity (still shown, unfiltered, on the Expenses
     # page itself via list_expenses()).
     all_expenses = [e for e in list_expenses(db, user_id) if e.active]
+    # One-time expenses have no active flag -- they're all "live" until
+    # deleted (individually or via Clear all) -- but share the same
+    # cycle_id/channel_id/amount shape, so they combine into `expenses`
+    # below and get subtracted from that cycle's channel balance exactly
+    # like a recurring Expense row.
+    all_one_time_expenses = list_one_time_expenses(db, user_id)
 
     carry_in_by_cycle: dict[int, dict[int, float]] = {}
     balances_by_cycle: dict[int, list[tuple[models.Channel, float]]] = {}
@@ -1158,7 +1237,10 @@ def _all_channel_balances(
     carry: dict[int, float] = {c.id: float(c.current_amount) for c in channels}
     for cycle in cycles:
         carry_in_by_cycle[cycle.id] = carry
-        expenses = [e for e in all_expenses if e.cycle_id == cycle.id]
+        expenses: list[models.Expense | models.OneTimeExpense] = [
+            e for e in all_expenses if e.cycle_id == cycle.id
+        ]
+        expenses += [e for e in all_one_time_expenses if e.cycle_id == cycle.id]
         transfers = list_transfers(db, cycle.id, user_id)
         goal_contributions = list_goal_contributions(db, cycle.id, user_id)
 
@@ -1279,7 +1361,10 @@ def _live_cycle_balances(
     won't sum to `net` on their own -- see ClosedCycleBalance's docstring."""
     channels = list_channels(db, user_id)
     transfers = list_transfers(db, cycle.id, user_id)
-    expenses = [e for e in list_expenses(db, user_id) if e.cycle_id == cycle.id and e.active]
+    expenses: list[models.Expense | models.OneTimeExpense] = [
+        e for e in list_expenses(db, user_id) if e.cycle_id == cycle.id and e.active
+    ]
+    expenses += [e for e in list_one_time_expenses(db, user_id) if e.cycle_id == cycle.id]
     net_by_channel_id = {c.id: net for c, net in channel_balances(db, cycle.id, user_id)}
 
     balances = []
@@ -1622,16 +1707,21 @@ class ExpenseCategoryBreakdownEntry(NamedTuple):
 
 
 def expense_category_breakdown(db: Session, user_id: int) -> dict[str, Any] | None:
-    """Sums every active recurring expense grouped by category, for
-    Overview's pie chart (see issue #165). Scope is all active expenses
-    regardless of cycle -- matches the app's template-not-instance
-    philosophy, not scoped to a single cycle. Returns None when there's
-    nothing to chart (no active expenses at all)."""
+    """Sums every active recurring expense plus every one-time expense
+    grouped by category, for Overview's pie chart (see issue #165). Scope is
+    all active expenses regardless of cycle -- matches the app's
+    template-not-instance philosophy, not scoped to a single cycle
+    (one-time expenses have no cycle-scoping concept to match either way).
+    Returns None when there's nothing to chart (no expenses at all)."""
     totals: dict[int | None, float] = {}
     for expense in list_expenses(db, user_id):
         if not expense.active:
             continue
         totals[expense.category_id] = totals.get(expense.category_id, 0.0) + float(expense.amount)
+    for one_time_expense in list_one_time_expenses(db, user_id):
+        totals[one_time_expense.category_id] = totals.get(
+            one_time_expense.category_id, 0.0
+        ) + float(one_time_expense.amount)
     grand_total = sum(totals.values())
     if grand_total <= 0:
         return None
@@ -1791,6 +1881,8 @@ def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
         "overdue_cycle_ids": overdue_cycle_ids(db, user_id, cycles),
         "expense_categories": list_expense_categories(db, user_id),
         "expenses": list_expenses(db, user_id, q),
+        "one_time_expenses": list_one_time_expenses(db, user_id),
+        "today_iso": date.today().isoformat(),
         "q": q or "",
         "onboarding_step": onboarding_step,
         "onboarding_latest_channel": onboarding_latest_channel,
@@ -1838,7 +1930,7 @@ def _format_amount(amount: float, symbol: str) -> str:
 
 def _transfer_note(
     to_channel_id: int,
-    expenses: list[models.Expense],
+    expenses: list[models.Expense | models.OneTimeExpense],
     goals: list[models.Goal],
     cycle_count: int,
     symbol: str,
@@ -1867,6 +1959,10 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     # channel expense breakdown consistent with the balances it's shown
     # alongside (a paused expense doesn't visually deduct here either).
     all_expenses = [e for e in list_expenses(db, user_id) if e.active]
+    # One-time expenses fold into the same per-cycle breakdown below (see
+    # _all_channel_balances) so the canvas's "Expenses" nodes/notes stay
+    # consistent with the balances they're shown alongside.
+    all_one_time_expenses = list_one_time_expenses(db, user_id)
     cycle_count = len(cycles)
     goal_entries: list[dict[str, Any]] = [
         {"goal": g, "per_payout": goal_payout_amount(g, cycle_count)} for g in goals
@@ -1876,7 +1972,10 @@ def cashflow_page_data(db: Session, user_id: int) -> dict:
     carry_in_by_cycle, balances_by_cycle = _all_channel_balances(db, user_id)
     payout_data = []
     for cycle in cycles:
-        expenses = [e for e in all_expenses if e.cycle_id == cycle.id]
+        expenses: list[models.Expense | models.OneTimeExpense] = [
+            e for e in all_expenses if e.cycle_id == cycle.id
+        ]
+        expenses += [e for e in all_one_time_expenses if e.cycle_id == cycle.id]
         transfers = _order_transfers(channels, list_transfers(db, cycle.id, user_id))
         goal_contributions = list_goal_contributions(db, cycle.id, user_id)
         balances = balances_by_cycle.get(cycle.id, [])
@@ -1976,6 +2075,7 @@ ORPHANABLE_MODELS: tuple[type[Any], ...] = (
     models.Channel,
     models.Cycle,
     models.Expense,
+    models.OneTimeExpense,
     models.Transfer,
     models.Goal,
     models.CreditLine,
@@ -2054,6 +2154,7 @@ def delete_user_and_data(db: Session, user_id: int) -> None:
         models.GoalPlacement,
         models.Transfer,
         models.Expense,
+        models.OneTimeExpense,
         models.ClosedCycle,
         models.Goal,
         models.CreditLine,

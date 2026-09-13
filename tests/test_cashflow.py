@@ -170,3 +170,30 @@ def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -
 
     response = client.get("/cashflow")
     assert "nudge-banner" not in response.text
+
+
+def test_one_time_expense_shows_in_channel_expense_breakdown(client: TestClient) -> None:
+    """A one-time expense tagged to a channel folds into that channel's
+    "Expenses" node breakdown the same way a recurring one does, so the
+    canvas stays consistent with the balance it's subtracted from -- see
+    crud.cashflow_page_data's comment on all_one_time_expenses."""
+    a = _create_channel(client, "Channel A")
+    cycle_id = _create_cycle(client, 15, "1000", a)
+    client.post(f"/channels/{a}/placement", data={"cycle_id": cycle_id, "x": "0", "y": "0"})
+    client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "350",
+            "cycle_id": cycle_id,
+            "channel_id": a,
+            "date": "2026-09-10",
+        },
+    )
+
+    response = client.get("/cashflow")
+    assert response.status_code == 200
+    assert "Aircon Repair" in response.text
+    assert "350.00" in response.text
+    # The channel's own balance (income - the one-time expense) reflects it too.
+    assert "650.00" in response.text

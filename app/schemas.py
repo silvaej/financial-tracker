@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from pydantic import BaseModel, Field, StringConstraints
@@ -62,6 +63,24 @@ class ExpenseUpdate(BaseModel):
     channel_id: int
     category_id: int | None = None
     due_day: int | None = Field(default=None, ge=1, le=31)
+
+
+class OneTimeExpenseCreate(BaseModel):
+    name: NonEmptyStr
+    amount: float = Field(gt=0)
+    cycle_id: int
+    channel_id: int
+    category_id: int | None = None
+    date: date
+
+
+class OneTimeExpenseUpdate(BaseModel):
+    name: NonEmptyStr
+    amount: float = Field(gt=0)
+    cycle_id: int
+    channel_id: int
+    category_id: int | None = None
+    date: date
 
 
 class TransferCreate(BaseModel):
