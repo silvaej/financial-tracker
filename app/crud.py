@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import secrets
+import string
 import zoneinfo
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal, NamedTuple
@@ -373,14 +374,15 @@ def skip_onboarding(db: Session, user: models.User) -> None:
 
 # --- Signup keys --------------------------------------------------------------
 
-# Excludes 0/O and 1/I to avoid ambiguity when an operator reads a key aloud
-# or a user retypes it by hand.
-_SIGNUP_KEY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+# The key is never hand-typed anymore -- it's only ever passed via the
+# /signup?invite_key=... link the operator sends -- so there's no need to
+# exclude visually-ambiguous characters the way a hand-typed code would.
+_SIGNUP_KEY_ALPHABET = string.ascii_letters + string.digits
+_SIGNUP_KEY_LENGTH = 15
 
 
 def generate_signup_key_value() -> str:
-    groups = ["".join(secrets.choice(_SIGNUP_KEY_ALPHABET) for _ in range(4)) for _ in range(2)]
-    return "LEDGER-" + "-".join(groups)
+    return "".join(secrets.choice(_SIGNUP_KEY_ALPHABET) for _ in range(_SIGNUP_KEY_LENGTH))
 
 
 def create_signup_key(
