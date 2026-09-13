@@ -1707,16 +1707,21 @@ class ExpenseCategoryBreakdownEntry(NamedTuple):
 
 
 def expense_category_breakdown(db: Session, user_id: int) -> dict[str, Any] | None:
-    """Sums every active recurring expense grouped by category, for
-    Overview's pie chart (see issue #165). Scope is all active expenses
-    regardless of cycle -- matches the app's template-not-instance
-    philosophy, not scoped to a single cycle. Returns None when there's
-    nothing to chart (no active expenses at all)."""
+    """Sums every active recurring expense plus every one-time expense
+    grouped by category, for Overview's pie chart (see issue #165). Scope is
+    all active expenses regardless of cycle -- matches the app's
+    template-not-instance philosophy, not scoped to a single cycle
+    (one-time expenses have no cycle-scoping concept to match either way).
+    Returns None when there's nothing to chart (no expenses at all)."""
     totals: dict[int | None, float] = {}
     for expense in list_expenses(db, user_id):
         if not expense.active:
             continue
         totals[expense.category_id] = totals.get(expense.category_id, 0.0) + float(expense.amount)
+    for one_time_expense in list_one_time_expenses(db, user_id):
+        totals[one_time_expense.category_id] = totals.get(
+            one_time_expense.category_id, 0.0
+        ) + float(one_time_expense.amount)
     grand_total = sum(totals.values())
     if grand_total <= 0:
         return None
