@@ -41,6 +41,19 @@ def create_cycle(
         )
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except crud.CycleCapExceededError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _render_page(request, db, current_user.id)
+
+
+@router.patch("/count")
+def update_cycles_per_month(
+    request: Request,
+    cycles_per_month: int = Form(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.update_cycles_per_month(db, current_user, cycles_per_month)
     return _render_page(request, db, current_user.id)
 
 

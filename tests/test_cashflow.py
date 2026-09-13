@@ -45,6 +45,7 @@ def test_channel_balance_carries_over_to_next_cycle(client: TestClient) -> None:
     """A ends period 1 with 1000 leftover (pure income, no expenses/transfers), so
     period 2 (also receiving 500 income) should show a 1500 ending balance."""
     a = _create_channel(client, "Channel A")
+    client.patch("/cycles/count", data={"cycles_per_month": "2"})
     cycle_1 = _create_cycle(client, 15, "1000", a)
     cycle_2 = _create_cycle(client, 30, "500", a)
     client.post(f"/channels/{a}/placement", data={"cycle_id": cycle_1, "x": "0", "y": "0"})

@@ -252,7 +252,24 @@
     </div>
   </div>
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels else (' section-onboarding-active' if onboarding_step == 2 else '') }}">
-    <div class="section-title">Cycles<span class="pill">{{ cycles|length }} total</span></div>
+    <div class="section-title">
+      <span>Cycles<span class="pill">{{ cycles|length }} total</span></span>
+      <form id="cycles-per-month-form"
+            hx-patch="/cycles/count"
+            hx-target="#expenses-page"
+            hx-swap="outerHTML"
+            class="flex items-center gap-1.5 text-xs text-ink-soft">
+        <label for="cycles_per_month">Cycles per month</label>
+        <input class="field field-mono w-14"
+               type="number"
+               id="cycles_per_month"
+               name="cycles_per_month"
+               min="1"
+               value="{{ cycles_per_month }}"
+               aria-label="Cycles per month">
+        <button type="submit" class="btn-secondary">Save</button>
+      </form>
+    </div>
     <form id="add-cycle-form"
           hx-post="/cycles"
           hx-target="#expenses-page"
@@ -382,9 +399,12 @@
               <button type="button"
                       id="add-cycle-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 2 else '' }}"
-                      {{ "disabled" if not channels }}
+                      {{ "disabled" if not channels or cycles|length >= cycles_per_month }}
                       onclick="toggleAddRow('add-cycle-row', this)">+ Add
               </button>
+              {% if channels and cycles|length >= cycles_per_month %}
+                <span class="text-xs text-ink-soft ml-2">{{ cycles|length }} of {{ cycles_per_month }} configured — raise the count above to add more</span>
+              {% endif %}
             </td>
           </tr>
           <tr id="add-cycle-row"
@@ -796,9 +816,7 @@
                       form="add-expense-form"
                       aria-label="Category">
                 <option value="">No category</option>
-                {% for category in expense_categories %}
-                  <option value="{{ category.id }}">{{ category.name }}</option>
-                {% endfor %}
+                {% for category in expense_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}
               </select>
             </td>
             <td class="led-inline led-inline-2" data-label="Due">

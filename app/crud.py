@@ -75,6 +75,11 @@ class CycleInUseError(Exception):
     """Raised when deleting a cycle that is still referenced elsewhere."""
 
 
+class CycleCapExceededError(Exception):
+    """Raised when creating a cycle would exceed the user's configured
+    User.cycles_per_month (see issue #191)."""
+
+
 class OwnershipError(Exception):
     """Raised when a referenced row doesn't belong to the acting user."""
 
@@ -268,6 +273,11 @@ def update_profile(
 
 def update_palette(db: Session, user: models.User, palette: str) -> None:
     user.palette = palette
+    db.commit()
+
+
+def update_cycles_per_month(db: Session, user: models.User, cycles_per_month: int) -> None:
+    user.cycles_per_month = cycles_per_month
     db.commit()
 
 
@@ -570,6 +580,17 @@ def ordinal_label(day: int) -> str:
 
 def create_cycle(db: Session, data: schemas.CycleCreate, user_id: int | None) -> models.Cycle:
     _require_owned(db, models.Channel, data.receiving_channel_id, user_id, "Receiving channel")
+    # Orphaned rows (user_id=None, e.g. app/seed.py) aren't capped -- there's
+    # no User row to read a limit from, and seeding isn't a real user flow.
+    if user_id is not None:
+        user = get_user(db, user_id)
+        cycles_per_month = user.cycles_per_month if user is not None else 1
+        if len(list_cycles(db, user_id)) >= cycles_per_month:
+            raise CycleCapExceededError(
+                f"You've configured {cycles_per_month} cycle"
+                f"{'s' if cycles_per_month != 1 else ''} per month. "
+                "Raise the count before adding another."
+            )
     cycle = models.Cycle(
         income_amount=data.income_amount,
         receiving_channel_id=data.receiving_channel_id,
@@ -1764,6 +1785,7 @@ def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
         "channel_types": CHANNEL_TYPES,
         "channel_preset_groups": channel_presets_by_group(),
         "cycles": cycles,
+        "cycles_per_month": user.cycles_per_month if user is not None else 1,
         "overdue_cycle_ids": overdue_cycle_ids(db, user_id, cycles),
         "expense_categories": list_expense_categories(db, user_id),
         "expenses": list_expenses(db, user_id, q),

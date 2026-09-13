@@ -149,6 +149,7 @@ def test_create_expense_rejects_whitespace_only_name(client: TestClient) -> None
 def test_update_expense(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     other_channel_id = _create_channel(client, "GCash")
+    client.patch("/cycles/count", data={"cycles_per_month": "2"})
     cycle_id = _create_cycle(client, 15, channel_id)
     other_cycle_id = _create_cycle(client, 30, channel_id)
 

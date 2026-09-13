@@ -199,6 +199,9 @@ def test_channel_balances_carry_forward_across_many_periods() -> None:
     try:
         channel_a = crud.create_channel(db, schemas.ChannelCreate(name="Channel A"), TEST_USER_ID)
         channel_b = crud.create_channel(db, schemas.ChannelCreate(name="Channel B"), TEST_USER_ID)
+        user = crud.get_user(db, TEST_USER_ID)
+        assert user is not None
+        crud.update_cycles_per_month(db, user, 9)
 
         period_count = 9
         periods = []
@@ -308,6 +311,9 @@ def test_cashflow_page_data_completes_quickly_with_many_periods() -> None:
     try:
         channel_a = crud.create_channel(db, schemas.ChannelCreate(name="Channel A"), TEST_USER_ID)
         channel_b = crud.create_channel(db, schemas.ChannelCreate(name="Channel B"), TEST_USER_ID)
+        user = crud.get_user(db, TEST_USER_ID)
+        assert user is not None
+        crud.update_cycles_per_month(db, user, 20)
 
         for i in range(1, 21):
             period = crud.create_cycle(
