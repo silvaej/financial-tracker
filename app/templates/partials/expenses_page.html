@@ -856,4 +856,259 @@
       </table>
     </div>
   </div>
+  <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not cycles else '' }}">
+    <div class="section-title">
+      <span>One-time expenses<span class="pill">{{ one_time_expenses|length }} items</span></span>
+      <button type="button"
+              class="btn-secondary gap-1.5 text-rust border-rust/40 hover:bg-rust-soft disabled:opacity-40 disabled:cursor-not-allowed"
+              hx-post="/one-time-expenses/clear"
+              hx-target="#expenses-page"
+              hx-swap="outerHTML"
+              hx-confirm="Delete all {{ one_time_expenses|length }} one-time expense{{ 's' if one_time_expenses|length != 1 else '' }}? This can't be undone."
+              {{ "disabled" if not one_time_expenses else "" }}>
+        {{ macros.icon_delete() }}
+        Clear all
+      </button>
+    </div>
+    <form id="add-one-time-expense-form"
+          hx-post="/one-time-expenses"
+          hx-target="#expenses-page"
+          hx-swap="outerHTML">
+    </form>
+    <div class="table-wrap">
+      <table class="led">
+        <colgroup>
+          <col class="min-w-28">
+          <col class="w-24">
+          <col class="w-36">
+          <col class="w-36">
+          <col class="w-24">
+          <col class="w-24">
+          <col class="w-20">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Payout</th>
+            <th>Channel</th>
+            <th>Category</th>
+            <th>Date</th>
+            <th>Amount</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for expense in one_time_expenses %}
+            <tr>
+              <td class="led-inline led-inline-2" data-label="Name">
+                <span class="view-one-time-expense-{{ expense.id }}">{{ expense.name }}</span>
+                <form id="one-time-expense-edit-form-{{ expense.id }}"
+                      hx-patch="/one-time-expenses/{{ expense.id }}"
+                      hx-target="#expenses-page"
+                      hx-swap="outerHTML"
+                      class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-2">
+                  <input class="field"
+                         type="text"
+                         name="name"
+                         aria-label="Expense name"
+                         value="{{ expense.name }}"
+                         required>
+                </form>
+              </td>
+              <td class="led-inline led-inline-2" data-label="Payout">
+                <span class="view-one-time-expense-{{ expense.id }}">{{ ordinal_label(expense.cycle.payout_day) }}</span>
+                <div class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-1">
+                  <select class="field"
+                          name="cycle_id"
+                          form="one-time-expense-edit-form-{{ expense.id }}"
+                          aria-label="Cycle"
+                          required>
+                    {% for cycle in cycles %}
+                      <option value="{{ cycle.id }}"
+                              {{ "selected" if cycle.id == expense.cycle_id else "" }}>{{ ordinal_label(cycle.payout_day) }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              <td class="led-inline led-inline-2" data-label="Channel">
+                <span class="view-one-time-expense-{{ expense.id }}">{{ macros.channel_label(expense.channel) }}</span>
+                <div class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-1">
+                  <select class="field"
+                          name="channel_id"
+                          form="one-time-expense-edit-form-{{ expense.id }}"
+                          aria-label="Channel"
+                          required>
+                    {% for channel in channels %}
+                      <option value="{{ channel.id }}"
+                              {{ "selected" if channel.id == expense.channel_id else "" }}>{{ channel.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              <td class="led-inline led-inline-2" data-label="Category">
+                <span class="view-one-time-expense-{{ expense.id }}">
+                  {% if expense.category %}
+                    {{ macros.badge_from_name(expense.category.name, expense.category.color) }} {{ expense.category.name }}
+                  {% else %}
+                    &mdash;
+                  {% endif %}
+                </span>
+                <div class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-1">
+                  <select class="field"
+                          name="category_id"
+                          form="one-time-expense-edit-form-{{ expense.id }}"
+                          aria-label="Category">
+                    <option value="">No category</option>
+                    {% for category in expense_categories %}
+                      <option value="{{ category.id }}"
+                              {{ "selected" if category.id == expense.category_id else "" }}>{{ category.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              <td class="led-inline led-inline-2" data-label="Date">
+                <span class="view-one-time-expense-{{ expense.id }}">{{ expense.date.strftime("%b %d") }}</span>
+                <div class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-1">
+                  <input class="field field-mono"
+                         type="date"
+                         name="date"
+                         form="one-time-expense-edit-form-{{ expense.id }}"
+                         aria-label="Date"
+                         value="{{ expense.date.isoformat() }}"
+                         required>
+                </div>
+              </td>
+              <td class="num led-inline led-inline-2" data-label="Amount">
+                <span class="view-one-time-expense-{{ expense.id }}">{{ macros.peso(expense.amount) }}</span>
+                <div class="edit-one-time-expense-{{ expense.id }} hidden items-center justify-end gap-1">
+                  <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
+                  <input class="field field-mono w-24"
+                         type="number"
+                         step="0.01"
+                         name="amount"
+                         form="one-time-expense-edit-form-{{ expense.id }}"
+                         aria-label="Amount"
+                         value="{{ expense.amount }}"
+                         required>
+                </div>
+              </td>
+              <td class="led-actions">
+                <div class="view-one-time-expense-{{ expense.id }} flex items-center gap-1">
+                  <button type="button"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Edit"
+                          aria-label="Edit"
+                          onclick="toggleEditMode('one-time-expense-{{ expense.id }}')">{{ macros.icon_edit() }}</button>
+                  <button class="icon-btn"
+                          title="Delete"
+                          aria-label="Delete"
+                          hx-delete="/one-time-expenses/{{ expense.id }}"
+                          hx-target="#expenses-page"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete this expense?">{{ macros.icon_delete() }}</button>
+                </div>
+                <div class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-1">
+                  <button type="submit"
+                          form="one-time-expense-edit-form-{{ expense.id }}"
+                          class="icon-btn hover:bg-accent/15 hover:text-accent"
+                          title="Save"
+                          aria-label="Save">{{ macros.icon_save() }}</button>
+                  <button type="button"
+                          class="icon-btn hover:bg-paper-dim hover:text-ink"
+                          title="Cancel"
+                          aria-label="Cancel"
+                          onclick="cancelEdit('one-time-expense-{{ expense.id }}', 'one-time-expense-edit-form-{{ expense.id }}')">{{ macros.icon_cancel() }}</button>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            {{ macros.empty_row(7, 'one-time expenses') }}
+          {% endfor %}
+          <tr class="tr-add-btn">
+            <td colspan="7">
+              <button type="button"
+                      id="add-one-time-expense-trigger"
+                      class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed"
+                      {{ "disabled" if not channels or not cycles }}
+                      onclick="toggleAddRow('add-one-time-expense-row', this)">+ Add
+              </button>
+            </td>
+          </tr>
+          <tr id="add-one-time-expense-row" class="hidden">
+            <td class="led-inline led-inline-2" data-label="Name">
+              <input class="field"
+                     type="text"
+                     name="name"
+                     form="add-one-time-expense-form"
+                     placeholder="Expense name"
+                     aria-label="Expense name"
+                     required>
+            </td>
+            <td class="led-inline led-inline-2" data-label="Payout">
+              <select class="field"
+                      name="cycle_id"
+                      form="add-one-time-expense-form"
+                      aria-label="Cycle"
+                      required>
+                {% for cycle in cycles %}
+                  <option value="{{ cycle.id }}">{{ ordinal_label(cycle.payout_day) }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="led-inline led-inline-2" data-label="Channel">
+              <select class="field"
+                      name="channel_id"
+                      form="add-one-time-expense-form"
+                      aria-label="Channel"
+                      required>
+                {% for channel in channels %}<option value="{{ channel.id }}">{{ channel.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td class="led-inline led-inline-2" data-label="Category">
+              <select class="field"
+                      name="category_id"
+                      form="add-one-time-expense-form"
+                      aria-label="Category">
+                <option value="">No category</option>
+                {% for category in expense_categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td class="led-inline led-inline-2" data-label="Date">
+              <input class="field field-mono"
+                     type="date"
+                     name="date"
+                     form="add-one-time-expense-form"
+                     aria-label="Date"
+                     value="{{ today_iso }}"
+                     required>
+            </td>
+            <td class="num led-inline led-inline-2" data-label="Amount">
+              <div class="flex items-center justify-end gap-1">
+                <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
+                <input class="field field-mono w-24"
+                       type="number"
+                       step="0.01"
+                       name="amount"
+                       form="add-one-time-expense-form"
+                       placeholder="Amount"
+                       aria-label="Amount"
+                       required>
+              </div>
+            </td>
+            <td>
+              <div class="flex items-center gap-2">
+                <button class="add-btn mt-0" type="submit" form="add-one-time-expense-form">Add</button>
+                <button type="button"
+                        class="btn-secondary"
+                        onclick="cancelAddRow('add-one-time-expense-row', 'add-one-time-expense-trigger', 'add-one-time-expense-form')">Cancel</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>

@@ -38,6 +38,7 @@ from app.routers import (
     goals,
     oauth,
     onboarding,
+    one_time_expenses,
     overview,
     transfers,
 )
@@ -179,6 +180,7 @@ app.include_router(cycles.router)
 app.include_router(closed_cycles.router)
 app.include_router(expense_categories.router)
 app.include_router(expenses.router)
+app.include_router(one_time_expenses.router)
 app.include_router(transfers.router)
 app.include_router(goal_contributions.router)
 app.include_router(assets.router)
