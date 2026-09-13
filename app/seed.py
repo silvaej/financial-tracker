@@ -66,40 +66,32 @@ def _channels_by_name(db: Session, user_id: int | None) -> dict[str, models.Chan
     return {c.name: c for c in crud.list_channels(db, user_id)}
 
 
-def _seed_payout_periods(
-    db: Session, channels: dict[str, models.Channel], user_id: int | None
-) -> None:
+def _seed_cycles(db: Session, channels: dict[str, models.Channel], user_id: int | None) -> None:
     payroll = channels.get("BPI Payroll")
     gateway = channels.get("PayMongo Payouts")
     if payroll is None or gateway is None:
         return
-    crud.create_payout_period(
+    crud.create_cycle(
         db,
-        schemas.PayoutPeriodCreate(
-            payout_day=15, income_amount=32000, receiving_channel_id=payroll.id
-        ),
+        schemas.CycleCreate(payout_day=15, income_amount=32000, receiving_channel_id=payroll.id),
         user_id,
     )
-    crud.create_payout_period(
+    crud.create_cycle(
         db,
-        schemas.PayoutPeriodCreate(
-            payout_day=30, income_amount=32000, receiving_channel_id=payroll.id
-        ),
+        schemas.CycleCreate(payout_day=30, income_amount=32000, receiving_channel_id=payroll.id),
         user_id,
     )
     # "Freelance Payout" no longer has a distinct free-text label (see issue
     # #189) -- day 5 is arbitrary but distinct from the 15th/30th above.
-    crud.create_payout_period(
+    crud.create_cycle(
         db,
-        schemas.PayoutPeriodCreate(
-            payout_day=5, income_amount=18000, receiving_channel_id=gateway.id
-        ),
+        schemas.CycleCreate(payout_day=5, income_amount=18000, receiving_channel_id=gateway.id),
         user_id,
     )
 
 
-def _periods_by_day(db: Session, user_id: int | None) -> dict[int, models.PayoutPeriod]:
-    return {p.payout_day: p for p in crud.list_payout_periods(db, user_id)}
+def _cycles_by_day(db: Session, user_id: int | None) -> dict[int, models.Cycle]:
+    return {p.payout_day: p for p in crud.list_cycles(db, user_id)}
 
 
 def _goals_by_name(db: Session, user_id: int | None) -> dict[str, models.Goal]:
@@ -109,7 +101,7 @@ def _goals_by_name(db: Session, user_id: int | None) -> dict[str, models.Goal]:
 def _seed_expenses(
     db: Session,
     channels: dict[str, models.Channel],
-    periods: dict[int, models.PayoutPeriod],
+    cycles: dict[int, models.Cycle],
     user_id: int | None,
 ) -> None:
     payroll, gcash, maya, unionbank, rcbc_cc = (
@@ -119,7 +111,7 @@ def _seed_expenses(
         channels.get("UnionBank UNO"),
         channels.get("RCBC Credit Card"),
     )
-    p15, p30, freelance = periods.get(15), periods.get(30), periods.get(5)
+    p15, p30, freelance = cycles.get(15), cycles.get(30), cycles.get(5)
     if (
         payroll is None
         or gcash is None
@@ -132,13 +124,11 @@ def _seed_expenses(
     ):
         return
 
-    def expense(
-        name: str, amount: float, period: models.PayoutPeriod, channel: models.Channel
-    ) -> None:
+    def expense(name: str, amount: float, cycle: models.Cycle, channel: models.Channel) -> None:
         crud.create_expense(
             db,
             schemas.ExpenseCreate(
-                name=name, amount=amount, payout_period_id=period.id, channel_id=channel.id
+                name=name, amount=amount, cycle_id=cycle.id, channel_id=channel.id
             ),
             user_id,
         )
@@ -149,7 +139,7 @@ def _seed_expenses(
     expense("Car Amortization", 8500, p15, payroll)
     expense("Internet", 1699, p15, gcash)
     # Deliberately larger than what gets transferred into this card this
-    # period, so it goes negative and trips the "channel is short" warning.
+    # cycle, so it goes negative and trips the "channel is short" warning.
     expense("Card Annual Fee", 600, p15, rcbc_cc)
 
     expense("Groceries", 6000, p30, gcash)
@@ -212,14 +202,14 @@ def _seed_goals(db: Session, channels: dict[str, models.Channel], user_id: int |
     )
 
 
-# Per-period transfer graph: (from channel name, to channel name, amount).
+# Per-cycle transfer graph: (from channel name, to channel name, amount).
 # Multi-hop chains (Payroll -> Savings -> Time Deposit, Gateway -> UnionBank
 # -> Savings/Cash) and funding-source pass-throughs (GCash/Maya -> their
 # credit cards) exercise the canvas's shortest-path routing and the
 # balance/warning rollups the same way real usage would. Keyed by
-# payout_day now that periods no longer have a distinct free-text label
-# (see issue #189) -- 5 is the "Freelance Payout" period seeded above.
-_TRANSFERS_BY_PERIOD: dict[int, list[tuple[str, str, float]]] = {
+# payout_day now that cycles no longer have a distinct free-text label
+# (see issue #189) -- 5 is the "Freelance Payout" cycle seeded above.
+_TRANSFERS_BY_CYCLE: dict[int, list[tuple[str, str, float]]] = {
     15: [
         ("BPI Payroll", "GCash", 5000),
         ("BPI Payroll", "BPI Savings", 3000),
@@ -243,10 +233,10 @@ _TRANSFERS_BY_PERIOD: dict[int, list[tuple[str, str, float]]] = {
     ],
 }
 
-# Per-period goal contributions: (channel name, goal name, amount). Vacation
-# Fund is fed from two different channels in two different periods, and
+# Per-cycle goal contributions: (channel name, goal name, amount). Vacation
+# Fund is fed from two different channels in two different cycles, and
 # Emergency Fund/Wedding Fund share a channel -- both common real patterns.
-_CONTRIBUTIONS_BY_PERIOD: dict[int, list[tuple[str, str, float]]] = {
+_CONTRIBUTIONS_BY_CYCLE: dict[int, list[tuple[str, str, float]]] = {
     15: [
         ("BPI Savings", "Emergency Fund", 2000),
         ("Maya", "Vacation Fund", 800),
@@ -267,13 +257,13 @@ _CONTRIBUTIONS_BY_PERIOD: dict[int, list[tuple[str, str, float]]] = {
 def _seed_canvas(
     db: Session,
     channels: dict[str, models.Channel],
-    periods: dict[int, models.PayoutPeriod],
+    cycles: dict[int, models.Cycle],
     goals: dict[str, models.Goal],
     user_id: int | None,
 ) -> None:
-    for day, period in periods.items():
-        transfer_specs = _TRANSFERS_BY_PERIOD.get(day, [])
-        contribution_specs = _CONTRIBUTIONS_BY_PERIOD.get(day, [])
+    for day, cycle in cycles.items():
+        transfer_specs = _TRANSFERS_BY_CYCLE.get(day, [])
+        contribution_specs = _CONTRIBUTIONS_BY_CYCLE.get(day, [])
         if not (transfer_specs or contribution_specs):
             continue
 
@@ -303,7 +293,7 @@ def _seed_canvas(
 
         error = crud.save_canvas(
             db,
-            period.id,
+            cycle.id,
             schemas.CanvasSaveIn(
                 channel_placements=[
                     schemas.CanvasChannelPlacementIn(channel_id=cid, x=0, y=0)
@@ -370,19 +360,19 @@ def seed_if_empty(db: Session, user_id: int | None) -> None:
         _seed_channels(db, user_id)
     channels = _channels_by_name(db, user_id)
 
-    if _is_empty(db, models.PayoutPeriod, user_id):
-        _seed_payout_periods(db, channels, user_id)
-    periods = _periods_by_day(db, user_id)
+    if _is_empty(db, models.Cycle, user_id):
+        _seed_cycles(db, channels, user_id)
+    cycles = _cycles_by_day(db, user_id)
 
     if _is_empty(db, models.Expense, user_id):
-        _seed_expenses(db, channels, periods, user_id)
+        _seed_expenses(db, channels, cycles, user_id)
 
     if _is_empty(db, models.Goal, user_id):
         _seed_goals(db, channels, user_id)
     goals = _goals_by_name(db, user_id)
 
     if _is_empty(db, models.Transfer, user_id):
-        _seed_canvas(db, channels, periods, goals, user_id)
+        _seed_canvas(db, channels, cycles, goals, user_id)
 
     if _is_empty(db, models.CreditLine, user_id):
         _seed_credit_lines(db, channels, user_id)

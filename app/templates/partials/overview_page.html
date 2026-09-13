@@ -23,20 +23,20 @@
       <div class="card-value {{ 'card-value-neg' if net_worth < 0 else '' }}">{{ macros.peso(net_worth) }}</div>
     </div>
   </div>
-  {% if period_warnings %}
+  {% if cycle_warnings %}
     <div class="section">
       <div class="section-title">
         Cash flow warnings
-        <span class="pill">{{ period_warnings|length }} period{{ 's' if period_warnings|length != 1 else '' }}</span>
+        <span class="pill">{{ cycle_warnings|length }} cycle{{ 's' if cycle_warnings|length != 1 else '' }}</span>
       </div>
       <div class="warn-banner-wrap" id="overview-warn-wrap">
         <div class="warn-banner">
-          {% for entry in period_warnings %}
+          {% for entry in cycle_warnings %}
             {% for name in entry.warnings.unfunded_channels %}
-              <span class="warn-pill warn-red">{{ name }} goes negative on the {{ ordinal_label(entry.period.payout_day) }}</span>
+              <span class="warn-pill warn-red">{{ name }} goes negative on the {{ ordinal_label(entry.cycle.payout_day) }}</span>
             {% endfor %}
             {% for name in entry.warnings.underfunded_goals %}
-              <span class="warn-pill warn-amber">{{ name }} isn't fully funded on the {{ ordinal_label(entry.period.payout_day) }}</span>
+              <span class="warn-pill warn-amber">{{ name }} isn't fully funded on the {{ ordinal_label(entry.cycle.payout_day) }}</span>
             {% endfor %}
           {% endfor %}
         </div>
@@ -48,10 +48,10 @@
       </div>
     </div>
   {% endif %}
-  {% if next_payout_period %}
+  {% if next_cycle %}
     <div class="section">
       <div class="section-title">
-        Upcoming — {{ ordinal_label(next_payout_period.payout_day) }}<span class="pill">{{ upcoming_expenses|length }} due</span>
+        Upcoming — {{ ordinal_label(next_cycle.payout_day) }}<span class="pill">{{ upcoming_expenses|length }} due</span>
       </div>
       <div class="table-wrap">
         <table class="led">

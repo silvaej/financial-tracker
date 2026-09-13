@@ -19,7 +19,7 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
 @router.post("")
 def create_transfer(
     request: Request,
-    payout_period_id: int = Form(...),
+    cycle_id: int = Form(...),
     from_channel_id: int = Form(...),
     to_channel_id: int = Form(...),
     amount: float = Form(...),
@@ -30,7 +30,7 @@ def create_transfer(
         crud.create_transfer(
             db,
             schemas.TransferCreate(
-                payout_period_id=payout_period_id,
+                cycle_id=cycle_id,
                 from_channel_id=from_channel_id,
                 to_channel_id=to_channel_id,
                 amount=amount,

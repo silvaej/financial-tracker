@@ -50,11 +50,11 @@ class User(Base):
     palette: Mapped[str] = mapped_column(
         String(20), nullable=False, default="ledger", server_default="ledger"
     )
-    # How many payout-period "cycles" per month the user has configured (see
-    # issue #189) -- caps how many PayoutPeriod rows crud.create_payout_period
-    # will let them create (issue #191). Defaults to 1 for a brand-new
-    # account; backfilled to each existing user's actual row count in the
-    # migration that introduced this column.
+    # How many cycles per month the user has configured (see issue #189) --
+    # caps how many Cycle rows crud.create_cycle will let them create (issue
+    # #191). Defaults to 1 for a brand-new account; backfilled to each
+    # existing user's actual row count in the migration that introduced
+    # this column.
     cycles_per_month: Mapped[int] = mapped_column(nullable=False, default=1, server_default="1")
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -123,8 +123,12 @@ class Channel(Base):
     current_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
 
 
-class PayoutPeriod(Base):
-    __tablename__ = "payout_periods"
+class Cycle(Base):
+    """A recurring payout definition (formerly "PayoutPeriod") -- an
+    always-editable template, not a dated occurrence. See ClosedCycle below
+    for the locked, dated snapshot of one occurrence of a Cycle."""
+
+    __tablename__ = "cycles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
@@ -132,13 +136,13 @@ class PayoutPeriod(Base):
     receiving_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id"), nullable=True
     )
-    # Day-of-month this period's payday falls on -- the sole identity/display
+    # Day-of-month this cycle's payday falls on -- the sole identity/display
     # anchor now that `label` and `display_order` are gone (see issue #189):
     # display is auto-derived via crud.ordinal_label(payout_day) rather than
     # stored as free text, and ordering is by this column rather than a
     # separately-managed manual order. Still also used as a hint by
-    # crud.overdue_payout_period_ids to flag periods whose payday has passed
-    # with no cycle closed since (issue #134).
+    # crud.overdue_cycle_ids to flag cycles whose payday has passed with no
+    # closed cycle recorded since (issue #134).
     payout_day: Mapped[int] = mapped_column(nullable=False)
 
     receiving_channel: Mapped[Channel | None] = relationship()
@@ -165,16 +169,16 @@ class Expense(Base):
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("cycles.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("expense_categories.id"), nullable=True
     )
     due_day: Mapped[int | None] = mapped_column(nullable=True)
     # A simple manually-maintained marker ("did I pay this bill"), not tied
-    # to a specific cycle -- Expense rows are perpetual templates with no
-    # dated-cycle concept (see issue #84), so this doesn't auto-reset at the
-    # start of a new payout period; the user checks it off, then unchecks it
+    # to a specific closed cycle -- Expense rows are perpetual templates with
+    # no dated-cycle concept (see issue #84), so this doesn't auto-reset at
+    # the start of a new cycle; the user checks it off, then unchecks it
     # themselves next cycle. See issue #85.
     paid: Mapped[bool] = mapped_column(default=False)
     # Paused expenses are excluded from channel_balances() (see
@@ -183,7 +187,7 @@ class Expense(Base):
     # channel/amount/history the way deleting it would. See issue #86.
     active: Mapped[bool] = mapped_column(default=True)
 
-    payout_period: Mapped[PayoutPeriod] = relationship()
+    cycle: Mapped[Cycle] = relationship()
     channel: Mapped[Channel] = relationship()
     category: Mapped[ExpenseCategory | None] = relationship()
 
@@ -193,12 +197,12 @@ class Transfer(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("cycles.id"), nullable=False)
     from_channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
     to_channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
 
-    payout_period: Mapped[PayoutPeriod] = relationship()
+    cycle: Mapped[Cycle] = relationship()
     from_channel: Mapped[Channel] = relationship(foreign_keys=[from_channel_id])
     to_channel: Mapped[Channel] = relationship(foreign_keys=[to_channel_id])
 
@@ -225,26 +229,26 @@ class GoalContribution(Base):
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
-    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("cycles.id"), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
 
     goal: Mapped[Goal] = relationship()
     channel: Mapped[Channel] = relationship()
-    payout_period: Mapped[PayoutPeriod] = relationship()
+    cycle: Mapped[Cycle] = relationship()
 
 
 class ChannelPlacement(Base):
-    """A channel's presence + position on one specific payout period's canvas.
+    """A channel's presence + position on one specific cycle's canvas.
 
-    No row for a given (payout_period_id, channel_id) means that channel isn't
-    on that period's canvas -- it shows up in the toolbox instead."""
+    No row for a given (cycle_id, channel_id) means that channel isn't on
+    that cycle's canvas -- it shows up in the toolbox instead."""
 
     __tablename__ = "channel_placements"
-    __table_args__ = (UniqueConstraint("payout_period_id", "channel_id"),)
+    __table_args__ = (UniqueConstraint("cycle_id", "channel_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("cycles.id"), nullable=False)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"), nullable=False)
     x: Mapped[float] = mapped_column()
     y: Mapped[float] = mapped_column()
@@ -253,14 +257,14 @@ class ChannelPlacement(Base):
 
 
 class GoalPlacement(Base):
-    """A goal's presence + position on one specific payout period's canvas."""
+    """A goal's presence + position on one specific cycle's canvas."""
 
     __tablename__ = "goal_placements"
-    __table_args__ = (UniqueConstraint("payout_period_id", "goal_id"),)
+    __table_args__ = (UniqueConstraint("cycle_id", "goal_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("cycles.id"), nullable=False)
     goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id"), nullable=False)
     x: Mapped[float] = mapped_column()
     y: Mapped[float] = mapped_column()
@@ -293,47 +297,51 @@ class Asset(Base):
     channel: Mapped[Channel | None] = relationship()
 
 
-class PayoutCycle(Base):
-    """A locked, dated snapshot of one occurrence of a PayoutPeriod -- see
-    issue #84. PayoutPeriod itself stays a perpetual, always-editable
-    template (per CLAUDE.md's Domain section); closing a cycle here doesn't
-    touch or clear the period's live transfers/expenses, it just records
-    what channel_balances() computed at that moment so a later edit to the
-    live template can't silently overwrite the only record that ever
-    existed. Deliberately no FK to Channel for the receiving channel (see
-    PayoutCycleBalance below) -- a snapshot is a historical fact and
-    shouldn't block deleting a channel used only in old history, or need
-    updating if that channel is later renamed/recolored."""
+class ClosedCycle(Base):
+    """A locked, dated snapshot of one occurrence of a Cycle -- see issue
+    #84 (originally "PayoutCycle", renamed in #190 to free up "Cycle" to
+    mean only the recurring definition, never a historical snapshot). Cycle
+    itself stays a perpetual, always-editable template (per CLAUDE.md's
+    Domain section); closing a cycle here doesn't touch or clear the live
+    cycle's transfers/expenses, it just records what channel_balances()
+    computed at that moment so a later edit to the live template can't
+    silently overwrite the only record that ever existed. Deliberately no
+    FK to Channel for the receiving channel (see ClosedCycleBalance below)
+    -- a snapshot is a historical fact and shouldn't block deleting a
+    channel used only in old history, or need updating if that channel is
+    later renamed/recolored. `payout_day` is denormalized (not read live off
+    Cycle) for the same reason -- a later edit to the live cycle's day
+    shouldn't retroactively change what a historical snapshot displays."""
 
-    __tablename__ = "payout_cycles"
+    __tablename__ = "closed_cycles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    payout_period_id: Mapped[int] = mapped_column(ForeignKey("payout_periods.id"), nullable=False)
-    label: Mapped[str] = mapped_column(String(50), nullable=False)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("cycles.id"), nullable=False)
+    payout_day: Mapped[int] = mapped_column(nullable=False)
     closed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     income_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     receiving_channel_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    payout_period: Mapped[PayoutPeriod] = relationship()
+    cycle: Mapped[Cycle] = relationship()
 
 
-class PayoutCycleBalance(Base):
-    """One channel's snapshotted activity within a closed PayoutCycle.
+class ClosedCycleBalance(Base):
+    """One channel's snapshotted activity within a ClosedCycle.
     channel_name/channel_color are denormalized (not a Channel FK) for the
-    same reason as PayoutCycle.receiving_channel_name above. `net` is the
+    same reason as ClosedCycle.receiving_channel_name above. `net` is the
     channel's full running balance (as crud.channel_balances() computed it
-    at closure time, including carry-in from prior periods); `income`/
+    at closure time, including carry-in from prior cycles); `income`/
     `transfers_net`/`expenses_total` describe only this cycle's own
     activity and generally won't sum to `net` on their own -- both are
     useful, so both are kept rather than picking one."""
 
-    __tablename__ = "payout_cycle_balances"
+    __tablename__ = "closed_cycle_balances"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    payout_cycle_id: Mapped[int] = mapped_column(ForeignKey("payout_cycles.id"), nullable=False)
+    closed_cycle_id: Mapped[int] = mapped_column(ForeignKey("closed_cycles.id"), nullable=False)
     channel_name: Mapped[str] = mapped_column(String(100), nullable=False)
     channel_color: Mapped[str] = mapped_column(String(7), nullable=False)
     income: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
@@ -341,13 +349,13 @@ class PayoutCycleBalance(Base):
     expenses_total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     net: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
 
-    payout_cycle: Mapped[PayoutCycle] = relationship()
+    closed_cycle: Mapped[ClosedCycle] = relationship()
 
 
 class OnboardingNudge(Base):
     """Per-(user, section) dismissal for the first-visit nudge banners on
     Cash Flow/Goals/Credit/Assets -- see issue #138. Distinct from
-    User.onboarding_completed_at (the Channels/PayoutPeriods/Expenses
+    User.onboarding_completed_at (the Channels/Cycles/Expenses
     3-step flow, which this doesn't touch): those three are genuinely
     sequential, these four are independent, so each section is tracked
     separately rather than folded into the same single timestamp. A row's

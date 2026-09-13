@@ -1,8 +1,8 @@
 {% import "macros.html" as macros with context %}
-<div id="payout-cycle-history-page">
+<div id="closed-cycle-history-page">
   <div class="page-head">
     <div>
-      <div class="page-title">{{ ordinal_label(period.payout_day) }} &mdash; cycle history</div>
+      <div class="page-title">{{ ordinal_label(cycle.payout_day) }} &mdash; cycle history</div>
       <div class="page-sub">
         <a href="/expenses" class="text-ink-soft hover:text-ink">&larr; Back to Expenses</a>
       </div>
@@ -11,27 +11,27 @@
   <div class="section">
     <div class="section-title">
       Cycles
-      <span class="pill">{{ cycles|length }} closed</span>
+      <span class="pill">{{ closed_cycles|length }} closed</span>
     </div>
     <div class="cycle-rail">
-      <a href="/payout-periods/{{ period.id }}/cycles"
-         hx-get="/payout-periods/{{ period.id }}/cycles"
-         hx-target="#payout-cycle-history-page"
+      <a href="/cycles/{{ cycle.id }}/history"
+         hx-get="/cycles/{{ cycle.id }}/history"
+         hx-target="#closed-cycle-history-page"
          hx-swap="outerHTML"
          hx-push-url="true"
          class="cycle-chip{{ ' cycle-chip-active' if selected_cycle is none else '' }}">Live template</a>
-      {% for cycle in cycles %}
-        <a href="/payout-periods/{{ period.id }}/cycles?cycle_id={{ cycle.id }}"
-           hx-get="/payout-periods/{{ period.id }}/cycles?cycle_id={{ cycle.id }}"
-           hx-target="#payout-cycle-history-page"
+      {% for closed_cycle in closed_cycles %}
+        <a href="/cycles/{{ cycle.id }}/history?closed_cycle_id={{ closed_cycle.id }}"
+           hx-get="/cycles/{{ cycle.id }}/history?closed_cycle_id={{ closed_cycle.id }}"
+           hx-target="#closed-cycle-history-page"
            hx-swap="outerHTML"
            hx-push-url="true"
-           class="cycle-chip{{ ' cycle-chip-active' if selected_cycle and selected_cycle.id == cycle.id else '' }}">
-          {{ cycle.closed_at.strftime("%b %d, %Y") }}
+           class="cycle-chip{{ ' cycle-chip-active' if selected_cycle and selected_cycle.id == closed_cycle.id else '' }}">
+          {{ closed_cycle.closed_at.strftime("%b %d, %Y") }}
         </a>
       {% endfor %}
     </div>
-    {% if not cycles %}
+    {% if not closed_cycles %}
       <p class="text-sm text-ink-soft mt-3">
         No cycles closed yet &mdash; closing one locks today's balances as a dated record you can look back on later, without changing the live template below.
       </p>
@@ -84,10 +84,10 @@
       </table>
     </div>
     {% if not selected_cycle %}
-      <form hx-post="/payout-periods/{{ period.id }}/cycles"
-            hx-target="#payout-cycle-history-page"
+      <form hx-post="/cycles/{{ cycle.id }}/history"
+            hx-target="#closed-cycle-history-page"
             hx-swap="outerHTML"
-            hx-confirm="Close this cycle? This locks today's balances as a dated record for {{ ordinal_label(period.payout_day) }} — it won't change the live template.">
+            hx-confirm="Close this cycle? This locks today's balances as a dated record for {{ ordinal_label(cycle.payout_day) }} — it won't change the live template.">
         <button type="submit" class="add-btn mt-3">Close this cycle</button>
       </form>
     {% endif %}

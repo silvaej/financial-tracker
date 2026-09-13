@@ -61,7 +61,7 @@ def test_delete_channel(client: TestClient) -> None:
     assert "Temp Channel" not in response.text
 
 
-def test_delete_channel_in_use_by_payout_period_is_rejected(client: TestClient) -> None:
+def test_delete_channel_in_use_by_cycle_is_rejected(client: TestClient) -> None:
     import re
 
     create = client.post("/channels", data={"name": "BDO", "color": "#8a8a8a"})
@@ -70,7 +70,7 @@ def test_delete_channel_in_use_by_payout_period_is_rejected(client: TestClient) 
     channel_id = match.group(1)
 
     client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
 
@@ -114,12 +114,12 @@ def test_delete_channel_in_use_by_asset_is_rejected(client: TestClient) -> None:
     assert "still used" in response.json()["detail"]
 
 
-def _create_payout_period(client: TestClient, channel_id: str) -> str:
+def _create_cycle(client: TestClient, channel_id: str) -> str:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "0", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    match = re.search(r"/payout-periods/(\d+)", response.text)
+    match = re.search(r"/cycles/(\d+)", response.text)
     assert match is not None
     return match.group(1)
 
@@ -128,7 +128,7 @@ def test_channel_starts_unplaced_and_can_be_placed_then_repositioned(
     client: TestClient,
 ) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, channel_id)
+    cycle_id = _create_cycle(client, channel_id)
 
     # Not placed yet -> no canvas node, just a toolbox entry.
     before = client.get("/cashflow")
@@ -137,7 +137,7 @@ def test_channel_starts_unplaced_and_can_be_placed_then_repositioned(
 
     place = client.post(
         f"/channels/{channel_id}/placement",
-        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+        data={"cycle_id": cycle_id, "x": "10", "y": "20"},
     )
     assert place.status_code == 200
     assert 'data-x="10.0"' in place.text
@@ -145,7 +145,7 @@ def test_channel_starts_unplaced_and_can_be_placed_then_repositioned(
 
     reposition = client.patch(
         f"/channels/{channel_id}/placement",
-        json={"payout_period_id": int(period_id), "x": 123.5, "y": 45.0},
+        json={"cycle_id": int(cycle_id), "x": 123.5, "y": 45.0},
     )
     assert reposition.status_code == 204
 
@@ -283,13 +283,13 @@ def test_remove_channel_logo_falls_back_to_initials(client: TestClient) -> None:
 
 def test_remove_channel_placement_returns_it_to_the_toolbox(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, channel_id)
+    cycle_id = _create_cycle(client, channel_id)
     client.post(
         f"/channels/{channel_id}/placement",
-        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+        data={"cycle_id": cycle_id, "x": "10", "y": "20"},
     )
 
-    removed = client.delete(f"/channels/{channel_id}/placement?payout_period_id={period_id}")
+    removed = client.delete(f"/channels/{channel_id}/placement?cycle_id={cycle_id}")
     assert removed.status_code == 200
     assert f'data-position-url="/channels/{channel_id}/placement"' not in removed.text
     assert "BPI" in removed.text
