@@ -18,8 +18,11 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, label: str) -> str:
-    response = client.post("/payout-periods", data={"label": label, "income_amount": "0"})
+def _create_payout_period(client: TestClient, payout_day: int) -> str:
+    response = client.post(
+        "/payout-periods",
+        data={"income_amount": "0", "payout_day": str(payout_day)},
+    )
     match = re.search(r"/payout-periods/(\d+)", response.text)
     assert match is not None
     return match.group(1)
@@ -50,7 +53,7 @@ def _place_goal(client: TestClient, period_id: str, goal_id: str) -> None:
 
 def test_create_goal_contribution_updates_goal_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
 
     response = client.post(
@@ -70,7 +73,7 @@ def test_create_goal_contribution_updates_goal_allocated(client: TestClient) -> 
 
 def test_create_goal_contribution_rejects_zero_or_negative_amount(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
 
     for amount in ("0", "-300"):
@@ -88,7 +91,7 @@ def test_create_goal_contribution_rejects_zero_or_negative_amount(client: TestCl
 
 def test_update_goal_contribution_rejects_zero_or_negative_amount(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
     _place_channel(client, period_id, channel_id)
     _place_goal(client, period_id, goal_id)
@@ -112,7 +115,7 @@ def test_update_goal_contribution_rejects_zero_or_negative_amount(client: TestCl
 
 def test_update_goal_contribution_recomputes_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
     _place_channel(client, period_id, channel_id)
     _place_goal(client, period_id, goal_id)
@@ -138,7 +141,7 @@ def test_update_goal_contribution_recomputes_allocated(client: TestClient) -> No
 
 def test_delete_goal_contribution_recomputes_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
     _place_channel(client, period_id, channel_id)
     _place_goal(client, period_id, goal_id)
@@ -167,7 +170,7 @@ def test_goal_can_receive_contributions_from_two_channels_same_period(
 ) -> None:
     channel_a = _create_channel(client, "Bank A")
     channel_b = _create_channel(client, "Bank B")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
 
     client.post(
@@ -220,7 +223,7 @@ def test_create_goal_contribution_requires_owned_goal(
     try:
         alice_channel = crud.create_channel(db, schemas.ChannelCreate(name="Alice Bank"), alice_id)
         alice_period = crud.create_payout_period(
-            db, schemas.PayoutPeriodCreate(label="15th"), alice_id
+            db, schemas.PayoutPeriodCreate(payout_day=15), alice_id
         )
         alice_goal = crud.create_goal(
             db, schemas.GoalCreate(name="Alice Goal", target=1000, months=1), alice_id

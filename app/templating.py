@@ -28,3 +28,6 @@ def _current_user_context(request: Request) -> dict[str, object]:
 
 
 templates = Jinja2Templates(directory="app/templates", context_processors=[_current_user_context])
+# Available in every template as `ordinal_label(day)` without an explicit
+# import -- see crud.ordinal_label's docstring (issue #189).
+templates.env.globals["ordinal_label"] = crud.ordinal_label

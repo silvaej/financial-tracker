@@ -268,7 +268,6 @@
     <div class="table-wrap">
       <table class="led">
         <colgroup>
-          <col class="min-w-28">
           <col class="w-24">
           <col class="w-24">
           <col class="w-36">
@@ -276,7 +275,6 @@
         </colgroup>
         <thead>
           <tr>
-            <th>Label</th>
             <th>Payout day</th>
             <th>Income</th>
             <th>Receiving channel</th>
@@ -286,15 +284,12 @@
         <tbody>
           {% for period in payout_periods %}
             <tr>
-              <td data-label="Label">
-                {{ period.label }}
-                {% if period.id in overdue_payout_period_ids %}
-                  <span class="overdue-dot"
-                        title="Payday ({{ period.payout_day }}) has passed — ready to close this cycle?"></span>
-                {% endif %}
-              </td>
               <td class="num" data-label="Payout day">
-                <span class="view-payout-{{ period.id }}">{{ period.payout_day if period.payout_day else "—" }}</span>
+                <span class="view-payout-{{ period.id }}">{{ ordinal_label(period.payout_day) }}</span>
+                {% if period.id in overdue_payout_period_ids %}
+                  <span class="overdue-dot view-payout-{{ period.id }}"
+                        title="Payday ({{ ordinal_label(period.payout_day) }}) has passed — ready to close this cycle?"></span>
+                {% endif %}
                 <div class="edit-payout-{{ period.id }} hidden items-center justify-end gap-1">
                   <input class="field field-mono w-16"
                          type="number"
@@ -303,7 +298,8 @@
                          name="payout_day"
                          form="edit-payout-form-{{ period.id }}"
                          aria-label="Payout day"
-                         value="{{ period.payout_day or '' }}">
+                         value="{{ period.payout_day }}"
+                         required>
                 </div>
               </td>
               <td class="num" data-label="Income">
@@ -379,10 +375,10 @@
               </td>
             </tr>
           {% else %}
-            {{ macros.empty_row(5, 'payout periods') }}
+            {{ macros.empty_row(4, 'payout periods') }}
           {% endfor %}
           <tr class="tr-add-btn">
-            <td colspan="5">
+            <td colspan="4">
               <button type="button"
                       id="add-payout-trigger"
                       class="add-btn w-20 justify-center disabled:bg-ink-soft disabled:cursor-not-allowed{{ ' hidden' if onboarding_step == 2 else '' }}"
@@ -393,15 +389,6 @@
           </tr>
           <tr id="add-payout-row"
               class="{{ '' if onboarding_step == 2 else 'hidden' }}">
-            <td data-label="Label">
-              <input class="field"
-                     type="text"
-                     name="label"
-                     form="add-payout-form"
-                     placeholder="e.g. 15th"
-                     aria-label="Label"
-                     required>
-            </td>
             <td class="num" data-label="Payout day">
               <input class="field field-mono w-16"
                      type="number"
@@ -410,7 +397,8 @@
                      name="payout_day"
                      form="add-payout-form"
                      placeholder="Day"
-                     aria-label="Payout day">
+                     aria-label="Payout day"
+                     required>
             </td>
             <td class="num" data-label="Income">
               <div class="flex items-center justify-end gap-1">
@@ -623,7 +611,7 @@
                 </form>
               </td>
               <td class="led-inline led-inline-2" data-label="Payout">
-                <span class="view-expense-{{ expense.id }}">{{ expense.payout_period.label }}</span>
+                <span class="view-expense-{{ expense.id }}">{{ ordinal_label(expense.payout_period.payout_day) }}</span>
                 <div class="edit-expense-{{ expense.id }} hidden items-center gap-1">
                   <select class="field"
                           name="payout_period_id"
@@ -632,7 +620,7 @@
                           required>
                     {% for period in payout_periods %}
                       <option value="{{ period.id }}"
-                              {{ "selected" if period.id == expense.payout_period_id else "" }}>{{ period.label }}
+                              {{ "selected" if period.id == expense.payout_period_id else "" }}>{{ ordinal_label(period.payout_day) }}
                       </option>
                     {% endfor %}
                   </select>
@@ -783,7 +771,7 @@
                 {% for period in payout_periods %}
                   <option value="{{ period.id }}"
                           {{ "selected" if onboarding_step == 3 and onboarding_latest_payout_period and period.id == onboarding_latest_payout_period.id else "" }}>
-                    {{ period.label }}
+                    {{ ordinal_label(period.payout_day) }}
                   </option>
                 {% endfor %}
               </select>

@@ -12,8 +12,11 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, label: str) -> str:
-    create = client.post("/payout-periods", data={"label": label, "income_amount": "0"})
+def _create_payout_period(client: TestClient, payout_day: int) -> str:
+    create = client.post(
+        "/payout-periods",
+        data={"income_amount": "0", "payout_day": str(payout_day)},
+    )
     match = re.search(r"/payout-periods/(\d+)", create.text)
     assert match is not None
     return match.group(1)
@@ -102,7 +105,7 @@ def test_goal_starts_unplaced_and_can_be_placed_then_repositioned(client: TestCl
     match = re.search(r'/goals/(\d+)"', create.text)
     assert match is not None
     goal_id = match.group(1)
-    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_create = client.post("/payout-periods", data={"income_amount": "0", "payout_day": "15"})
     period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
     assert period_match is not None
     period_id = period_match.group(1)
@@ -135,7 +138,7 @@ def test_remove_goal_placement_returns_it_to_the_toolbox(client: TestClient) -> 
     match = re.search(r'/goals/(\d+)"', create.text)
     assert match is not None
     goal_id = match.group(1)
-    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
+    period_create = client.post("/payout-periods", data={"income_amount": "0", "payout_day": "15"})
     period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
     assert period_match is not None
     period_id = period_match.group(1)
@@ -159,7 +162,7 @@ def test_goals_empty_state(client: TestClient) -> None:
 
 def test_goal_progress_percentage_reflects_allocated_over_target(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal = client.post(
         "/goals",
         data={
@@ -181,7 +184,7 @@ def test_goal_progress_percentage_reflects_allocated_over_target(client: TestCli
 
 def test_goal_progress_caps_at_100_when_overallocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    period_id = _create_payout_period(client, 15)
     goal = client.post(
         "/goals",
         data={"name": "Overfunded", "target": "1000", "months": "1", "channel_id": channel_id},

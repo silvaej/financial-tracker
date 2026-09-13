@@ -43,10 +43,14 @@ def _create_channel(client: TestClient, name: str = "GCash") -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, channel_id: str, label: str = "15th") -> str:
+def _create_payout_period(client: TestClient, channel_id: str, payout_day: int = 15) -> str:
     response = client.post(
         "/payout-periods",
-        data={"label": label, "income_amount": "1000", "receiving_channel_id": channel_id},
+        data={
+            "income_amount": "1000",
+            "receiving_channel_id": channel_id,
+            "payout_day": str(payout_day),
+        },
     )
     match = re.search(r'hx-delete="/payout-periods/(\d+)"', response.text)
     assert match is not None

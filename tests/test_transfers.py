@@ -18,13 +18,18 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, label: str, income: str, channel_id: str) -> str:
+def _create_payout_period(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
     response = client.post(
         "/payout-periods",
-        data={"label": label, "income_amount": income, "receiving_channel_id": channel_id},
+        data={
+            "income_amount": income,
+            "receiving_channel_id": channel_id,
+            "payout_day": str(payout_day),
+        },
     )
-    # Periods are listed in ascending display_order, so the just-created one
-    # (highest display_order) is the last match once more than one exists.
+    # Periods are listed in ascending payout_day, so the just-created one
+    # (highest payout_day among these fixtures) is the last match once more
+    # than one exists.
     matches = re.findall(r"/payout-periods/(\d+)", response.text)
     assert matches
     return matches[-1]
@@ -41,7 +46,7 @@ def _place_channel(client: TestClient, period_id: str, channel_id: str) -> None:
 def test_create_update_delete_transfer(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, "15th", "1000", a)
+    period_id = _create_payout_period(client, 15, "1000", a)
     _place_channel(client, period_id, a)
     _place_channel(client, period_id, b)
 
@@ -69,7 +74,7 @@ def test_create_update_delete_transfer(client: TestClient) -> None:
 def test_create_transfer_rejects_zero_or_negative_amount(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, "15th", "1000", a)
+    period_id = _create_payout_period(client, 15, "1000", a)
     _place_channel(client, period_id, a)
     _place_channel(client, period_id, b)
 
@@ -89,7 +94,7 @@ def test_create_transfer_rejects_zero_or_negative_amount(client: TestClient) -> 
 def test_update_transfer_rejects_zero_or_negative_amount(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, "15th", "1000", a)
+    period_id = _create_payout_period(client, 15, "1000", a)
     _place_channel(client, period_id, a)
     _place_channel(client, period_id, b)
 
@@ -117,7 +122,7 @@ def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClie
     """
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, "15th", "1000", a)
+    period_id = _create_payout_period(client, 15, "1000", a)
     _place_channel(client, period_id, a)
     _place_channel(client, period_id, b)
 
@@ -164,7 +169,7 @@ def test_cashflow_canvas_shows_channel_nodes_with_balances(
     """
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, "15th", "1000", a)
+    period_id = _create_payout_period(client, 15, "1000", a)
     _place_channel(client, period_id, a)
     _place_channel(client, period_id, b)
 
@@ -204,10 +209,14 @@ def test_channel_balances_carry_forward_across_many_periods() -> None:
 
         for i in range(1, period_count + 1):
             income = 1000.0 + i * 10
+            # payout_day=i keeps these in the same order they're created in --
+            # periods are listed by payout_day ascending, and this test's
+            # carry-forward simulation below depends on that iteration order
+            # matching creation order.
             period = crud.create_payout_period(
                 db,
                 schemas.PayoutPeriodCreate(
-                    label=f"Period {i}",
+                    payout_day=i,
                     income_amount=income,
                     receiving_channel_id=channel_a.id,
                 ),
@@ -304,7 +313,7 @@ def test_cashflow_page_data_completes_quickly_with_many_periods() -> None:
             period = crud.create_payout_period(
                 db,
                 schemas.PayoutPeriodCreate(
-                    label=f"Period {i}", income_amount=1000, receiving_channel_id=channel_a.id
+                    payout_day=i, income_amount=1000, receiving_channel_id=channel_a.id
                 ),
                 TEST_USER_ID,
             )

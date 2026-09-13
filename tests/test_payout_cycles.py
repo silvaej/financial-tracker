@@ -16,10 +16,14 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, label: str, income: str, channel_id: str) -> str:
+def _create_payout_period(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
     response = client.post(
         "/payout-periods",
-        data={"label": label, "income_amount": income, "receiving_channel_id": channel_id},
+        data={
+            "income_amount": income,
+            "receiving_channel_id": channel_id,
+            "payout_day": str(payout_day),
+        },
     )
     matches = re.findall(r"/payout-periods/(\d+)", response.text)
     assert matches
@@ -28,7 +32,7 @@ def _create_payout_period(client: TestClient, label: str, income: str, channel_i
 
 def test_history_page_shows_live_template_with_no_cycles_closed(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", "1000", channel_id)
+    period_id = _create_payout_period(client, 15, "1000", channel_id)
 
     response = client.get(f"/payout-periods/{period_id}/cycles")
     assert response.status_code == 200
@@ -41,7 +45,7 @@ def test_history_page_shows_live_template_with_no_cycles_closed(client: TestClie
 def test_close_cycle_creates_a_dated_snapshot(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, "15th", "1000", a)
+    period_id = _create_payout_period(client, 15, "1000", a)
 
     client.post(
         "/transfers",
@@ -84,7 +88,7 @@ def test_editing_live_transfer_after_close_does_not_change_the_snapshot(
 ) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, "15th", "1000", a)
+    period_id = _create_payout_period(client, 15, "1000", a)
 
     # Created via crud directly rather than POST /transfers -- the transfer
     # edge's HTML only renders data-edge-id once both channels are placed on
@@ -147,7 +151,7 @@ def test_close_cycle_requires_ownership(client: TestClient) -> None:
 
 def test_viewing_unknown_cycle_id_404s(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", "1000", channel_id)
+    period_id = _create_payout_period(client, 15, "1000", channel_id)
 
     response = client.get(f"/payout-periods/{period_id}/cycles", params={"cycle_id": "999999"})
     assert response.status_code == 404
@@ -155,7 +159,7 @@ def test_viewing_unknown_cycle_id_404s(client: TestClient) -> None:
 
 def test_history_link_appears_on_expenses_page(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", "1000", channel_id)
+    period_id = _create_payout_period(client, 15, "1000", channel_id)
 
     response = client.get("/expenses")
     assert response.status_code == 200
@@ -164,7 +168,7 @@ def test_history_link_appears_on_expenses_page(client: TestClient) -> None:
 
 def test_multiple_closed_cycles_ordered_newest_first(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", "1000", channel_id)
+    period_id = _create_payout_period(client, 15, "1000", channel_id)
 
     first = client.post(f"/payout-periods/{period_id}/cycles")
     first_id = re.search(r"cycle_id=(\d+)", first.text)
@@ -172,7 +176,7 @@ def test_multiple_closed_cycles_ordered_newest_first(client: TestClient) -> None
 
     client.patch(
         f"/payout-periods/{period_id}",
-        data={"income_amount": "2000", "receiving_channel_id": channel_id},
+        data={"income_amount": "2000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
     second = client.post(f"/payout-periods/{period_id}/cycles")
     assert "2 closed" in second.text

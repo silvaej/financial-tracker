@@ -16,7 +16,7 @@ def _create_channel(client: TestClient, name: str) -> str:
 def _create_payout_period(client: TestClient, income: str, channel_id: str) -> str:
     response = client.post(
         "/payout-periods",
-        data={"label": "15th", "income_amount": income, "receiving_channel_id": channel_id},
+        data={"income_amount": income, "receiving_channel_id": channel_id, "payout_day": "15"},
     )
     matches = re.findall(r"/payout-periods/(\d+)", response.text)
     assert matches

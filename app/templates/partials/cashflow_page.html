@@ -11,7 +11,7 @@
   {{ macros.nudge_banner(show_nudge, "/cashflow/nudge/dismiss", "#cashflow-page", "Route your money onward", "Income lands in one channel first — add a Transfer to move it from there to wherever it actually needs to end up, like a savings account or the wallet you pay bills from.") }}
   {% for data in payout_data %}
     <div class="section">
-      <div class="section-title">{{ data.period.label }} cash flow</div>
+      <div class="section-title">{{ ordinal_label(data.period.payout_day) }} cash flow</div>
       {% if data.warnings.unfunded_channels or data.warnings.underfunded_goals %}
         <div class="warn-banner">
           {% for name in data.warnings.unfunded_channels %}

@@ -559,26 +559,27 @@ def list_payout_periods(db: Session, user_id: int | None) -> list[models.PayoutP
     stmt = (
         select(models.PayoutPeriod)
         .where(models.PayoutPeriod.user_id == user_id)
-        .order_by(models.PayoutPeriod.display_order)
+        .order_by(models.PayoutPeriod.payout_day, models.PayoutPeriod.id)
     )
     return list(db.scalars(stmt))
+
+
+def ordinal_label(day: int) -> str:
+    """1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11/12/13 -> "11th"/"12th"/"13th",
+    else "Nth" -- the sole display form for a payout period/cycle now that
+    the free-text `label` field is gone (see issue #189)."""
+    suffix = "th" if 11 <= day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix}"
 
 
 def create_payout_period(
     db: Session, data: schemas.PayoutPeriodCreate, user_id: int | None
 ) -> models.PayoutPeriod:
     _require_owned(db, models.Channel, data.receiving_channel_id, user_id, "Receiving channel")
-    max_order = db.scalar(
-        select(models.PayoutPeriod.display_order)
-        .where(models.PayoutPeriod.user_id == user_id)
-        .order_by(models.PayoutPeriod.display_order.desc())
-    )
     period = models.PayoutPeriod(
-        label=data.label,
         income_amount=data.income_amount,
         receiving_channel_id=data.receiving_channel_id,
         payout_day=data.payout_day,
-        display_order=(max_order or 0) + 1,
         user_id=user_id,
     )
     db.add(period)
@@ -1131,7 +1132,7 @@ def _all_channel_balances(
     db: Session, user_id: int
 ) -> tuple[dict[int, dict[int, float]], dict[int, list[tuple[models.Channel, float]]]]:
     """Every payout period's carry-in and channel balances, computed once per
-    request in a single display_order pass -- each period's ending balances
+    request in a single payout_day-ordered pass -- each period's ending balances
     become the next period's carry-in, fed forward directly, rather than each
     period independently re-deriving every prior period's full balance
     calculation (which was exponential: computing period k re-triggered a
@@ -1178,7 +1179,7 @@ def _all_channel_balances(
 
 def _carry_in_for_period(db: Session, payout_period_id: int, user_id: int) -> dict[int, float]:
     """Each channel's ending balance from the payout period before this one (in
-    display_order), so a month's leftover cash chains forward period to period.
+    payout_day order), so a month's leftover cash chains forward period to period.
     Single-period convenience wrapper around `_all_channel_balances` -- don't
     call this in a per-period loop, call `_all_channel_balances` once instead."""
     carry_in_by_period, _ = _all_channel_balances(db, user_id)
@@ -1337,7 +1338,7 @@ def close_payout_cycle(db: Session, payout_period_id: int, user_id: int) -> mode
     cycle = models.PayoutCycle(
         user_id=user_id,
         payout_period_id=payout_period_id,
-        label=period.label,
+        label=ordinal_label(period.payout_day),
         income_amount=period.income_amount,
         receiving_channel_name=(
             period.receiving_channel.name if period.receiving_channel else None
@@ -1615,10 +1616,9 @@ def credit_page_data(db: Session, user_id: int) -> dict:
 
 
 def next_payout_period(db: Session, user_id: int) -> models.PayoutPeriod | None:
-    """The soonest-upcoming payout period. Periods have no calendar date (just a
-    user-facing label like "15th" and a display_order for cycling through them),
-    so "next" is the first one by display_order — the same ordering used
-    everywhere else periods are listed."""
+    """The soonest-upcoming payout period. Periods have no month/year anchor
+    (just a day-of-month), so "next" is the first one by payout_day — the
+    same ordering used everywhere else periods are listed."""
     periods = list_payout_periods(db, user_id)
     return periods[0] if periods else None
 
@@ -1743,10 +1743,8 @@ def overdue_payout_period_ids(
 ) -> set[int]:
     """Periods whose payout_day has passed this month with no PayoutCycle
     closed since -- a UI hint only (see #134), not enforcement. Closing a
-    cycle clears the hint until next month's payday passes again. Periods
-    with no payout_day set never show it -- that field is optional."""
-    candidates = [p for p in payout_periods if p.payout_day is not None]
-    if not candidates:
+    cycle clears the hint until next month's payday passes again."""
+    if not payout_periods:
         return set()
 
     today = datetime.now(UTC).date()
@@ -1765,8 +1763,7 @@ def overdue_payout_period_ids(
     )
 
     overdue = set()
-    for period in candidates:
-        assert period.payout_day is not None  # narrowed by the `candidates` filter above
+    for period in payout_periods:
         occurrence = _most_recent_monthly_occurrence(period.payout_day, today)
         latest_closed = latest_closed_by_period.get(period.id)
         if latest_closed is not None and latest_closed.date() >= occurrence:
