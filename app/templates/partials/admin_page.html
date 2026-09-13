@@ -94,6 +94,7 @@
       <div class="section-title">Signup keys<span class="pill">{{ signup_keys|length }} total</span></div>
       <form id="add-signup-key-form"
             class="flex items-end gap-2 mb-4 flex-wrap"
+            autocomplete="off"
             hx-post="/admin/signup-keys"
             hx-target="#admin-page"
             hx-swap="outerHTML">

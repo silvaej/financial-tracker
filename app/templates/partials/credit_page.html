@@ -10,6 +10,7 @@
   <div class="section">
     <div class="section-title">Credit lines<span class="pill">{{ credit_lines|length }} total</span></div>
     <form id="add-credit-form"
+          autocomplete="off"
           hx-post="/credit"
           hx-target="#credit-page"
           hx-swap="outerHTML">
@@ -44,6 +45,7 @@
                       hx-patch="/credit/{{ line.id }}"
                       hx-target="#credit-page"
                       hx-swap="outerHTML"
+                      autocomplete="off"
                       class="edit-credit-{{ line.id }} hidden items-center gap-2">
                   <input class="field"
                          type="text"
