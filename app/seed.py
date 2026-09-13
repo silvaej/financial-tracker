@@ -71,6 +71,16 @@ def _seed_cycles(db: Session, channels: dict[str, models.Channel], user_id: int 
     gateway = channels.get("PayMongo Payouts")
     if payroll is None or gateway is None:
         return
+    # Orphaned rows (user_id=None, the only path this actually runs in
+    # production -- see CLAUDE.md's Staging section) have no User row to
+    # cap against, so create_cycle's cap only applies when user_id is real
+    # (e.g. tests exercising this function directly). Raise it to cover the
+    # 3 cycles seeded below, rather than leaving a real user stuck at the
+    # column's default of 1.
+    if user_id is not None:
+        user = crud.get_user(db, user_id)
+        if user is not None and user.cycles_per_month < 3:
+            crud.update_cycles_per_month(db, user, 3)
     crud.create_cycle(
         db,
         schemas.CycleCreate(payout_day=15, income_amount=32000, receiving_channel_id=payroll.id),

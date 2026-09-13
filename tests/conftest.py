@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -41,14 +42,17 @@ def _override_get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def _override_get_current_user() -> models.User:
-    db = TestingSessionLocal()
-    try:
-        user = db.get(models.User, TEST_USER_ID)
-        assert user is not None
-        return user
-    finally:
-        db.close()
+def _override_get_current_user(db: Session = Depends(get_db)) -> models.User:
+    # Depends on get_db (transitively the overridden _override_get_db) rather
+    # than opening its own session, matching production's real
+    # get_current_user -- FastAPI caches a dependency's result per request,
+    # so this shares the same session as any route's own `db` parameter.
+    # A separate session here would return a *detached* User: mutating it
+    # and committing through the route's own `db` session silently does
+    # nothing, since that session's identity map never held this object.
+    user = db.get(models.User, TEST_USER_ID)
+    assert user is not None
+    return user
 
 
 async def _override_csrf_protect() -> None:

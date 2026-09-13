@@ -1,9 +1,12 @@
 import re
 from datetime import UTC, date, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app import crud, models, schemas
 from app.crud import _most_recent_monthly_occurrence
+from tests.conftest import TEST_USER_ID, TestingSessionLocal
 
 
 def _create_channel(client: TestClient, name: str) -> str:
@@ -263,3 +266,75 @@ def test_cycle_history_link_is_htmx_boosted(client: TestClient) -> None:
     assert 'hx-target="#page-content"' in link_tag.group()
     assert 'hx-swap="innerHTML"' in link_tag.group()
     assert 'hx-push-url="true"' in link_tag.group()
+
+
+# --- Cycle-count enforcement (#191) -------------------------------------------
+
+
+def test_create_cycle_rejects_once_cap_is_reached(client: TestClient) -> None:
+    # A fresh user's cycles_per_month defaults to 1.
+    first = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "15"},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "30"},
+    )
+    assert second.status_code == 409
+    assert "cycle" in second.json()["detail"]
+
+
+def test_update_cycles_per_month_allows_creating_more_cycles(client: TestClient) -> None:
+    raise_cap = client.patch("/cycles/count", data={"cycles_per_month": "2"})
+    assert raise_cap.status_code == 200
+    assert re.search(r'name="cycles_per_month"[^>]*value="2"', raise_cap.text) is not None
+
+    first = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "15"},
+    )
+    assert first.status_code == 200
+    second = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "30"},
+    )
+    assert second.status_code == 200
+
+
+def test_update_cycles_per_month_rejects_less_than_one(client: TestClient) -> None:
+    response = client.patch("/cycles/count", data={"cycles_per_month": "0"})
+    assert response.status_code == 422
+
+
+def test_add_cycle_button_disabled_once_cap_is_reached(client: TestClient) -> None:
+    response = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "15"},
+    )
+    assert re.search(r'id="add-cycle-trigger"[^>]*disabled', response.text) is not None
+
+
+def test_cycles_per_month_is_isolated_per_user() -> None:
+    db = TestingSessionLocal()
+    try:
+        other_user_id = TEST_USER_ID + 1
+        db.add(models.User(id=other_user_id, email="other@example.com"))
+        db.commit()
+        other_user = crud.get_user(db, other_user_id)
+        assert other_user is not None
+        crud.update_cycles_per_month(db, other_user, 5)
+
+        # The default test user's own cap (1) is unaffected by the other
+        # user's cap (5).
+        test_user = crud.get_user(db, TEST_USER_ID)
+        assert test_user is not None
+        assert test_user.cycles_per_month == 1
+
+        crud.create_cycle(db, schemas.CycleCreate(payout_day=15), TEST_USER_ID)
+        with pytest.raises(crud.CycleCapExceededError):
+            crud.create_cycle(db, schemas.CycleCreate(payout_day=30), TEST_USER_ID)
+    finally:
+        db.close()
