@@ -46,6 +46,12 @@ def _create_signup_key(max_uses: int = 1, expires_at: datetime | None = None) ->
         db.close()
 
 
+def test_signup_key_is_15_random_alphanumeric_characters() -> None:
+    key = _create_signup_key()
+    assert len(key) == 15
+    assert key.isalnum()
+
+
 def _oauth_login_erroring(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, provider: str = "google"
 ) -> httpx.Response:
@@ -136,6 +142,13 @@ def test_signup_form_redirects_when_already_logged_in(
 def test_signup_form_starts_with_provider_buttons_disabled(client: TestClient) -> None:
     response = client.get("/signup")
     assert response.status_code == 200
+    assert "disabled" in response.text
+
+
+def test_signup_form_shows_error_when_no_invite_key_given(client: TestClient) -> None:
+    response = client.get("/signup")
+    assert response.status_code == 200
+    assert "invite key from the developer" in response.text
     assert "disabled" in response.text
 
 
@@ -298,28 +311,6 @@ def test_oauth_signup_rejects_missing_key_for_unknown_email(
         assert crud.get_user_by_email(db, "newuser@example.com") is None
     finally:
         db.close()
-
-
-def test_check_signup_key_empty_disables_buttons(client: TestClient) -> None:
-    response = client.get("/signup/check-key")
-    assert response.status_code == 200
-    assert "disabled" in response.text
-    assert "invalid or has expired" not in response.text
-
-
-def test_check_signup_key_valid_enables_buttons(client: TestClient) -> None:
-    key = _create_signup_key()
-
-    response = client.get("/signup/check-key", params={"invite_key": key})
-    assert response.status_code == 200
-    assert "disabled" not in response.text
-
-
-def test_check_signup_key_invalid_shows_error_and_disables(client: TestClient) -> None:
-    response = client.get("/signup/check-key", params={"invite_key": "LEDGER-NOPE-NOPE"})
-    assert response.status_code == 200
-    assert "disabled" in response.text
-    assert "invalid or has expired" in response.text
 
 
 def test_oauth_signup_rejects_invalid_key(

@@ -124,8 +124,7 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Res
     # `alertMessage.textContent = data.detail` for every error path in this
     # app (see ValidationError/OwnershipError/ChannelInUseError below/
     # elsewhere), so a mismatched key would render as "undefined" instead of
-    # a real message on a rate-limited htmx request (e.g. /signup/check-key,
-    # triggered live as the user types an invite key).
+    # a real message on a rate-limited htmx request.
     return JSONResponse(
         status_code=429, content={"detail": "Too many requests. Please wait and try again."}
     )
