@@ -40,16 +40,16 @@ def dismiss_nudge(
     return _render_page(request, db, current_user.id)
 
 
-@router.post("/{payout_period_id}/save")
+@router.post("/{cycle_id}/save")
 def save_canvas(
     request: Request,
-    payout_period_id: int,
+    cycle_id: int,
     data: schemas.CanvasSaveIn,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     try:
-        error = crud.save_canvas(db, payout_period_id, data, current_user.id)
+        error = crud.save_canvas(db, cycle_id, data, current_user.id)
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if error is not None:
@@ -59,14 +59,14 @@ def save_canvas(
     )
 
 
-@router.post("/{payout_period_id}/preview")
+@router.post("/{cycle_id}/preview")
 def preview_canvas(
-    payout_period_id: int,
+    cycle_id: int,
     data: schemas.CanvasSaveIn,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> schemas.CanvasPreviewOut:
     try:
-        return crud.preview_canvas(db, payout_period_id, data, current_user.id)
+        return crud.preview_canvas(db, cycle_id, data, current_user.id)
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

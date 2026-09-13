@@ -13,10 +13,10 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def test_create_payout_period(client: TestClient) -> None:
+def test_create_cycle(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={
             "income_amount": "36100.46",
             "receiving_channel_id": channel_id,
@@ -28,146 +28,146 @@ def test_create_payout_period(client: TestClient) -> None:
     assert "36100" in response.text
 
 
-def test_create_payout_period_with_no_channel(client: TestClient) -> None:
+def test_create_cycle_with_no_channel(client: TestClient) -> None:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "30"},
     )
     assert response.status_code == 200
     assert "30th" in response.text
 
 
-def test_create_payout_period_rejects_missing_payout_day(client: TestClient) -> None:
+def test_create_cycle_rejects_missing_payout_day(client: TestClient) -> None:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": ""},
     )
     assert response.status_code == 422
 
 
-def test_create_payout_period_rejects_out_of_range_payout_day(client: TestClient) -> None:
+def test_create_cycle_rejects_out_of_range_payout_day(client: TestClient) -> None:
     for day in ("0", "32"):
         response = client.post(
-            "/payout-periods",
+            "/cycles",
             data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": day},
         )
         assert response.status_code == 422
 
 
-def test_create_payout_period_rejects_negative_income(client: TestClient) -> None:
+def test_create_cycle_rejects_negative_income(client: TestClient) -> None:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "-100", "receiving_channel_id": "", "payout_day": "15"},
     )
     assert response.status_code == 422
 
 
-def test_update_payout_period_rejects_negative_income(client: TestClient) -> None:
+def test_update_cycle_rejects_negative_income(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
+    cycle_id = match.group(1)
 
     response = client.patch(
-        f"/payout-periods/{period_id}",
+        f"/cycles/{cycle_id}",
         data={"income_amount": "-2000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
     assert response.status_code == 422
 
 
-def test_update_payout_period_rejects_missing_payout_day(client: TestClient) -> None:
+def test_update_cycle_rejects_missing_payout_day(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
+    cycle_id = match.group(1)
 
     response = client.patch(
-        f"/payout-periods/{period_id}",
+        f"/cycles/{cycle_id}",
         data={"income_amount": "1000", "receiving_channel_id": channel_id},
     )
     assert response.status_code == 422
 
 
-def test_update_payout_period_income(client: TestClient) -> None:
+def test_update_cycle_income(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
+    cycle_id = match.group(1)
 
     response = client.patch(
-        f"/payout-periods/{period_id}",
+        f"/cycles/{cycle_id}",
         data={"income_amount": "2000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
     assert response.status_code == 200
     assert "2000" in response.text
 
 
-def test_update_payout_period_day(client: TestClient) -> None:
+def test_update_cycle_day(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
+    cycle_id = match.group(1)
 
     response = client.patch(
-        f"/payout-periods/{period_id}",
+        f"/cycles/{cycle_id}",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "20"},
     )
     assert response.status_code == 200
     assert "20th" in response.text
 
 
-def test_delete_empty_payout_period_succeeds(client: TestClient) -> None:
+def test_delete_empty_cycle_succeeds(client: TestClient) -> None:
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "0", "receiving_channel_id": "", "payout_day": "22"},
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
-    assert f'/payout-periods/{period_id}/cycles"' in create.text
+    cycle_id = match.group(1)
+    assert f'/cycles/{cycle_id}/history"' in create.text
 
-    response = client.delete(f"/payout-periods/{period_id}")
+    response = client.delete(f"/cycles/{cycle_id}")
     assert response.status_code == 200
-    assert f'/payout-periods/{period_id}/cycles"' not in response.text
+    assert f'/cycles/{cycle_id}/history"' not in response.text
 
 
-def test_delete_payout_period_in_use_by_expense_is_rejected(client: TestClient) -> None:
+def test_delete_cycle_in_use_by_expense_is_rejected(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
+    cycle_id = match.group(1)
 
     client.post(
         "/expenses",
         data={
             "name": "Rent",
             "amount": "5000",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
 
-    response = client.delete(f"/payout-periods/{period_id}")
+    response = client.delete(f"/cycles/{cycle_id}")
     assert response.status_code == 409
     assert "still used" in response.json()["detail"]
 
@@ -206,10 +206,10 @@ def test_most_recent_monthly_occurrence_wraps_year_boundary() -> None:
     assert _most_recent_monthly_occurrence(31, date(2026, 1, 5)) == date(2025, 12, 31)
 
 
-def test_payout_period_shows_overdue_dot_once_payday_has_passed(client: TestClient) -> None:
+def test_cycle_shows_overdue_dot_once_payday_has_passed(client: TestClient) -> None:
     today = datetime.now(UTC).date()
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={
             "income_amount": "1000",
             "receiving_channel_id": "",
@@ -223,19 +223,19 @@ def test_payout_period_shows_overdue_dot_once_payday_has_passed(client: TestClie
 def test_closing_a_cycle_clears_the_overdue_dot(client: TestClient) -> None:
     today = datetime.now(UTC).date()
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={
             "income_amount": "1000",
             "receiving_channel_id": "",
             "payout_day": str(today.day),
         },
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
+    cycle_id = match.group(1)
     assert "overdue-dot" in create.text
 
-    close = client.post(f"/payout-periods/{period_id}/cycles")
+    close = client.post(f"/cycles/{cycle_id}/history")
     assert close.status_code == 200
 
     index = client.get("/expenses")
@@ -248,14 +248,14 @@ def test_cycle_history_link_is_htmx_boosted(client: TestClient) -> None:
     boosted (only #rail/#tabbar/#more-sheet-overlay are) -- see
     app/templates/base.html."""
     create = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "15"},
     )
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
-    period_id = match.group(1)
+    cycle_id = match.group(1)
 
-    href = f'href="/payout-periods/{period_id}/cycles"'
+    href = f'href="/cycles/{cycle_id}/history"'
     assert href in create.text
     link_tag = re.search(rf"<a[^>]*{re.escape(href)}[^>]*>", create.text, re.DOTALL)
     assert link_tag is not None

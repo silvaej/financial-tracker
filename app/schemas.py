@@ -23,15 +23,14 @@ class ChannelUpdate(BaseModel):
     current_amount: float = 0
 
 
-class PayoutPeriodCreate(BaseModel):
-    # 0 is legitimate here -- a brand-new payout period with no income
-    # configured yet.
+class CycleCreate(BaseModel):
+    # 0 is legitimate here -- a brand-new cycle with no income configured yet.
     income_amount: float = Field(default=0, ge=0)
     receiving_channel_id: int | None = None
     payout_day: int = Field(ge=1, le=31)
 
 
-class PayoutPeriodUpdate(BaseModel):
+class CycleUpdate(BaseModel):
     income_amount: float = Field(ge=0)
     receiving_channel_id: int | None = None
     payout_day: int = Field(ge=1, le=31)
@@ -50,7 +49,7 @@ class ExpenseCategoryUpdate(BaseModel):
 class ExpenseCreate(BaseModel):
     name: NonEmptyStr
     amount: float = Field(gt=0)
-    payout_period_id: int
+    cycle_id: int
     channel_id: int
     category_id: int | None = None
     due_day: int | None = Field(default=None, ge=1, le=31)
@@ -59,14 +58,14 @@ class ExpenseCreate(BaseModel):
 class ExpenseUpdate(BaseModel):
     name: NonEmptyStr
     amount: float = Field(gt=0)
-    payout_period_id: int
+    cycle_id: int
     channel_id: int
     category_id: int | None = None
     due_day: int | None = Field(default=None, ge=1, le=31)
 
 
 class TransferCreate(BaseModel):
-    payout_period_id: int
+    cycle_id: int
     from_channel_id: int
     to_channel_id: int
     amount: float = Field(gt=0)
@@ -107,7 +106,7 @@ class GoalUpdate(BaseModel):
 class GoalContributionCreate(BaseModel):
     goal_id: int
     channel_id: int
-    payout_period_id: int
+    cycle_id: int
     amount: float = Field(gt=0)
 
 
@@ -116,7 +115,7 @@ class GoalContributionUpdate(BaseModel):
 
 
 class PlacementUpdate(BaseModel):
-    payout_period_id: int
+    cycle_id: int
     x: float
     y: float
 

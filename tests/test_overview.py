@@ -13,16 +13,16 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
+def _create_cycle(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={
             "income_amount": income,
             "receiving_channel_id": channel_id,
             "payout_day": str(payout_day),
         },
     )
-    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    matches = re.findall(r"/cycles/(\d+)", response.text)
     assert matches
     return matches[-1]
 
@@ -41,17 +41,17 @@ def test_overview_upcoming_expenses_banner(client: TestClient) -> None:
     assert channel_id is not None
     channel_id_str = channel_id.group(1)
 
-    period = client.post("/payout-periods", data={"income_amount": "32000", "payout_day": "15"})
-    period_id = re.search(r"/payout-periods/(\d+)", period.text)
-    assert period_id is not None
-    period_id_str = period_id.group(1)
+    period = client.post("/cycles", data={"income_amount": "32000", "payout_day": "15"})
+    cycle_id = re.search(r"/cycles/(\d+)", period.text)
+    assert cycle_id is not None
+    period_id_str = cycle_id.group(1)
 
     client.post(
         "/expenses",
         data={
             "name": "Meralco",
             "amount": "2500.50",
-            "payout_period_id": period_id_str,
+            "cycle_id": period_id_str,
             "channel_id": channel_id_str,
         },
     )
@@ -65,14 +65,14 @@ def test_overview_upcoming_expenses_banner(client: TestClient) -> None:
 
 def test_overview_upcoming_expenses_sorted_by_due_day(client: TestClient) -> None:
     channel_id = _create_channel(client, "Payroll")
-    period_id = _create_payout_period(client, 15, "32000", channel_id)
+    cycle_id = _create_cycle(client, 15, "32000", channel_id)
 
     client.post(
         "/expenses",
         data={
             "name": "No due day",
             "amount": "100",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -81,7 +81,7 @@ def test_overview_upcoming_expenses_sorted_by_due_day(client: TestClient) -> Non
         data={
             "name": "Due later",
             "amount": "200",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
             "due_day": "20",
         },
@@ -91,7 +91,7 @@ def test_overview_upcoming_expenses_sorted_by_due_day(client: TestClient) -> Non
         data={
             "name": "Due soonest",
             "amount": "300",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
             "due_day": "5",
         },
@@ -108,7 +108,7 @@ def test_overview_upcoming_expenses_sorted_by_due_day(client: TestClient) -> Non
     assert pos_soonest < pos_later < pos_no_due_day
 
 
-def test_overview_no_upcoming_banner_without_payout_periods(client: TestClient) -> None:
+def test_overview_no_upcoming_banner_without_cycles(client: TestClient) -> None:
     client.post("/assets", data={"name": "Some Asset", "amount": "100"})
 
     response = client.get("/overview")
@@ -145,10 +145,10 @@ def test_overview_shows_funded_pill_for_completed_goal(client: TestClient) -> No
     assert channel_id is not None
     channel_id_str = channel_id.group(1)
 
-    period = client.post("/payout-periods", data={"income_amount": "0", "payout_day": "15"})
-    period_id = re.search(r"/payout-periods/(\d+)", period.text)
-    assert period_id is not None
-    period_id_str = period_id.group(1)
+    period = client.post("/cycles", data={"income_amount": "0", "payout_day": "15"})
+    cycle_id = re.search(r"/cycles/(\d+)", period.text)
+    assert cycle_id is not None
+    period_id_str = cycle_id.group(1)
 
     goal = client.post(
         "/goals",
@@ -168,7 +168,7 @@ def test_overview_shows_funded_pill_for_completed_goal(client: TestClient) -> No
         data={
             "goal_id": goal_id_str,
             "channel_id": channel_id_str,
-            "payout_period_id": period_id_str,
+            "cycle_id": period_id_str,
             "amount": "1000",
         },
     )
@@ -214,11 +214,11 @@ def test_overview_shows_no_cash_flow_warnings_section_when_none(client: TestClie
 def test_overview_surfaces_unfunded_channel_warning(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "0", a)
+    cycle_id = _create_cycle(client, 15, "0", a)
 
     client.post(
         "/expenses",
-        data={"name": "B bill", "amount": "500", "payout_period_id": period_id, "channel_id": b},
+        data={"name": "B bill", "amount": "500", "cycle_id": cycle_id, "channel_id": b},
     )
 
     response = client.get("/overview")
@@ -238,14 +238,14 @@ def test_paid_expenses_drop_off_the_upcoming_list(client: TestClient) -> None:
     it from Overview's "Upcoming" section or its total, defeating the point
     of marking it paid -- "upcoming" should mean "still owed"."""
     channel_id = _create_channel(client, "Payroll")
-    period_id = _create_payout_period(client, 15, "32000", channel_id)
+    cycle_id = _create_cycle(client, 15, "32000", channel_id)
 
     create = client.post(
         "/expenses",
         data={
             "name": "Meralco",
             "amount": "2500.50",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -285,7 +285,7 @@ def test_overview_expense_breakdown_shows_categories_and_uncategorized(
     """Regression test for #165: the pie chart groups active expenses by
     category, with an Uncategorized bucket for category_id IS NULL."""
     channel_id = _create_channel(client, "Payroll")
-    period_id = _create_payout_period(client, 15, "32000", channel_id)
+    cycle_id = _create_cycle(client, 15, "32000", channel_id)
     category_id = _create_category(client, "Housing", "#2f56e8")
 
     client.post(
@@ -293,7 +293,7 @@ def test_overview_expense_breakdown_shows_categories_and_uncategorized(
         data={
             "name": "Rent",
             "amount": "18000",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
             "category_id": category_id,
         },
@@ -303,7 +303,7 @@ def test_overview_expense_breakdown_shows_categories_and_uncategorized(
         data={
             "name": "Misc",
             "amount": "2000",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -320,14 +320,14 @@ def test_overview_expense_breakdown_shows_categories_and_uncategorized(
 
 def test_overview_expense_breakdown_excludes_paused_expenses(client: TestClient) -> None:
     channel_id = _create_channel(client, "Payroll")
-    period_id = _create_payout_period(client, 15, "32000", channel_id)
+    cycle_id = _create_cycle(client, 15, "32000", channel_id)
 
     create = client.post(
         "/expenses",
         data={
             "name": "Gym",
             "amount": "1500",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -349,9 +349,7 @@ def test_expense_category_breakdown_gradient_uses_exact_cumulative_fractions() -
     db = TestingSessionLocal()
     try:
         channel = crud.create_channel(db, schemas.ChannelCreate(name="Payroll"), TEST_USER_ID)
-        period = crud.create_payout_period(
-            db, schemas.PayoutPeriodCreate(payout_day=15), TEST_USER_ID
-        )
+        period = crud.create_cycle(db, schemas.CycleCreate(payout_day=15), TEST_USER_ID)
         category = crud.create_expense_category(
             db, schemas.ExpenseCategoryCreate(name="Housing", color="#2f56e8"), TEST_USER_ID
         )
@@ -360,7 +358,7 @@ def test_expense_category_breakdown_gradient_uses_exact_cumulative_fractions() -
             schemas.ExpenseCreate(
                 name="Rent",
                 amount=2000,
-                payout_period_id=period.id,
+                cycle_id=period.id,
                 channel_id=channel.id,
                 category_id=category.id,
             ),
@@ -369,7 +367,7 @@ def test_expense_category_breakdown_gradient_uses_exact_cumulative_fractions() -
         crud.create_expense(
             db,
             schemas.ExpenseCreate(
-                name="Misc", amount=1000, payout_period_id=period.id, channel_id=channel.id
+                name="Misc", amount=1000, cycle_id=period.id, channel_id=channel.id
             ),
             TEST_USER_ID,
         )

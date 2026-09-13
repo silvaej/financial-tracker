@@ -22,12 +22,12 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, channel_id: str) -> str:
+def _create_cycle(client: TestClient, channel_id: str) -> str:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    matches = re.findall(r"/cycles/(\d+)", response.text)
     assert matches
     return matches[-1]
 
@@ -65,13 +65,13 @@ def test_delete_category(client: TestClient) -> None:
 def test_delete_category_in_use_by_expense_is_rejected(client: TestClient) -> None:
     category_id = _create_category(client, "Rent and Utilities")
     channel_id = _create_channel(client, "BPI Payroll")
-    period_id = _create_payout_period(client, channel_id)
+    cycle_id = _create_cycle(client, channel_id)
     client.post(
         "/expenses",
         data={
             "name": "Rent",
             "amount": "12000",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
             "category_id": category_id,
         },
@@ -85,14 +85,14 @@ def test_delete_category_in_use_by_expense_is_rejected(client: TestClient) -> No
 def test_create_expense_with_category_shows_it_on_the_table(client: TestClient) -> None:
     category_id = _create_category(client, "Utilities")
     channel_id = _create_channel(client, "BPI Payroll")
-    period_id = _create_payout_period(client, channel_id)
+    cycle_id = _create_cycle(client, channel_id)
 
     response = client.post(
         "/expenses",
         data={
             "name": "Electricity",
             "amount": "2200",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
             "category_id": category_id,
         },
@@ -103,14 +103,14 @@ def test_create_expense_with_category_shows_it_on_the_table(client: TestClient) 
 
 def test_create_expense_without_category_still_works(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI Payroll")
-    period_id = _create_payout_period(client, channel_id)
+    cycle_id = _create_cycle(client, channel_id)
 
     response = client.post(
         "/expenses",
         data={
             "name": "Internet",
             "amount": "1699",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -120,7 +120,7 @@ def test_create_expense_without_category_still_works(client: TestClient) -> None
 
 def test_create_expense_rejects_unowned_category(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI Payroll")
-    period_id = _create_payout_period(client, channel_id)
+    cycle_id = _create_cycle(client, channel_id)
 
     db = TestingSessionLocal()
     try:
@@ -139,7 +139,7 @@ def test_create_expense_rejects_unowned_category(client: TestClient) -> None:
         data={
             "name": "Rent",
             "amount": "12000",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
             "category_id": str(other_category_id),
         },

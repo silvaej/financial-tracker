@@ -297,11 +297,11 @@
   }
 
   function runPreview(canvas) {
-    const periodId = canvas.dataset.payoutPeriodId;
+    const cycleId = canvas.dataset.cycleId;
     const requestId = (previewRequestIds.get(canvas) || 0) + 1;
     previewRequestIds.set(canvas, requestId);
 
-    fetch("/cashflow/" + periodId + "/preview", {
+    fetch("/cashflow/" + cycleId + "/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...csrfHeaders() },
       body: JSON.stringify(buildCanvasPayload(canvas)),

@@ -15,7 +15,7 @@
 {% endmacro %}
 {% macro badge_from_name(name, color, size=18) %}
   {# For contexts with only a denormalized channel name/color, not a real
-     Channel row (e.g. PayoutCycleBalance snapshots, #84) -- no logo/
+     Channel row (e.g. ClosedCycleBalance snapshots, #84) -- no logo/
      badge_label to fall back through, just the initials treatment. #}
   {% set words = name.split() %}
   {% set initials = (words[0][0] ~ (words[1][0] if words|length > 1 else "")) | upper %}

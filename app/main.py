@@ -28,7 +28,9 @@ from app.routers import (
     auth,
     cashflow,
     channels,
+    closed_cycles,
     credit,
+    cycles,
     expense_categories,
     expenses,
     export,
@@ -37,8 +39,6 @@ from app.routers import (
     oauth,
     onboarding,
     overview,
-    payout_cycles,
-    payout_periods,
     transfers,
 )
 from app.templating import templates
@@ -176,8 +176,8 @@ def schema_validation_error_handler(request: Request, exc: ValidationError) -> R
 app.include_router(auth.router)
 app.include_router(oauth.router)
 app.include_router(channels.router)
-app.include_router(payout_periods.router)
-app.include_router(payout_cycles.router)
+app.include_router(cycles.router)
+app.include_router(closed_cycles.router)
 app.include_router(expense_categories.router)
 app.include_router(expenses.router)
 app.include_router(transfers.router)

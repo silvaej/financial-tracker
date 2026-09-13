@@ -92,14 +92,14 @@ def update_goal(
 def create_goal_placement(
     request: Request,
     goal_id: int,
-    payout_period_id: int = Form(...),
+    cycle_id: int = Form(...),
     x: float = Form(...),
     y: float = Form(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     try:
-        crud.place_goal(db, payout_period_id, goal_id, x, y, current_user.id)
+        crud.place_goal(db, cycle_id, goal_id, x, y, current_user.id)
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return templates.TemplateResponse(
@@ -114,7 +114,7 @@ def update_goal_placement(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> Response:
-    crud.place_goal(db, data.payout_period_id, goal_id, data.x, data.y, current_user.id)
+    crud.place_goal(db, data.cycle_id, goal_id, data.x, data.y, current_user.id)
     return Response(status_code=204)
 
 
@@ -122,11 +122,11 @@ def update_goal_placement(
 def delete_goal_placement(
     request: Request,
     goal_id: int,
-    payout_period_id: int,
+    cycle_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
-    crud.remove_goal_placement(db, payout_period_id, goal_id, current_user.id)
+    crud.remove_goal_placement(db, cycle_id, goal_id, current_user.id)
     return templates.TemplateResponse(
         request, "partials/cashflow_page.html", crud.cashflow_page_data(db, current_user.id)
     )

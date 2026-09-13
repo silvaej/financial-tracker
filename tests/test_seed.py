@@ -23,7 +23,7 @@ def _counts(db: Session) -> dict[str, int]:
         model.__name__: db.query(model).count()
         for model in (
             models.Channel,
-            models.PayoutPeriod,
+            models.Cycle,
             models.Expense,
             models.Transfer,
             models.Goal,
@@ -57,7 +57,7 @@ def test_seed_leaves_existing_channels_alone(db: Session) -> None:
 
     channel_names = {c.name for c in db.query(models.Channel).all()}
     assert channel_names == {"My Own Bank"}
-    assert db.query(models.PayoutPeriod).count() == 0
+    assert db.query(models.Cycle).count() == 0
 
 
 def test_seed_with_no_user_creates_orphaned_rows(db: Session) -> None:
@@ -66,5 +66,5 @@ def test_seed_with_no_user_creates_orphaned_rows(db: Session) -> None:
     channels = db.query(models.Channel).all()
     assert channels, "expected seeded channels"
     assert all(c.user_id is None for c in channels)
-    periods = db.query(models.PayoutPeriod).all()
+    periods = db.query(models.Cycle).all()
     assert periods and all(p.user_id is None for p in periods)

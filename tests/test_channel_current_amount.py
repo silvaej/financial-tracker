@@ -13,12 +13,12 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, income: str, channel_id: str) -> str:
+def _create_cycle(client: TestClient, income: str, channel_id: str) -> str:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={"income_amount": income, "receiving_channel_id": channel_id, "payout_day": "15"},
     )
-    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    matches = re.findall(r"/cycles/(\d+)", response.text)
     assert matches
     return matches[-1]
 
@@ -54,23 +54,23 @@ def test_current_amount_seeds_carry_in_for_first_period(client: TestClient) -> N
         f"/channels/{channel_id}",
         data={"name": "Maya Wallet", "color": "#8a8a8a", "current_amount": "500"},
     )
-    period_id = _create_payout_period(client, "1000", channel_id)
+    cycle_id = _create_cycle(client, "1000", channel_id)
 
-    live = client.get(f"/payout-periods/{period_id}/cycles")
+    live = client.get(f"/cycles/{cycle_id}/history")
     assert live.status_code == 200
     # 500 (Actual baseline) + 1000 (this period's income) = 1500.
     assert "1,500.00" in live.text
 
 
-def test_close_payout_cycle_increments_by_period_delta_not_full_net(client: TestClient) -> None:
+def test_close_cycle_increments_by_cycle_delta_not_full_net(client: TestClient) -> None:
     channel_id = _create_channel(client, "Maya Wallet")
     client.patch(
         f"/channels/{channel_id}",
         data={"name": "Maya Wallet", "color": "#8a8a8a", "current_amount": "500"},
     )
-    period_id = _create_payout_period(client, "1000", channel_id)
+    cycle_id = _create_cycle(client, "1000", channel_id)
 
-    client.post(f"/payout-periods/{period_id}/cycles")
+    client.post(f"/cycles/{cycle_id}/history")
 
     db = TestingSessionLocal()
     try:
@@ -87,7 +87,7 @@ def test_close_payout_cycle_increments_by_period_delta_not_full_net(client: Test
     # 1000 -- this period is a recurring template, so a second close
     # legitimately represents receiving this income again, not a double-count
     # of the first close.
-    client.post(f"/payout-periods/{period_id}/cycles")
+    client.post(f"/cycles/{cycle_id}/history")
     db = TestingSessionLocal()
     try:
         channel = db.get(models.Channel, int(channel_id))

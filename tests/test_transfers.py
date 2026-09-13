@@ -18,9 +18,9 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
+def _create_cycle(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={
             "income_amount": income,
             "receiving_channel_id": channel_id,
@@ -30,15 +30,15 @@ def _create_payout_period(client: TestClient, payout_day: int, income: str, chan
     # Periods are listed in ascending payout_day, so the just-created one
     # (highest payout_day among these fixtures) is the last match once more
     # than one exists.
-    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    matches = re.findall(r"/cycles/(\d+)", response.text)
     assert matches
     return matches[-1]
 
 
-def _place_channel(client: TestClient, period_id: str, channel_id: str) -> None:
+def _place_channel(client: TestClient, cycle_id: str, channel_id: str) -> None:
     response = client.post(
         f"/channels/{channel_id}/placement",
-        data={"payout_period_id": period_id, "x": "0", "y": "0"},
+        data={"cycle_id": cycle_id, "x": "0", "y": "0"},
     )
     assert response.status_code == 200
 
@@ -46,14 +46,14 @@ def _place_channel(client: TestClient, period_id: str, channel_id: str) -> None:
 def test_create_update_delete_transfer(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "1000", a)
-    _place_channel(client, period_id, a)
-    _place_channel(client, period_id, b)
+    cycle_id = _create_cycle(client, 15, "1000", a)
+    _place_channel(client, cycle_id, a)
+    _place_channel(client, cycle_id, b)
 
     create = client.post(
         "/transfers",
         data={
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "from_channel_id": a,
             "to_channel_id": b,
             "amount": "300",
@@ -74,15 +74,15 @@ def test_create_update_delete_transfer(client: TestClient) -> None:
 def test_create_transfer_rejects_zero_or_negative_amount(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "1000", a)
-    _place_channel(client, period_id, a)
-    _place_channel(client, period_id, b)
+    cycle_id = _create_cycle(client, 15, "1000", a)
+    _place_channel(client, cycle_id, a)
+    _place_channel(client, cycle_id, b)
 
     for amount in ("0", "-300"):
         response = client.post(
             "/transfers",
             data={
-                "payout_period_id": period_id,
+                "cycle_id": cycle_id,
                 "from_channel_id": a,
                 "to_channel_id": b,
                 "amount": amount,
@@ -94,14 +94,14 @@ def test_create_transfer_rejects_zero_or_negative_amount(client: TestClient) -> 
 def test_update_transfer_rejects_zero_or_negative_amount(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "1000", a)
-    _place_channel(client, period_id, a)
-    _place_channel(client, period_id, b)
+    cycle_id = _create_cycle(client, 15, "1000", a)
+    _place_channel(client, cycle_id, a)
+    _place_channel(client, cycle_id, b)
 
     create = client.post(
         "/transfers",
         data={
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "from_channel_id": a,
             "to_channel_id": b,
             "amount": "300",
@@ -122,14 +122,14 @@ def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClie
     """
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "1000", a)
-    _place_channel(client, period_id, a)
-    _place_channel(client, period_id, b)
+    cycle_id = _create_cycle(client, 15, "1000", a)
+    _place_channel(client, cycle_id, a)
+    _place_channel(client, cycle_id, b)
 
     client.post(
         "/transfers",
         data={
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "from_channel_id": a,
             "to_channel_id": b,
             "amount": "300",
@@ -140,7 +140,7 @@ def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClie
         data={
             "name": "A bill",
             "amount": "100",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": a,
         },
     )
@@ -149,7 +149,7 @@ def test_channel_balances_reflect_income_transfers_and_expenses(client: TestClie
         data={
             "name": "B bill",
             "amount": "50",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": b,
         },
     )
@@ -169,13 +169,13 @@ def test_cashflow_canvas_shows_channel_nodes_with_balances(
     """
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "1000", a)
-    _place_channel(client, period_id, a)
-    _place_channel(client, period_id, b)
+    cycle_id = _create_cycle(client, 15, "1000", a)
+    _place_channel(client, cycle_id, a)
+    _place_channel(client, cycle_id, b)
 
     client.post(
         "/expenses",
-        data={"name": "B bill", "amount": "500", "payout_period_id": period_id, "channel_id": b},
+        data={"name": "B bill", "amount": "500", "cycle_id": cycle_id, "channel_id": b},
     )
 
     response = client.get("/cashflow")
@@ -213,9 +213,9 @@ def test_channel_balances_carry_forward_across_many_periods() -> None:
             # periods are listed by payout_day ascending, and this test's
             # carry-forward simulation below depends on that iteration order
             # matching creation order.
-            period = crud.create_payout_period(
+            period = crud.create_cycle(
                 db,
-                schemas.PayoutPeriodCreate(
+                schemas.CycleCreate(
                     payout_day=i,
                     income_amount=income,
                     receiving_channel_id=channel_a.id,
@@ -230,7 +230,7 @@ def test_channel_balances_carry_forward_across_many_periods() -> None:
             crud.create_transfer(
                 db,
                 schemas.TransferCreate(
-                    payout_period_id=period.id,
+                    cycle_id=period.id,
                     from_channel_id=channel_a.id,
                     to_channel_id=channel_b.id,
                     amount=transfer_amount,
@@ -245,7 +245,7 @@ def test_channel_balances_carry_forward_across_many_periods() -> None:
                 schemas.ExpenseCreate(
                     name=f"A bill {i}",
                     amount=expense_a,
-                    payout_period_id=period.id,
+                    cycle_id=period.id,
                     channel_id=channel_a.id,
                 ),
                 TEST_USER_ID,
@@ -255,7 +255,7 @@ def test_channel_balances_carry_forward_across_many_periods() -> None:
                 schemas.ExpenseCreate(
                     name=f"B bill {i}",
                     amount=expense_b_amount,
-                    payout_period_id=period.id,
+                    cycle_id=period.id,
                     channel_id=channel_b.id,
                 ),
                 TEST_USER_ID,
@@ -310,9 +310,9 @@ def test_cashflow_page_data_completes_quickly_with_many_periods() -> None:
         channel_b = crud.create_channel(db, schemas.ChannelCreate(name="Channel B"), TEST_USER_ID)
 
         for i in range(1, 21):
-            period = crud.create_payout_period(
+            period = crud.create_cycle(
                 db,
-                schemas.PayoutPeriodCreate(
+                schemas.CycleCreate(
                     payout_day=i, income_amount=1000, receiving_channel_id=channel_a.id
                 ),
                 TEST_USER_ID,
@@ -320,7 +320,7 @@ def test_cashflow_page_data_completes_quickly_with_many_periods() -> None:
             crud.create_transfer(
                 db,
                 schemas.TransferCreate(
-                    payout_period_id=period.id,
+                    cycle_id=period.id,
                     from_channel_id=channel_a.id,
                     to_channel_id=channel_b.id,
                     amount=200,
@@ -330,7 +330,7 @@ def test_cashflow_page_data_completes_quickly_with_many_periods() -> None:
             crud.create_expense(
                 db,
                 schemas.ExpenseCreate(
-                    name=f"bill {i}", amount=30, payout_period_id=period.id, channel_id=channel_b.id
+                    name=f"bill {i}", amount=30, cycle_id=period.id, channel_id=channel_b.id
                 ),
                 TEST_USER_ID,
             )

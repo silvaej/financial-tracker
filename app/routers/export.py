@@ -47,23 +47,21 @@ def export_channels(
     return _csv_response(rows, ["Name", "Color", "Type"], "channels.csv")
 
 
-@router.get("/payout-periods.csv")
-def export_payout_periods(
+@router.get("/cycles.csv")
+def export_cycles(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> Response:
-    periods = crud.list_payout_periods(db, current_user.id)
+    cycles = crud.list_cycles(db, current_user.id)
     rows = [
         [
-            crud.ordinal_label(p.payout_day),
-            p.income_amount,
-            p.receiving_channel.name if p.receiving_channel else "",
+            crud.ordinal_label(c.payout_day),
+            c.income_amount,
+            c.receiving_channel.name if c.receiving_channel else "",
         ]
-        for p in periods
+        for c in cycles
     ]
-    return _csv_response(
-        rows, ["Payout Day", "Income Amount", "Receiving Channel"], "payout-periods.csv"
-    )
+    return _csv_response(rows, ["Payout Day", "Income Amount", "Receiving Channel"], "cycles.csv")
 
 
 @router.get("/expenses.csv")
@@ -73,10 +71,9 @@ def export_expenses(
 ) -> Response:
     expenses = crud.list_expenses(db, current_user.id)
     rows = [
-        [e.name, e.amount, crud.ordinal_label(e.payout_period.payout_day), e.channel.name]
-        for e in expenses
+        [e.name, e.amount, crud.ordinal_label(e.cycle.payout_day), e.channel.name] for e in expenses
     ]
-    return _csv_response(rows, ["Name", "Amount", "Payout Period", "Channel"], "expenses.csv")
+    return _csv_response(rows, ["Name", "Amount", "Cycle", "Channel"], "expenses.csv")
 
 
 @router.get("/transfers.csv")
@@ -87,13 +84,11 @@ def export_transfers(
     transfers = crud.list_all_transfers(db, current_user.id)
     rows = [
         [
-            crud.ordinal_label(t.payout_period.payout_day),
+            crud.ordinal_label(t.cycle.payout_day),
             t.from_channel.name,
             t.to_channel.name,
             t.amount,
         ]
         for t in transfers
     ]
-    return _csv_response(
-        rows, ["Payout Period", "From Channel", "To Channel", "Amount"], "transfers.csv"
-    )
+    return _csv_response(rows, ["Cycle", "From Channel", "To Channel", "Amount"], "transfers.csv")

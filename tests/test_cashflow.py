@@ -10,9 +10,9 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
+def _create_cycle(client: TestClient, payout_day: int, income: str, channel_id: str) -> str:
     response = client.post(
-        "/payout-periods",
+        "/cycles",
         data={
             "income_amount": income,
             "receiving_channel_id": channel_id,
@@ -22,7 +22,7 @@ def _create_payout_period(client: TestClient, payout_day: int, income: str, chan
     # Periods are listed in ascending payout_day, so the just-created one
     # (highest payout_day among these fixtures) is the last match once more
     # than one exists.
-    matches = re.findall(r"/payout-periods/(\d+)", response.text)
+    matches = re.findall(r"/cycles/(\d+)", response.text)
     assert matches
     return matches[-1]
 
@@ -41,14 +41,14 @@ def test_expenses_page_no_longer_shows_cash_flow(client: TestClient) -> None:
     assert "Generate transfers" not in response.text
 
 
-def test_channel_balance_carries_over_to_next_payout_period(client: TestClient) -> None:
+def test_channel_balance_carries_over_to_next_cycle(client: TestClient) -> None:
     """A ends period 1 with 1000 leftover (pure income, no expenses/transfers), so
     period 2 (also receiving 500 income) should show a 1500 ending balance."""
     a = _create_channel(client, "Channel A")
-    period_1 = _create_payout_period(client, 15, "1000", a)
-    period_2 = _create_payout_period(client, 30, "500", a)
-    client.post(f"/channels/{a}/placement", data={"payout_period_id": period_1, "x": "0", "y": "0"})
-    client.post(f"/channels/{a}/placement", data={"payout_period_id": period_2, "x": "0", "y": "0"})
+    cycle_1 = _create_cycle(client, 15, "1000", a)
+    cycle_2 = _create_cycle(client, 30, "500", a)
+    client.post(f"/channels/{a}/placement", data={"cycle_id": cycle_1, "x": "0", "y": "0"})
+    client.post(f"/channels/{a}/placement", data={"cycle_id": cycle_2, "x": "0", "y": "0"})
 
     response = client.get("/cashflow")
     assert response.status_code == 200
@@ -59,7 +59,7 @@ def test_channel_balance_carries_over_to_next_payout_period(client: TestClient) 
 
 def test_new_channel_starts_in_toolbox_not_on_canvas(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
-    _create_payout_period(client, 15, "1000", a)
+    _create_cycle(client, 15, "1000", a)
 
     response = client.get("/cashflow")
     assert response.status_code == 200
@@ -70,10 +70,10 @@ def test_new_channel_starts_in_toolbox_not_on_canvas(client: TestClient) -> None
 
 def test_placing_channel_moves_it_from_toolbox_to_canvas(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
-    period_id = _create_payout_period(client, 15, "1000", a)
+    cycle_id = _create_cycle(client, 15, "1000", a)
 
     response = client.post(
-        f"/channels/{a}/placement", data={"payout_period_id": period_id, "x": "50", "y": "60"}
+        f"/channels/{a}/placement", data={"cycle_id": cycle_id, "x": "50", "y": "60"}
     )
     assert response.status_code == 200
     assert f'data-position-url="/channels/{a}/placement"' in response.text
@@ -84,11 +84,11 @@ def test_placing_channel_moves_it_from_toolbox_to_canvas(client: TestClient) -> 
 def test_unfunded_channel_shows_warning(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "0", a)
+    cycle_id = _create_cycle(client, 15, "0", a)
 
     client.post(
         "/expenses",
-        data={"name": "B bill", "amount": "500", "payout_period_id": period_id, "channel_id": b},
+        data={"name": "B bill", "amount": "500", "cycle_id": cycle_id, "channel_id": b},
     )
 
     response = client.get("/cashflow")
@@ -98,7 +98,7 @@ def test_unfunded_channel_shows_warning(client: TestClient) -> None:
 
 def test_underfunded_goal_shows_warning(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
-    _create_payout_period(client, 15, "1000", a)
+    _create_cycle(client, 15, "1000", a)
     client.post(
         "/goals",
         data={"name": "Emergency Fund", "target": "1000", "months": "1", "channel_id": a},
@@ -111,7 +111,7 @@ def test_underfunded_goal_shows_warning(client: TestClient) -> None:
 
 def test_fully_funded_goal_has_no_warning(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
-    period_id = _create_payout_period(client, 15, "1000", a)
+    cycle_id = _create_cycle(client, 15, "1000", a)
     goal = client.post(
         "/goals",
         data={"name": "Emergency Fund", "target": "1000", "months": "1", "channel_id": a},
@@ -125,7 +125,7 @@ def test_fully_funded_goal_has_no_warning(client: TestClient) -> None:
         data={
             "goal_id": goal_id,
             "channel_id": a,
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "amount": "1000",
         },
     )
@@ -148,12 +148,12 @@ def test_shows_nudge_when_no_transfers_yet(client: TestClient) -> None:
 def test_nudge_disappears_once_a_transfer_exists(client: TestClient) -> None:
     a = _create_channel(client, "Channel A")
     b = _create_channel(client, "Channel B")
-    period_id = _create_payout_period(client, 15, "1000", a)
+    cycle_id = _create_cycle(client, 15, "1000", a)
 
     response = client.post(
         "/transfers",
         data={
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "from_channel_id": a,
             "to_channel_id": b,
             "amount": "100",
