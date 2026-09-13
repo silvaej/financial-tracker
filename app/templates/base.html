@@ -1,6 +1,7 @@
 {% import "macros.html" as macros with context %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"
+      data-palette="{{ current_user.palette if current_user else 'ledger' }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -19,6 +20,16 @@
     <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
   </head>
   <body class="font-sans text-ink">
+    <div id="mobile-gate" class="mobile-gate">
+      <div class="card mobile-gate-card">
+        {{ macros.brand_wordmark() }}
+        <p class="mobile-gate-title">Desktop only for now</p>
+        <p class="mobile-gate-copy">
+          Vantage isn't polished for small screens yet. Please come back on a laptop or desktop
+          browser in the meantime.
+        </p>
+      </div>
+    </div>
     <div class="flex h-screen overflow-hidden bg-paper">
       <nav class="rail"
            id="rail"
@@ -508,6 +519,42 @@
       });
 
       document.body.addEventListener("showAlert", (evt) => showAlert(evt.detail.value));
+
+      // Delegated (rather than bound per-button) so this keeps working after
+      // admin_page.html re-renders via htmx's outerHTML swap on every
+      // mutating /admin/* route -- see CLAUDE.md's "Fragment contract" note.
+      document.body.addEventListener("click", (evt) => {
+        const btn = evt.target.closest(".js-copy-link");
+        if (!btn) return;
+        const text = btn.dataset.copyText;
+        const flashCopied = () => {
+          const icon = btn.querySelector(".js-copy-icon");
+          const done = btn.querySelector(".js-copy-icon-done");
+          if (!icon || !done) return;
+          icon.classList.add("hidden");
+          done.classList.remove("hidden");
+          clearTimeout(btn._copyResetTimeout);
+          btn._copyResetTimeout = setTimeout(() => {
+            icon.classList.remove("hidden");
+            done.classList.add("hidden");
+          }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(flashCopied, () => showAlert("Couldn't copy the link -- copy it manually instead."));
+        } else {
+          // Clipboard API needs a secure context -- fall back to the old
+          // select-and-execCommand trick for plain-HTTP local dev.
+          const scratch = document.createElement("textarea");
+          scratch.value = text;
+          scratch.style.position = "fixed";
+          scratch.style.opacity = "0";
+          document.body.appendChild(scratch);
+          scratch.select();
+          document.execCommand("copy");
+          document.body.removeChild(scratch);
+          flashCopied();
+        }
+      });
 
       function toggleEditMode(id) {
         document.querySelectorAll(".view-" + id).forEach((el) => el.classList.toggle("hidden"));

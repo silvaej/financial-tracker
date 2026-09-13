@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -41,14 +42,17 @@ def _override_get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def _override_get_current_user() -> models.User:
-    db = TestingSessionLocal()
-    try:
-        user = db.get(models.User, TEST_USER_ID)
-        assert user is not None
-        return user
-    finally:
-        db.close()
+def _override_get_current_user(db: Session = Depends(get_db)) -> models.User:
+    # Depends on get_db (transitively the overridden _override_get_db) rather
+    # than opening its own session, matching production's real
+    # get_current_user -- FastAPI caches a dependency's result per request,
+    # so this shares the same session as any route's own `db` parameter.
+    # A separate session here would return a *detached* User: mutating it
+    # and committing through the route's own `db` session silently does
+    # nothing, since that session's identity map never held this object.
+    user = db.get(models.User, TEST_USER_ID)
+    assert user is not None
+    return user
 
 
 async def _override_csrf_protect() -> None:
@@ -65,7 +69,7 @@ def _reset_db() -> Generator[None, None, None]:
     # slowapi's in-memory storage lives for the whole test process, not per
     # request/session like the DB above -- without resetting it here, every
     # test's calls against a rate-limited route (e.g. /auth/*/start,
-    # /signup/check-key) share one running counter with every other test
+    # /signup) share one running counter with every other test
     # that happens to touch the same route, so later tests start failing
     # with 429s that have nothing to do with what they're actually testing.
     limiter.reset()
@@ -150,17 +154,26 @@ def oauth_login(
     keep_signed_in: bool = False,
     email_verified: bool = True,
     intent: str = "login",
+    terms_accepted: bool = True,
 ) -> httpx.Response:
     """Drives a client through /auth/<provider>/start + /callback with a faked
     provider exchange -- see app/routers/oauth.py. Reused by every test that
     needs a real (session-cookie based) login without hitting a real provider.
-    `intent` mirrors the hidden form field login.html/signup.html send."""
+    `intent` mirrors the hidden form field login.html/signup.html send.
+    `terms_accepted` mirrors signup.html's required checkbox -- defaults to
+    True so every existing signup-intent call site keeps succeeding; only
+    matters for a genuinely-new-user signup (see crud.resolve_oauth_login)."""
     fake_client = _fake_oauth_client_for(provider, email, provider_user_id, email_verified)
     monkeypatch.setattr(oauth_module.oauth, "create_client", lambda name: fake_client)
 
     client.get(
         f"/auth/{provider}/start",
-        params={"invite_key": invite_key, "keep_signed_in": keep_signed_in, "intent": intent},
+        params={
+            "invite_key": invite_key,
+            "keep_signed_in": keep_signed_in,
+            "intent": intent,
+            "terms_accepted": terms_accepted,
+        },
         follow_redirects=False,
     )
     return client.get(f"/auth/{provider}/callback", follow_redirects=False)

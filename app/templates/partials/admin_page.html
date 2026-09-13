@@ -41,8 +41,8 @@
             <th>Email</th>
             <th>Signed up</th>
             <th>Providers</th>
-            <th class="text-right">Channels</th>
-            <th class="text-right">Expenses</th>
+            <th>Channels</th>
+            <th>Expenses</th>
             <th></th>
           </tr>
         </thead>
@@ -94,6 +94,7 @@
       <div class="section-title">Signup keys<span class="pill">{{ signup_keys|length }} total</span></div>
       <form id="add-signup-key-form"
             class="flex items-end gap-2 mb-4 flex-wrap"
+            autocomplete="off"
             hx-post="/admin/signup-keys"
             hx-target="#admin-page"
             hx-swap="outerHTML">
@@ -127,7 +128,7 @@
             <col class="w-20">
             <col class="w-24">
             <col class="w-20">
-            <col class="w-16">
+            <col class="w-20">
           </colgroup>
           <thead>
             <tr>
@@ -155,6 +156,14 @@
                 </td>
                 <td class="led-actions">
                   {% if status == "active" %}
+                    <button class="icon-btn js-copy-link hover:bg-accent/15 hover:text-accent"
+                            type="button"
+                            title="Copy signup link"
+                            aria-label="Copy signup link"
+                            data-copy-text="{{ request.base_url }}signup?invite_key={{ key.key }}">
+                      <span class="js-copy-icon">{{ macros.icon_link() }}</span>
+                      <span class="js-copy-icon-done hidden">{{ macros.icon_check() }}</span>
+                    </button>
                     <button class="icon-btn"
                             title="Revoke"
                             aria-label="Revoke"
@@ -187,7 +196,7 @@
             <thead>
               <tr>
                 <th>Table</th>
-                <th class="text-right">Rows</th>
+                <th>Rows</th>
                 <th>Assign to</th>
               </tr>
             </thead>

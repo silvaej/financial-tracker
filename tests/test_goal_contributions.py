@@ -18,9 +18,12 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, label: str) -> str:
-    response = client.post("/payout-periods", data={"label": label, "income_amount": "0"})
-    match = re.search(r"/payout-periods/(\d+)", response.text)
+def _create_cycle(client: TestClient, payout_day: int) -> str:
+    response = client.post(
+        "/cycles",
+        data={"income_amount": "0", "payout_day": str(payout_day)},
+    )
+    match = re.search(r"/cycles/(\d+)", response.text)
     assert match is not None
     return match.group(1)
 
@@ -32,25 +35,25 @@ def _create_goal(client: TestClient, name: str, target: str) -> str:
     return match.group(1)
 
 
-def _place_channel(client: TestClient, period_id: str, channel_id: str) -> None:
+def _place_channel(client: TestClient, cycle_id: str, channel_id: str) -> None:
     response = client.post(
         f"/channels/{channel_id}/placement",
-        data={"payout_period_id": period_id, "x": "0", "y": "0"},
+        data={"cycle_id": cycle_id, "x": "0", "y": "0"},
     )
     assert response.status_code == 200
 
 
-def _place_goal(client: TestClient, period_id: str, goal_id: str) -> None:
+def _place_goal(client: TestClient, cycle_id: str, goal_id: str) -> None:
     response = client.post(
         f"/goals/{goal_id}/placement",
-        data={"payout_period_id": period_id, "x": "200", "y": "0"},
+        data={"cycle_id": cycle_id, "x": "200", "y": "0"},
     )
     assert response.status_code == 200
 
 
 def test_create_goal_contribution_updates_goal_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
 
     response = client.post(
@@ -58,7 +61,7 @@ def test_create_goal_contribution_updates_goal_allocated(client: TestClient) -> 
         data={
             "goal_id": goal_id,
             "channel_id": channel_id,
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "amount": "300",
         },
     )
@@ -70,7 +73,7 @@ def test_create_goal_contribution_updates_goal_allocated(client: TestClient) -> 
 
 def test_create_goal_contribution_rejects_zero_or_negative_amount(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
 
     for amount in ("0", "-300"):
@@ -79,7 +82,7 @@ def test_create_goal_contribution_rejects_zero_or_negative_amount(client: TestCl
             data={
                 "goal_id": goal_id,
                 "channel_id": channel_id,
-                "payout_period_id": period_id,
+                "cycle_id": cycle_id,
                 "amount": amount,
             },
         )
@@ -88,17 +91,17 @@ def test_create_goal_contribution_rejects_zero_or_negative_amount(client: TestCl
 
 def test_update_goal_contribution_rejects_zero_or_negative_amount(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
-    _place_channel(client, period_id, channel_id)
-    _place_goal(client, period_id, goal_id)
+    _place_channel(client, cycle_id, channel_id)
+    _place_goal(client, cycle_id, goal_id)
 
     create = client.post(
         "/goal-contributions",
         data={
             "goal_id": goal_id,
             "channel_id": channel_id,
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "amount": "300",
         },
     )
@@ -112,17 +115,17 @@ def test_update_goal_contribution_rejects_zero_or_negative_amount(client: TestCl
 
 def test_update_goal_contribution_recomputes_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
-    _place_channel(client, period_id, channel_id)
-    _place_goal(client, period_id, goal_id)
+    _place_channel(client, cycle_id, channel_id)
+    _place_goal(client, cycle_id, goal_id)
 
     create = client.post(
         "/goal-contributions",
         data={
             "goal_id": goal_id,
             "channel_id": channel_id,
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "amount": "300",
         },
     )
@@ -138,17 +141,17 @@ def test_update_goal_contribution_recomputes_allocated(client: TestClient) -> No
 
 def test_delete_goal_contribution_recomputes_allocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
-    _place_channel(client, period_id, channel_id)
-    _place_goal(client, period_id, goal_id)
+    _place_channel(client, cycle_id, channel_id)
+    _place_goal(client, cycle_id, goal_id)
 
     create = client.post(
         "/goal-contributions",
         data={
             "goal_id": goal_id,
             "channel_id": channel_id,
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "amount": "300",
         },
     )
@@ -167,7 +170,7 @@ def test_goal_can_receive_contributions_from_two_channels_same_period(
 ) -> None:
     channel_a = _create_channel(client, "Bank A")
     channel_b = _create_channel(client, "Bank B")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal_id = _create_goal(client, "Emergency Fund", "1000")
 
     client.post(
@@ -175,7 +178,7 @@ def test_goal_can_receive_contributions_from_two_channels_same_period(
         data={
             "goal_id": goal_id,
             "channel_id": channel_a,
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "amount": "300",
         },
     )
@@ -184,7 +187,7 @@ def test_goal_can_receive_contributions_from_two_channels_same_period(
         data={
             "goal_id": goal_id,
             "channel_id": channel_b,
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "amount": "200",
         },
     )
@@ -219,13 +222,11 @@ def test_create_goal_contribution_requires_owned_goal(
     db = TestingSessionLocal()
     try:
         alice_channel = crud.create_channel(db, schemas.ChannelCreate(name="Alice Bank"), alice_id)
-        alice_period = crud.create_payout_period(
-            db, schemas.PayoutPeriodCreate(label="15th"), alice_id
-        )
+        alice_period = crud.create_cycle(db, schemas.CycleCreate(payout_day=15), alice_id)
         alice_goal = crud.create_goal(
             db, schemas.GoalCreate(name="Alice Goal", target=1000, months=1), alice_id
         )
-        channel_id, period_id, goal_id = alice_channel.id, alice_period.id, alice_goal.id
+        channel_id, cycle_id, goal_id = alice_channel.id, alice_period.id, alice_goal.id
     finally:
         db.close()
 
@@ -235,7 +236,7 @@ def test_create_goal_contribution_requires_owned_goal(
         data={
             "goal_id": str(goal_id),
             "channel_id": str(channel_id),
-            "payout_period_id": str(period_id),
+            "cycle_id": str(cycle_id),
             "amount": "100",
         },
     )

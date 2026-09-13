@@ -10,6 +10,7 @@
   <div class="section">
     <div class="section-title">Credit lines<span class="pill">{{ credit_lines|length }} total</span></div>
     <form id="add-credit-form"
+          autocomplete="off"
           hx-post="/credit"
           hx-target="#credit-page"
           hx-swap="outerHTML">
@@ -18,18 +19,18 @@
       <table class="led">
         <colgroup>
           <col class="min-w-28">
-          <col class="w-40">
-          <col class="w-28">
-          <col class="w-28">
-          <col class="w-44">
           <col class="w-36">
+          <col class="w-24">
+          <col class="w-24">
+          <col class="w-44">
+          <col class="w-20">
         </colgroup>
         <thead>
           <tr>
             <th>Name</th>
             <th>Channel</th>
-            <th class="text-right">Limit</th>
-            <th class="text-right">Used</th>
+            <th>Limit</th>
+            <th>Used</th>
             <th>Utilization</th>
             <th></th>
           </tr>
@@ -44,6 +45,7 @@
                       hx-patch="/credit/{{ line.id }}"
                       hx-target="#credit-page"
                       hx-swap="outerHTML"
+                      autocomplete="off"
                       class="edit-credit-{{ line.id }} hidden items-center gap-2">
                   <input class="field"
                          type="text"

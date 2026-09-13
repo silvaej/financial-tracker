@@ -11,7 +11,7 @@
   {{ macros.nudge_banner(show_nudge, "/cashflow/nudge/dismiss", "#cashflow-page", "Route your money onward", "Income lands in one channel first — add a Transfer to move it from there to wherever it actually needs to end up, like a savings account or the wallet you pay bills from.") }}
   {% for data in payout_data %}
     <div class="section">
-      <div class="section-title">{{ data.period.label }} cash flow</div>
+      <div class="section-title">{{ ordinal_label(data.cycle.payout_day) }} cash flow</div>
       {% if data.warnings.unfunded_channels or data.warnings.underfunded_goals %}
         <div class="warn-banner">
           {% for name in data.warnings.unfunded_channels %}
@@ -45,7 +45,7 @@
           <span class="toolbox-empty text-xs text-ink-soft py-1">Everything is already on the canvas.</span>
         {% endif %}
       </div>
-      <div class="canvas" data-payout-period-id="{{ data.period.id }}">
+      <div class="canvas" data-cycle-id="{{ data.cycle.id }}">
         <div class="canvas-inner">
           <svg class="canvas-edges">
             {% for item in data.transfers %}
@@ -240,7 +240,7 @@
           </button>
         </div>
       </div>
-      <div class="canvas-save-bar" data-payout-period-id="{{ data.period.id }}">
+      <div class="canvas-save-bar" data-cycle-id="{{ data.cycle.id }}">
         <span class="canvas-save-status">All changes saved</span>
         <div class="flex items-center gap-2">
           <button type="button"
@@ -249,7 +249,7 @@
                   disabled>Undo</button>
           <button type="button"
                   class="add-btn canvas-save-btn"
-                  data-save-url="/cashflow/{{ data.period.id }}/save"
+                  data-save-url="/cashflow/{{ data.cycle.id }}/save"
                   disabled>Save changes</button>
         </div>
       </div>

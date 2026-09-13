@@ -36,6 +36,40 @@
     -webkit-appearance: none;
     margin: 0;
   }
+
+  /* Thin, floating-pill scrollbars everywhere (the page itself, a narrow
+     .table-wrap forced into horizontal scroll, canvas/modal overflow, ...)
+     instead of each OS/browser's own chunky default -- the transparent
+     border + padding-box clip is what insets the thumb into a "pill"
+     without needing to match a specific container's background color, so
+     this looks right whether the scrolling element sits on --color-paper
+     or --color-card. Both rule sets read the same ledger tokens, so this
+     tracks light/dark and every palette automatically. Kept visible (not
+     hidden/width:none) at rest so a scrollable area still reads as
+     scrollable, just quieter than the default. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-line);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-ink-soft);
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @theme {
@@ -91,6 +125,87 @@
   --color-gold-soft: rgba(219, 166, 63, 0.16);
   --color-rust: #e57373;
   --color-rust-soft: rgba(229, 115, 115, 0.16);
+}
+
+/* Selectable accent/gold/rust palettes (see issue #170) -- distinct from
+   the light/dark tokens above, which every palette keeps using unmodified.
+   "ledger" is the app's original look (the unmodified @theme/dark-mode
+   values above already ARE it, so it needs no override block of its own).
+   Each of the other three redefines the same 5 tokens for both light and
+   dark mode, mirroring the exact system-preference-vs-manual-override
+   structure above. crud.PALETTE_OPTIONS is the single source of truth for
+   *which* palettes exist and their light-mode preview colors -- keep that
+   and the blocks below in sync if a palette is ever added/changed. */
+:root[data-palette="slate"] {
+  --color-accent: #51677d;
+  --color-gold: #8a7a5c;
+  --color-gold-soft: #f3f1ee;
+  --color-rust: #93564f;
+  --color-rust-soft: #f4eeed;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="slate"]:not([data-theme="light"]) {
+    --color-accent: #7895b3;
+    --color-gold: #baa989;
+    --color-gold-soft: rgba(186, 169, 137, 0.16);
+    --color-rust: #c2847c;
+    --color-rust-soft: rgba(194, 132, 124, 0.16);
+  }
+}
+:root[data-palette="slate"][data-theme="dark"] {
+  --color-accent: #7895b3;
+  --color-gold: #baa989;
+  --color-gold-soft: rgba(186, 169, 137, 0.16);
+  --color-rust: #c2847c;
+  --color-rust-soft: rgba(194, 132, 124, 0.16);
+}
+
+:root[data-palette="forest"] {
+  --color-accent: #2f7d5a;
+  --color-gold: #8a7a2f;
+  --color-gold-soft: #f3f1e9;
+  --color-rust: #a34a3d;
+  --color-rust-soft: #f6edeb;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="forest"]:not([data-theme="light"]) {
+    --color-accent: #45c48b;
+    --color-gold: #ccb54a;
+    --color-gold-soft: rgba(204, 181, 74, 0.16);
+    --color-rust: #d1796c;
+    --color-rust-soft: rgba(209, 121, 108, 0.16);
+  }
+}
+:root[data-palette="forest"][data-theme="dark"] {
+  --color-accent: #45c48b;
+  --color-gold: #ccb54a;
+  --color-gold-soft: rgba(204, 181, 74, 0.16);
+  --color-rust: #d1796c;
+  --color-rust-soft: rgba(209, 121, 108, 0.16);
+}
+
+:root[data-palette="sunset"] {
+  --color-accent: #d9683f;
+  --color-gold: #c98a2f;
+  --color-gold-soft: #f9f3e9;
+  --color-rust: #b23b55;
+  --color-rust-soft: #f7ebee;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="sunset"]:not([data-theme="light"]) {
+    --color-accent: #eda388;
+    --color-gold: #e5b570;
+    --color-gold-soft: rgba(229, 181, 112, 0.16);
+    --color-rust: #d87288;
+    --color-rust-soft: rgba(216, 114, 136, 0.16);
+  }
+}
+:root[data-palette="sunset"][data-theme="dark"] {
+  --color-accent: #eda388;
+  --color-gold: #e5b570;
+  --color-gold-soft: rgba(229, 181, 112, 0.16);
+  --color-rust: #d87288;
+  --color-rust-soft: rgba(216, 114, 136, 0.16);
 }
 
 /* Tells the browser which native form-control chrome to use -- without this,
@@ -274,6 +389,18 @@
   .card-label {
     @apply text-[11px] uppercase tracking-wide text-ink-soft font-semibold mb-1.5;
   }
+  .mobile-gate {
+    @apply hidden fixed inset-0 z-50 items-center justify-center bg-paper p-6;
+  }
+  .mobile-gate-card {
+    @apply flex flex-col items-center gap-3 text-center max-w-xs py-8;
+  }
+  .mobile-gate-title {
+    @apply font-serif text-lg text-ink;
+  }
+  .mobile-gate-copy {
+    @apply text-sm text-ink-soft;
+  }
   .card-value {
     @apply font-mono text-xl font-semibold text-ink;
   }
@@ -385,7 +512,7 @@
     @apply px-2.5 py-1.5 border-b border-line align-middle;
   }
   .num {
-    @apply font-mono text-right;
+    @apply font-mono;
   }
 
   /* Card-grid layout for repeating entities (Goals, Credit lines) shown as
@@ -509,6 +636,38 @@
     @apply text-[10.5px] font-semibold text-ink text-center leading-tight truncate max-w-full;
   }
 
+  /* Palette picker (see issue #170) -- each swatch's own accent color sets
+     --sw-accent inline (the palette it represents, not the *currently
+     active* palette), used for its selected-state ring/check regardless of
+     which palette is actually applied right now. */
+  .palette-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  }
+  .palette-swatch {
+    @apply relative flex flex-col gap-2 text-left bg-paper-dim border-[1.5px] border-line rounded-lg px-3.5 py-3 cursor-pointer;
+  }
+  .palette-swatch.selected {
+    border-color: var(--sw-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--sw-accent) 30%, transparent);
+  }
+  .palette-swatch-dots {
+    @apply flex gap-1.5;
+  }
+  .palette-swatch-dots span {
+    @apply w-[18px] h-[18px] rounded-full;
+  }
+  .palette-swatch-name {
+    @apply text-[13px] font-bold text-ink;
+  }
+  .palette-swatch-check {
+    @apply absolute top-2.5 right-2.5 w-4 h-4 rounded-full text-white text-[10px] font-black flex items-center justify-center opacity-0;
+    background: var(--sw-accent);
+  }
+  .palette-swatch.selected .palette-swatch-check {
+    @apply opacity-100;
+  }
+
   .bar-track {
     /* A relative darken (rather than a fixed bg-* token) so the empty
        track stays visible against whichever surface it sits on --
@@ -518,6 +677,48 @@
   }
   .bar-fill {
     @apply h-full rounded-full bg-accent;
+  }
+
+  /* Pure-CSS conic-gradient pie chart (see issue #165) -- the gradient
+     itself is dynamic (per-category colors, computed percentages) so it's
+     set via an inline style, same as .bar-fill's width above; only the
+     donut-hole/sizing/layout is static and lives here. */
+  .pie-row {
+    @apply flex items-center gap-9 flex-wrap;
+  }
+  .pie-chart {
+    @apply w-[168px] h-[168px] rounded-full shrink-0 relative;
+  }
+  .pie-chart::after {
+    content: "";
+    @apply absolute inset-7 rounded-full bg-card;
+  }
+  .pie-center {
+    @apply absolute inset-7 flex flex-col items-center justify-center z-10;
+  }
+  .pie-center-label {
+    @apply text-[9.5px] uppercase tracking-wide text-ink-soft font-bold;
+  }
+  .pie-center-value {
+    @apply font-mono font-bold text-base mt-0.5;
+  }
+  .legend {
+    @apply flex-1 min-w-[220px] flex flex-col gap-2;
+  }
+  .legend-row {
+    @apply flex items-center gap-2.5 text-sm;
+  }
+  .swatch {
+    @apply w-2.5 h-2.5 rounded-sm shrink-0;
+  }
+  .legend-name {
+    @apply flex-1;
+  }
+  .legend-amount {
+    @apply font-mono text-[13px];
+  }
+  .legend-pct {
+    @apply font-mono text-xs text-ink-soft w-11 text-right;
   }
 
   .warn-pill {
@@ -849,6 +1050,23 @@
   }
   .provider-btn:disabled {
     @apply opacity-45 cursor-not-allowed hover:bg-transparent;
+  }
+}
+
+/* Temporary gate (see issue #168): the app's mobile responsive layout below
+   already works (card-reflow tables, bottom tabbar, "more" sheet nav -- see
+   the @media (max-width: 640px) block below), but has enough rough edges
+   that it's hidden behind this notice for now. Trivially reversible later
+   by deleting this block; the responsive CSS/JS it hides is left untouched. */
+@media (max-width: 767px) {
+  #mobile-gate {
+    display: flex;
+  }
+  #page-content,
+  .rail,
+  .tabbar,
+  .sheet-overlay {
+    display: none !important;
   }
 }
 

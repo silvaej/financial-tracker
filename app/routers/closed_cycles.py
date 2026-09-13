@@ -7,20 +7,20 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.templating import templates
 
-router = APIRouter(prefix="/payout-periods/{payout_period_id}/cycles", tags=["payout-cycles"])
+router = APIRouter(prefix="/cycles/{cycle_id}/history", tags=["closed-cycles"])
 
 
 def _render_page(
-    request: Request, db: Session, payout_period_id: int, user_id: int, cycle_id: int | None
+    request: Request, db: Session, cycle_id: int, user_id: int, closed_cycle_id: int | None
 ) -> HTMLResponse:
     try:
-        context = crud.payout_cycle_history_page_data(db, payout_period_id, user_id, cycle_id)
+        context = crud.closed_cycle_history_page_data(db, cycle_id, user_id, closed_cycle_id)
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     template = (
-        "partials/payout_cycle_history_page.html"
+        "partials/closed_cycle_history_page.html"
         if request.headers.get("HX-Request")
-        else "payout_cycle_history.html"
+        else "closed_cycle_history.html"
     )
     return templates.TemplateResponse(request, template, context)
 
@@ -28,23 +28,23 @@ def _render_page(
 @router.get("")
 def index(
     request: Request,
-    payout_period_id: int,
-    cycle_id: int | None = None,
+    cycle_id: int,
+    closed_cycle_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
-    return _render_page(request, db, payout_period_id, current_user.id, cycle_id)
+    return _render_page(request, db, cycle_id, current_user.id, closed_cycle_id)
 
 
 @router.post("")
 def close_cycle(
     request: Request,
-    payout_period_id: int,
+    cycle_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     try:
-        crud.close_payout_cycle(db, payout_period_id, current_user.id)
+        crud.close_cycle(db, cycle_id, current_user.id)
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _render_page(request, db, payout_period_id, current_user.id, cycle_id=None)
+    return _render_page(request, db, cycle_id, current_user.id, closed_cycle_id=None)

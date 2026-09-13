@@ -3,7 +3,8 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.exception_handlers import http_exception_handler as default_http_exception_handler
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from slowapi.errors import RateLimitExceeded
@@ -11,6 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import models
@@ -26,16 +28,18 @@ from app.routers import (
     auth,
     cashflow,
     channels,
+    closed_cycles,
     credit,
+    cycles,
+    expense_categories,
     expenses,
     export,
     goal_contributions,
     goals,
     oauth,
     onboarding,
+    one_time_expenses,
     overview,
-    payout_cycles,
-    payout_periods,
     transfers,
 )
 from app.templating import templates
@@ -121,11 +125,34 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Res
     # `alertMessage.textContent = data.detail` for every error path in this
     # app (see ValidationError/OwnershipError/ChannelInUseError below/
     # elsewhere), so a mismatched key would render as "undefined" instead of
-    # a real message on a rate-limited htmx request (e.g. /signup/check-key,
-    # triggered live as the user types an invite key).
+    # a real message on a rate-limited htmx request.
     return JSONResponse(
         status_code=429, content={"detail": "Too many requests. Please wait and try again."}
     )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
+    # Only genuinely unmatched routes get the custom 404 page below -- every
+    # app-raised HTTPException(404) (ownership checks, admin gating, a
+    # missing avatar/logo, ...) has already matched a real route by the time
+    # its handler raises, so FastAPI's own APIRoute.matches() has stamped
+    # scope["route"] with that route before we ever see the exception here.
+    # Starlette's router only reaches its own not_found() -- the actual
+    # "nothing matched this path/method at all" case this issue is about --
+    # without ever setting scope["route"]. Delegating those app-raised 404s
+    # (and every non-404 status) to FastAPI's default handler preserves their
+    # specific `detail` message for base.html's global htmx:responseError
+    # toast instead of silently swapping in a generic "not found" page.
+    if exc.status_code != 404 or request.scope.get("route") is not None:
+        return await default_http_exception_handler(request, exc)
+    if request.headers.get("HX-Request") == "true":
+        # 200, not 404: htmx doesn't swap non-2xx responses, so a boosted nav
+        # click to an unmatched route needs a success status for #page-content
+        # to actually receive this fragment (mirrors every mutating route's
+        # own always-200-on-success convention elsewhere in this app).
+        return templates.TemplateResponse(request, "partials/not_found_page.html", {})
+    return templates.TemplateResponse(request, "not_found.html", {}, status_code=404)
 
 
 @app.exception_handler(ValidationError)
@@ -149,9 +176,11 @@ def schema_validation_error_handler(request: Request, exc: ValidationError) -> R
 app.include_router(auth.router)
 app.include_router(oauth.router)
 app.include_router(channels.router)
-app.include_router(payout_periods.router)
-app.include_router(payout_cycles.router)
+app.include_router(cycles.router)
+app.include_router(closed_cycles.router)
+app.include_router(expense_categories.router)
 app.include_router(expenses.router)
+app.include_router(one_time_expenses.router)
 app.include_router(transfers.router)
 app.include_router(goal_contributions.router)
 app.include_router(assets.router)
@@ -162,8 +191,6 @@ app.include_router(cashflow.router)
 app.include_router(export.router)
 app.include_router(onboarding.router)
 app.include_router(admin.router)
-
-PLACEHOLDER_SECTIONS: dict[str, str] = {}
 
 
 @app.get("/health")
@@ -182,13 +209,3 @@ def index(
     current_user: models.User = Depends(get_current_user),
 ) -> Response:
     return overview.index(request, db, current_user)
-
-
-@app.get("/{section}")
-def placeholder(request: Request, section: str) -> HTMLResponse:
-    title = PLACEHOLDER_SECTIONS.get(section)
-    if title is None:
-        return templates.TemplateResponse(
-            request, "placeholder.html", {"title": "Not found"}, status_code=404
-        )
-    return templates.TemplateResponse(request, "placeholder.html", {"title": title})

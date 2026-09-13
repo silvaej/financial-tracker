@@ -21,7 +21,7 @@ def create_goal_contribution(
     request: Request,
     goal_id: int = Form(...),
     channel_id: int = Form(...),
-    payout_period_id: int = Form(...),
+    cycle_id: int = Form(...),
     amount: float = Form(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
@@ -32,7 +32,7 @@ def create_goal_contribution(
             schemas.GoalContributionCreate(
                 goal_id=goal_id,
                 channel_id=channel_id,
-                payout_period_id=payout_period_id,
+                cycle_id=cycle_id,
                 amount=amount,
             ),
             current_user.id,

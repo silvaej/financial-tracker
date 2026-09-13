@@ -74,7 +74,7 @@ def test_form_fields_have_accessible_names(client: TestClient) -> None:
 
     expenses = client.get("/expenses").text
     assert 'aria-label="Channel name"' in expenses
-    assert 'aria-label="Label"' in expenses
+    assert 'aria-label="Payout day"' in expenses
     assert 'aria-label="Expense name"' in expenses
 
     assert 'aria-label="Asset name"' in client.get("/assets").text
@@ -93,6 +93,57 @@ def test_confirm_and_alert_modals_have_dialog_semantics(client: TestClient) -> N
     assert 'aria-modal="true"' in text
     assert 'aria-describedby="confirm-modal-message"' in text
     assert 'aria-describedby="alert-modal-message"' in text
+
+
+def test_unmatched_route_renders_custom_404_page(client: TestClient) -> None:
+    """Regression test for #169: a plain navigation to an unmatched route
+    (single- or multi-segment) gets the app's own styled not-found page
+    with a real 404 status, not FastAPI's raw unstyled JSON error."""
+    response = client.get("/nonsense")
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Page not found" in response.text
+    assert 'id="rail"' in response.text
+
+    multi_segment = client.get("/nonsense/deeply/nested")
+    assert multi_segment.status_code == 404
+    assert "Page not found" in multi_segment.text
+
+
+def test_boosted_unmatched_route_returns_fragment_with_200(client: TestClient) -> None:
+    """Regression test for #169: htmx doesn't swap non-2xx responses, so a
+    boosted nav click to an unmatched route must get a 200 fragment (no
+    <html>/<nav>) for #page-content to actually receive it, instead of
+    falling through to the generic error-toast path."""
+    response = client.get("/nonsense", headers={"HX-Request": "true"})
+    assert response.status_code == 200
+    assert "Page not found" in response.text
+    assert "<html" not in response.text
+    assert "<nav" not in response.text
+
+
+def test_app_raised_404_is_not_swallowed_by_the_not_found_page(client: TestClient) -> None:
+    """Regression test for #169: the custom 404 page must only kick in for
+    genuinely unmatched routes -- an HTTPException(404) raised by a matched
+    route's own handler (ownership checks, missing avatar/logo, admin
+    gating, ...) needs to keep returning its specific JSON `detail` so
+    base.html's global htmx:responseError toast still shows a meaningful
+    message instead of a generic 'page not found' fragment."""
+    response = client.patch("/expenses/999999/paid", data={"paid": "on"})
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("application/json")
+    assert "Page not found" not in response.text
+
+
+def test_mobile_gate_markup_present_on_plain_page_load(client: TestClient) -> None:
+    """Regression test for #168: the desktop-only notice is always in the
+    DOM (a pure-CSS gate, shown/hidden by a media query, not JS), so a
+    plain full-page load must always render it alongside the normal shell
+    -- there is no server-side viewport detection to assert on instead."""
+    text = client.get("/").text
+    assert 'id="mobile-gate"' in text
+    assert "Desktop only for now" in text
+    assert 'id="rail"' in text
 
 
 def test_favicon_served_and_linked_on_every_page(client: TestClient) -> None:

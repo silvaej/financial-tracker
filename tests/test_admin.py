@@ -104,6 +104,18 @@ def test_create_and_revoke_signup_key(client: TestClient, as_admin: None, db: Se
     assert crud.list_signup_keys(db) == []
 
 
+def test_active_signup_key_shows_copy_link_with_full_signup_url(
+    client: TestClient, as_admin: None, db: Session
+) -> None:
+    client.post("/admin/signup-keys", data={"max_uses": "1", "expires_days": ""})
+    key = crud.list_signup_keys(db)[0]
+
+    response = client.get("/admin")
+    assert response.status_code == 200
+    assert f'data-copy-text="http://testserver/signup?invite_key={key.key}"' in response.text
+    assert "js-copy-link" in response.text
+
+
 def test_revoke_nonexistent_key_404s(client: TestClient, as_admin: None) -> None:
     response = client.post("/admin/signup-keys/999999/revoke")
     assert response.status_code == 404

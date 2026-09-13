@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -7,7 +9,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.templating import templates
 
-router = APIRouter(prefix="/expenses", tags=["expenses"])
+router = APIRouter(prefix="/one-time-expenses", tags=["one-time-expenses"])
 
 
 def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
@@ -16,51 +18,32 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
     )
 
 
-def _parse_due_day(raw: str) -> int | None:
-    return int(raw) if raw else None
-
-
 def _parse_category_id(raw: str) -> int | None:
     return int(raw) if raw else None
 
 
-@router.get("")
-def index(
-    request: Request,
-    q: str = "",
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-) -> HTMLResponse:
-    template = (
-        "partials/expenses_page.html" if request.headers.get("HX-Request") else "expenses.html"
-    )
-    return templates.TemplateResponse(
-        request, template, crud.expenses_page_data(db, current_user.id, q)
-    )
-
-
 @router.post("")
-def create_expense(
+def create_one_time_expense(
     request: Request,
     name: str = Form(...),
     amount: float = Form(...),
     cycle_id: int = Form(...),
     channel_id: int = Form(...),
     category_id: str = Form(""),
-    due_day: str = Form(""),
+    date: date = Form(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     try:
-        crud.create_expense(
+        crud.create_one_time_expense(
             db,
-            schemas.ExpenseCreate(
+            schemas.OneTimeExpenseCreate(
                 name=name,
                 amount=amount,
                 cycle_id=cycle_id,
                 channel_id=channel_id,
                 category_id=_parse_category_id(category_id),
-                due_day=_parse_due_day(due_day),
+                date=date,
             ),
             current_user.id,
         )
@@ -70,7 +53,7 @@ def create_expense(
 
 
 @router.patch("/{expense_id}")
-def update_expense(
+def update_one_time_expense(
     request: Request,
     expense_id: int,
     name: str = Form(...),
@@ -78,21 +61,21 @@ def update_expense(
     cycle_id: int = Form(...),
     channel_id: int = Form(...),
     category_id: str = Form(""),
-    due_day: str = Form(""),
+    date: date = Form(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     try:
-        crud.update_expense(
+        crud.update_one_time_expense(
             db,
             expense_id,
-            schemas.ExpenseUpdate(
+            schemas.OneTimeExpenseUpdate(
                 name=name,
                 amount=amount,
                 cycle_id=cycle_id,
                 channel_id=channel_id,
                 category_id=_parse_category_id(category_id),
-                due_day=_parse_due_day(due_day),
+                date=date,
             ),
             current_user.id,
         )
@@ -101,42 +84,22 @@ def update_expense(
     return _render_page(request, db, current_user.id)
 
 
-@router.patch("/{expense_id}/paid")
-def update_expense_paid(
-    request: Request,
-    expense_id: int,
-    paid: bool = Form(False),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-) -> HTMLResponse:
-    try:
-        crud.set_expense_paid(db, expense_id, current_user.id, paid)
-    except crud.OwnershipError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _render_page(request, db, current_user.id)
-
-
-@router.patch("/{expense_id}/active")
-def update_expense_active(
-    request: Request,
-    expense_id: int,
-    active: bool = Form(False),
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-) -> HTMLResponse:
-    try:
-        crud.set_expense_active(db, expense_id, current_user.id, active)
-    except crud.OwnershipError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _render_page(request, db, current_user.id)
-
-
 @router.delete("/{expense_id}")
-def delete_expense(
+def delete_one_time_expense(
     request: Request,
     expense_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
-    crud.delete_expense(db, expense_id, current_user.id)
+    crud.delete_one_time_expense(db, expense_id, current_user.id)
+    return _render_page(request, db, current_user.id)
+
+
+@router.post("/clear")
+def clear_one_time_expenses(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    crud.clear_one_time_expenses(db, current_user.id)
     return _render_page(request, db, current_user.id)

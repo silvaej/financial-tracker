@@ -12,22 +12,25 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, label: str) -> str:
-    create = client.post("/payout-periods", data={"label": label, "income_amount": "0"})
-    match = re.search(r"/payout-periods/(\d+)", create.text)
+def _create_cycle(client: TestClient, payout_day: int) -> str:
+    create = client.post(
+        "/cycles",
+        data={"income_amount": "0", "payout_day": str(payout_day)},
+    )
+    match = re.search(r"/cycles/(\d+)", create.text)
     assert match is not None
     return match.group(1)
 
 
 def _contribute(
-    client: TestClient, goal_id: str, channel_id: str, payout_period_id: str, amount: str
+    client: TestClient, goal_id: str, channel_id: str, cycle_id: str, amount: str
 ) -> None:
     response = client.post(
         "/goal-contributions",
         data={
             "goal_id": goal_id,
             "channel_id": channel_id,
-            "payout_period_id": payout_period_id,
+            "cycle_id": cycle_id,
             "amount": amount,
         },
     )
@@ -102,10 +105,10 @@ def test_goal_starts_unplaced_and_can_be_placed_then_repositioned(client: TestCl
     match = re.search(r'/goals/(\d+)"', create.text)
     assert match is not None
     goal_id = match.group(1)
-    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
-    period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
+    period_create = client.post("/cycles", data={"income_amount": "0", "payout_day": "15"})
+    period_match = re.search(r"/cycles/(\d+)", period_create.text)
     assert period_match is not None
-    period_id = period_match.group(1)
+    cycle_id = period_match.group(1)
 
     before = client.get("/cashflow")
     assert f'data-position-url="/goals/{goal_id}/placement"' not in before.text
@@ -113,7 +116,7 @@ def test_goal_starts_unplaced_and_can_be_placed_then_repositioned(client: TestCl
 
     place = client.post(
         f"/goals/{goal_id}/placement",
-        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+        data={"cycle_id": cycle_id, "x": "10", "y": "20"},
     )
     assert place.status_code == 200
     assert 'data-x="10.0"' in place.text
@@ -121,7 +124,7 @@ def test_goal_starts_unplaced_and_can_be_placed_then_repositioned(client: TestCl
 
     reposition = client.patch(
         f"/goals/{goal_id}/placement",
-        json={"payout_period_id": int(period_id), "x": 55.0, "y": 66.0},
+        json={"cycle_id": int(cycle_id), "x": 55.0, "y": 66.0},
     )
     assert reposition.status_code == 204
 
@@ -135,17 +138,17 @@ def test_remove_goal_placement_returns_it_to_the_toolbox(client: TestClient) -> 
     match = re.search(r'/goals/(\d+)"', create.text)
     assert match is not None
     goal_id = match.group(1)
-    period_create = client.post("/payout-periods", data={"label": "15th", "income_amount": "0"})
-    period_match = re.search(r"/payout-periods/(\d+)", period_create.text)
+    period_create = client.post("/cycles", data={"income_amount": "0", "payout_day": "15"})
+    period_match = re.search(r"/cycles/(\d+)", period_create.text)
     assert period_match is not None
-    period_id = period_match.group(1)
+    cycle_id = period_match.group(1)
 
     client.post(
         f"/goals/{goal_id}/placement",
-        data={"payout_period_id": period_id, "x": "10", "y": "20"},
+        data={"cycle_id": cycle_id, "x": "10", "y": "20"},
     )
 
-    removed = client.delete(f"/goals/{goal_id}/placement?payout_period_id={period_id}")
+    removed = client.delete(f"/goals/{goal_id}/placement?cycle_id={cycle_id}")
     assert removed.status_code == 200
     assert f'data-position-url="/goals/{goal_id}/placement"' not in removed.text
     assert "Trip Fund" in removed.text
@@ -159,7 +162,7 @@ def test_goals_empty_state(client: TestClient) -> None:
 
 def test_goal_progress_percentage_reflects_allocated_over_target(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal = client.post(
         "/goals",
         data={
@@ -173,7 +176,7 @@ def test_goal_progress_percentage_reflects_allocated_over_target(client: TestCli
     assert match is not None
     goal_id = match.group(1)
 
-    _contribute(client, goal_id, channel_id, period_id, "250")
+    _contribute(client, goal_id, channel_id, cycle_id, "250")
 
     response = client.get("/goals")
     assert "25%" in response.text
@@ -181,7 +184,7 @@ def test_goal_progress_percentage_reflects_allocated_over_target(client: TestCli
 
 def test_goal_progress_caps_at_100_when_overallocated(client: TestClient) -> None:
     channel_id = _create_channel(client, "Savings")
-    period_id = _create_payout_period(client, "15th")
+    cycle_id = _create_cycle(client, 15)
     goal = client.post(
         "/goals",
         data={"name": "Overfunded", "target": "1000", "months": "1", "channel_id": channel_id},
@@ -190,7 +193,7 @@ def test_goal_progress_caps_at_100_when_overallocated(client: TestClient) -> Non
     assert match is not None
     goal_id = match.group(1)
 
-    _contribute(client, goal_id, channel_id, period_id, "1500")
+    _contribute(client, goal_id, channel_id, cycle_id, "1500")
 
     response = client.get("/goals")
     assert "100%" in response.text
@@ -213,7 +216,7 @@ def test_goal_progress_matches_spreadsheet_emergency_fund() -> None:
     assert round(progress["remaining"], 2) == 40817.19
 
 
-def test_goal_payout_amount_splits_across_payout_periods() -> None:
+def test_goal_payout_amount_splits_across_cycles() -> None:
     goal = models.Goal(name="Test", target=1000, allocated=0, months=1)
     assert crud.goal_payout_amount(goal, 2) == 500.0
 
@@ -228,7 +231,7 @@ def test_goal_payout_amount_rounds_up_to_nearest_hundred() -> None:
     assert crud.goal_payout_amount(goal, 2) == 500.0
 
 
-def test_goal_payout_amount_with_zero_payout_periods_falls_back_to_monthly() -> None:
+def test_goal_payout_amount_with_zero_cycles_falls_back_to_monthly() -> None:
     goal = models.Goal(name="Test", target=1000, allocated=0, months=1)
     assert crud.goal_payout_amount(goal, 0) == 1000.0
 

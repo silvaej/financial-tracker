@@ -2,7 +2,7 @@ import re
 
 from fastapi.testclient import TestClient
 
-from app import crud, schemas
+from app import crud, models, schemas
 from tests.conftest import TEST_USER_ID, TestingSessionLocal
 
 
@@ -13,26 +13,30 @@ def _create_channel(client: TestClient, name: str) -> str:
     return match.group(1)
 
 
-def _create_payout_period(client: TestClient, label: str, channel_id: str) -> str:
+def _create_cycle(client: TestClient, payout_day: int, channel_id: str) -> str:
     response = client.post(
-        "/payout-periods",
-        data={"label": label, "income_amount": "1000", "receiving_channel_id": channel_id},
+        "/cycles",
+        data={
+            "income_amount": "1000",
+            "receiving_channel_id": channel_id,
+            "payout_day": str(payout_day),
+        },
     )
-    match = re.search(r"/payout-periods/(\d+)", response.text)
+    match = re.search(r"/cycles/(\d+)", response.text)
     assert match is not None
     return match.group(1)
 
 
 def test_create_and_delete_expense(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     create = client.post(
         "/expenses",
         data={
             "name": "Groceries",
             "amount": "150.75",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -51,14 +55,14 @@ def test_create_and_delete_expense(client: TestClient) -> None:
 
 def test_create_expense_with_due_day(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     create = client.post(
         "/expenses",
         data={
             "name": "Rent",
             "amount": "12000",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
             "due_day": "5",
         },
@@ -66,19 +70,19 @@ def test_create_expense_with_due_day(client: TestClient) -> None:
     assert create.status_code == 200
     assert "Rent" in create.text
     # The Due column should render the day-of-month next to the expense.
-    assert re.search(r'data-label="Due">\s*5\s*<', create.text) is not None
+    assert re.search(r'data-label="Due">\s*<span[^>]*>\s*5\s*<', create.text) is not None
 
 
 def test_create_expense_without_due_day_leaves_it_blank(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     create = client.post(
         "/expenses",
         data={
             "name": "Groceries",
             "amount": "150.75",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -88,7 +92,7 @@ def test_create_expense_without_due_day_leaves_it_blank(client: TestClient) -> N
 
 def test_create_expense_rejects_zero_or_negative_amount(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     for amount in ("0", "-50"):
         response = client.post(
@@ -96,7 +100,7 @@ def test_create_expense_rejects_zero_or_negative_amount(client: TestClient) -> N
             data={
                 "name": "Groceries",
                 "amount": amount,
-                "payout_period_id": period_id,
+                "cycle_id": cycle_id,
                 "channel_id": channel_id,
             },
         )
@@ -109,14 +113,14 @@ def test_validation_error_detail_is_a_plain_string_not_a_list(client: TestClient
     # app -- if `detail` were pydantic's default list-of-dicts shape instead
     # of a plain string, the user-facing alert would render "[object Object]".
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     response = client.post(
         "/expenses",
         data={
             "name": "Groceries",
             "amount": "-50",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -128,30 +132,163 @@ def test_validation_error_detail_is_a_plain_string_not_a_list(client: TestClient
 
 def test_create_expense_rejects_whitespace_only_name(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     response = client.post(
         "/expenses",
         data={
             "name": "   ",
             "amount": "150.75",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
     assert response.status_code == 422
 
 
+def test_update_expense(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    other_channel_id = _create_channel(client, "GCash")
+    client.patch("/cycles/count", data={"cycles_per_month": "2"})
+    cycle_id = _create_cycle(client, 15, channel_id)
+    other_cycle_id = _create_cycle(client, 30, channel_id)
+
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    updated = client.patch(
+        f"/expenses/{expense_id}",
+        data={
+            "name": "Groceries (updated)",
+            "amount": "200",
+            "cycle_id": other_cycle_id,
+            "channel_id": other_channel_id,
+            "due_day": "10",
+        },
+    )
+    assert updated.status_code == 200
+    assert "Groceries (updated)" in updated.text
+    assert "200.00" in updated.text
+    assert re.search(r'data-label="Due">\s*<span[^>]*>\s*10\s*<', updated.text) is not None
+
+
+def test_update_expense_is_isolated_per_user() -> None:
+    db = TestingSessionLocal()
+    try:
+        other_user_id = TEST_USER_ID + 1
+        db.add(models.User(id=other_user_id, email="other@example.com"))
+        db.commit()
+        other_channel = crud.create_channel(
+            db, schemas.ChannelCreate(name="Someone Else's Wallet"), other_user_id
+        )
+        other_period = crud.create_cycle(
+            db,
+            schemas.CycleCreate(
+                payout_day=15, income_amount=1000, receiving_channel_id=other_channel.id
+            ),
+            other_user_id,
+        )
+        other_expense = crud.create_expense(
+            db,
+            schemas.ExpenseCreate(
+                name="Someone else's rent",
+                amount=5000,
+                cycle_id=other_period.id,
+                channel_id=other_channel.id,
+            ),
+            other_user_id,
+        )
+
+        my_channel = crud.create_channel(db, schemas.ChannelCreate(name="Mine"), TEST_USER_ID)
+        my_period = crud.create_cycle(
+            db,
+            schemas.CycleCreate(
+                payout_day=30, income_amount=500, receiving_channel_id=my_channel.id
+            ),
+            TEST_USER_ID,
+        )
+
+        result = crud.update_expense(
+            db,
+            other_expense.id,
+            schemas.ExpenseUpdate(
+                name="Hijacked",
+                amount=1,
+                cycle_id=my_period.id,
+                channel_id=my_channel.id,
+            ),
+            TEST_USER_ID,
+        )
+        assert result is None
+
+        untouched = db.get(models.Expense, other_expense.id)
+        assert untouched is not None
+        assert untouched.name == "Someone else's rent"
+        assert float(untouched.amount) == 5000.0
+    finally:
+        db.close()
+
+
+def test_update_expense_requires_owned_fks(client: TestClient) -> None:
+    db = TestingSessionLocal()
+    try:
+        other_user_id = TEST_USER_ID + 1
+        db.add(models.User(id=other_user_id, email="other@example.com"))
+        db.commit()
+        other_channel = crud.create_channel(
+            db, schemas.ChannelCreate(name="Someone Else's Wallet"), other_user_id
+        )
+        other_channel_id = str(other_channel.id)
+    finally:
+        db.close()
+
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+    create = client.post(
+        "/expenses",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+        },
+    )
+    match = re.search(r"/expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    response = client.patch(
+        f"/expenses/{expense_id}",
+        data={
+            "name": "Groceries",
+            "amount": "150.75",
+            "cycle_id": cycle_id,
+            "channel_id": other_channel_id,
+        },
+    )
+    assert response.status_code == 404
+
+
 def test_mark_expense_paid_and_unpaid(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     create = client.post(
         "/expenses",
         data={
             "name": "Rent",
             "amount": "12000",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -183,14 +320,14 @@ def test_pause_and_resume_expense(client: TestClient) -> None:
     """Regression test for #86: pausing an expense keeps the row (name still
     shown, "Paused" pill appears) instead of deleting it."""
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
 
     create = client.post(
         "/expenses",
         data={
             "name": "Netflix",
             "amount": "549",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -221,17 +358,15 @@ def test_paused_expense_excluded_from_channel_balance() -> None:
     db = TestingSessionLocal()
     try:
         channel = crud.create_channel(db, schemas.ChannelCreate(name="BPI"), TEST_USER_ID)
-        period = crud.create_payout_period(
+        period = crud.create_cycle(
             db,
-            schemas.PayoutPeriodCreate(
-                label="15th", income_amount=1000, receiving_channel_id=channel.id
-            ),
+            schemas.CycleCreate(payout_day=15, income_amount=1000, receiving_channel_id=channel.id),
             TEST_USER_ID,
         )
         expense = crud.create_expense(
             db,
             schemas.ExpenseCreate(
-                name="Netflix", amount=549, payout_period_id=period.id, channel_id=channel.id
+                name="Netflix", amount=549, cycle_id=period.id, channel_id=channel.id
             ),
             TEST_USER_ID,
         )
@@ -252,13 +387,13 @@ def test_paused_expense_excluded_from_channel_balance() -> None:
 
 def test_expenses_filter_by_name(client: TestClient) -> None:
     channel_id = _create_channel(client, "BPI")
-    period_id = _create_payout_period(client, "15th", channel_id)
+    cycle_id = _create_cycle(client, 15, channel_id)
     client.post(
         "/expenses",
         data={
             "name": "Groceries",
             "amount": "150.75",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )
@@ -267,7 +402,7 @@ def test_expenses_filter_by_name(client: TestClient) -> None:
         data={
             "name": "Electricity",
             "amount": "800",
-            "payout_period_id": period_id,
+            "cycle_id": cycle_id,
             "channel_id": channel_id,
         },
     )

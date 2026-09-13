@@ -15,6 +15,7 @@
   <div class="section">
     <div class="section-title">Assets<span class="pill">{{ assets|length }} items</span></div>
     <form id="add-asset-form"
+          autocomplete="off"
           hx-post="/assets"
           hx-target="#assets-page"
           hx-swap="outerHTML">
@@ -23,15 +24,15 @@
       <table class="led">
         <colgroup>
           <col class="min-w-28">
-          <col class="w-40">
-          <col class="w-32">
           <col class="w-36">
+          <col class="w-24">
+          <col class="w-20">
         </colgroup>
         <thead>
           <tr>
             <th>Name</th>
             <th>Channel</th>
-            <th class="text-right">Amount</th>
+            <th>Amount</th>
             <th></th>
           </tr>
         </thead>
@@ -44,6 +45,7 @@
                       hx-patch="/assets/{{ asset.id }}"
                       hx-target="#assets-page"
                       hx-swap="outerHTML"
+                      autocomplete="off"
                       class="edit-asset-{{ asset.id }} hidden items-center gap-2">
                   <input class="field"
                          type="text"

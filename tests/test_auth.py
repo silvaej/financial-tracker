@@ -46,6 +46,12 @@ def _create_signup_key(max_uses: int = 1, expires_at: datetime | None = None) ->
         db.close()
 
 
+def test_signup_key_is_15_random_alphanumeric_characters() -> None:
+    key = _create_signup_key()
+    assert len(key) == 15
+    assert key.isalnum()
+
+
 def _oauth_login_erroring(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, provider: str = "google"
 ) -> httpx.Response:
@@ -139,6 +145,32 @@ def test_signup_form_starts_with_provider_buttons_disabled(client: TestClient) -
     assert "disabled" in response.text
 
 
+def test_signup_form_shows_error_when_no_invite_key_given(client: TestClient) -> None:
+    response = client.get("/signup")
+    assert response.status_code == 200
+    assert "invite key from the developer" in response.text
+    assert "disabled" in response.text
+
+
+def test_signup_form_has_required_terms_checkbox_linking_to_terms_page(
+    client: TestClient,
+) -> None:
+    """Regression test for #171: signup.html's ToS checkbox must be
+    `required` (native HTML5 validation blocks submission without JS) and
+    link to a real /terms page."""
+    response = client.get("/signup")
+    assert response.status_code == 200
+    assert 'name="terms_accepted"' in response.text
+    assert 'name="terms_accepted" required' in response.text
+    assert 'href="/terms"' in response.text
+
+
+def test_terms_page_renders_without_auth(client: TestClient) -> None:
+    response = client.get("/terms")
+    assert response.status_code == 200
+    assert "Terms of Service" in response.text
+
+
 def test_signup_form_prefills_and_validates_invite_key_from_query_param(
     client: TestClient,
 ) -> None:
@@ -178,11 +210,65 @@ def test_oauth_signup_success_creates_account_logs_in_and_redeems_key(
     try:
         user = crud.get_user_by_email(db, "newuser@example.com")
         assert user is not None
+        assert user.terms_accepted_at is not None
         key_row = db.scalar(select(models.SignupKey).where(models.SignupKey.key == key))
         assert key_row is not None
         assert key_row.use_count == 1
     finally:
         db.close()
+
+
+def test_oauth_signup_rejects_without_terms_accepted(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #171: a genuinely-new-user signup must reject
+    (not silently create the account) when the ToS checkbox wasn't
+    accepted -- a backstop against a tampered/direct request bypassing
+    signup.html's required checkbox, mirroring invite-key strictness."""
+    key = _create_signup_key()
+
+    response = _oauth_login(
+        real_client,
+        monkeypatch,
+        email="noterms@example.com",
+        provider_user_id="g-noterms",
+        invite_key=key,
+        intent="signup",
+        terms_accepted=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/signup?")
+    assert "Terms of Service" in unquote_plus(response.headers["location"])
+
+    db = TestingSessionLocal()
+    try:
+        assert crud.get_user_by_email(db, "noterms@example.com") is None
+        key_row = db.scalar(select(models.SignupKey).where(models.SignupKey.key == key))
+        assert key_row is not None
+        assert key_row.use_count == 0
+    finally:
+        db.close()
+
+
+def test_oauth_login_unaffected_by_terms_accepted_flag(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #171: the terms-acceptance gate only applies to
+    resolve_oauth_login's genuinely-new-user branch -- an existing user
+    logging back in (intent="login", no checkbox on that page at all) must
+    never be blocked by this flag, regardless of its value."""
+    _create_user("alice@example.com")
+
+    response = _oauth_login(
+        real_client,
+        monkeypatch,
+        email="alice@example.com",
+        provider_user_id="g-alice",
+        intent="login",
+        terms_accepted=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
 
 
 def test_oauth_signup_via_github_creates_account(
@@ -225,28 +311,6 @@ def test_oauth_signup_rejects_missing_key_for_unknown_email(
         assert crud.get_user_by_email(db, "newuser@example.com") is None
     finally:
         db.close()
-
-
-def test_check_signup_key_empty_disables_buttons(client: TestClient) -> None:
-    response = client.get("/signup/check-key")
-    assert response.status_code == 200
-    assert "disabled" in response.text
-    assert "invalid or has expired" not in response.text
-
-
-def test_check_signup_key_valid_enables_buttons(client: TestClient) -> None:
-    key = _create_signup_key()
-
-    response = client.get("/signup/check-key", params={"invite_key": key})
-    assert response.status_code == 200
-    assert "disabled" not in response.text
-
-
-def test_check_signup_key_invalid_shows_error_and_disables(client: TestClient) -> None:
-    response = client.get("/signup/check-key", params={"invite_key": "LEDGER-NOPE-NOPE"})
-    assert response.status_code == 200
-    assert "disabled" in response.text
-    assert "invalid or has expired" in response.text
 
 
 def test_oauth_signup_rejects_invalid_key(
@@ -661,6 +725,63 @@ def test_update_profile_unchecked_notify_box_is_saved_as_false(
         db.close()
 
 
+def test_update_palette_persists_and_marks_selected(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    response = real_client.post("/account/palette", data={"palette": "forest"})
+    assert response.status_code == 200
+    assert "Profile updated" in response.text
+    assert 'class="palette-swatch selected"' in response.text
+
+    db = TestingSessionLocal()
+    try:
+        user = crud.get_user_by_email(db, "alice@example.com")
+        assert user is not None
+        assert user.palette == "forest"
+    finally:
+        db.close()
+
+    # Also reflected in the <html data-palette="..."> attribute on the next
+    # full page render -- see issue #170.
+    page = real_client.get("/account")
+    assert 'data-palette="forest"' in page.text
+
+
+def test_update_palette_rejects_unknown_value(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    response = real_client.post("/account/palette", data={"palette": "neon"})
+    assert response.status_code == 400
+    assert "valid palette" in response.text
+
+    db = TestingSessionLocal()
+    try:
+        user = crud.get_user_by_email(db, "alice@example.com")
+        assert user is not None
+        assert user.palette == "ledger"
+    finally:
+        db.close()
+
+
+def test_account_page_defaults_to_ledger_palette(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    page = real_client.get("/account")
+    assert 'data-palette="ledger"' in page.text
+    assert "Slate" in page.text
+    assert "Forest" in page.text
+    assert "Sunset" in page.text
+
+
 def test_update_profile_rejects_invalid_currency(
     real_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -721,6 +842,32 @@ def test_upload_avatar_rejects_non_image_files(
         "/account/avatar", files={"avatar": ("evil.txt", b"not an image", "text/plain")}
     )
     assert response.status_code == 400
+
+
+def test_upload_oversized_avatar_still_rejected_server_side(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #166: the client-side size pre-check added to the
+    avatar form's onchange handler is defense-in-depth only -- the server
+    must still independently reject an oversized upload with a 400, even
+    when it arrives as an htmx request (HX-Request header set), rather than
+    trusting the browser to have already filtered it out. (The other half
+    of #166's fix -- that this error now surfaces as a toast instead of a
+    full-page navigation replacing the app shell with raw JSON -- is a
+    client-side JS behavior that isn't observable via TestClient, since it
+    doesn't execute htmx's response handling; verified separately in the
+    browser.)"""
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    oversized = b"\xff" * (300 * 1024 + 1)
+    response = real_client.post(
+        "/account/avatar",
+        files={"avatar": ("avatar.png", oversized, "image/png")},
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 400
+    assert "under 300KB" in response.json()["detail"]
 
 
 def test_remove_avatar_falls_back_to_icon(
