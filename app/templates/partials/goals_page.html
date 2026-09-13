@@ -10,6 +10,7 @@
   <div class="section">
     <div class="section-title">Goals<span class="pill">{{ goals|length }} total</span></div>
     <form id="add-goal-form"
+          autocomplete="off"
           hx-post="/goals"
           hx-target="#goals-page"
           hx-swap="outerHTML">
@@ -46,6 +47,7 @@
                       hx-patch="/goals/{{ goal.id }}"
                       hx-target="#goals-page"
                       hx-swap="outerHTML"
+                      autocomplete="off"
                       class="edit-goal-{{ goal.id }} hidden items-center gap-2">
                   <input class="field"
                          type="text"

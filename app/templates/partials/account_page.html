@@ -60,7 +60,8 @@
       <form id="profile-form"
             method="post"
             action="/account/profile"
-            class="flex flex-col gap-3.5">
+            class="flex flex-col gap-3.5"
+            autocomplete="off">
         <input type="hidden"
                name="csrf_token"
                value="{{ request.session.csrf_token }}">
