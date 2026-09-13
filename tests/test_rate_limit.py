@@ -1,13 +1,13 @@
 from fastapi.testclient import TestClient
 
 
-def test_signup_check_key_is_rate_limited(client: TestClient) -> None:
+def test_signup_form_is_rate_limited(client: TestClient) -> None:
     """Regression test for #72: the unauthenticated auth surface (here,
-    /signup/check-key) must reject a burst of requests from the same client
-    past its configured per-minute limit, with a plain-string `detail` (not
-    slowapi's default {"error": ...} shape -- see app/main.py's
+    /signup) must reject a burst of requests from the same client past its
+    configured per-minute limit, with a plain-string `detail` (not slowapi's
+    default {"error": ...} shape -- see app/main.py's
     rate_limit_exceeded_handler)."""
-    responses = [client.get("/signup/check-key", params={"invite_key": "x"}) for _ in range(31)]
+    responses = [client.get("/signup", params={"invite_key": "x"}) for _ in range(31)]
 
     assert all(r.status_code == 200 for r in responses[:30])
     limited = responses[30]

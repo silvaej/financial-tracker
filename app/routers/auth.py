@@ -45,11 +45,12 @@ def _key_check_context(db: Session, invite_key: str) -> dict[str, object]:
     invite_key = invite_key.strip()
     key_valid = False
     key_error = None
-    if invite_key:
-        if crud.get_active_signup_key(db, invite_key) is not None:
-            key_valid = True
-        else:
-            key_error = "That invite key is invalid or has expired."
+    if not invite_key:
+        key_error = "You need an invite key from the developer to create an account."
+    elif crud.get_active_signup_key(db, invite_key) is not None:
+        key_valid = True
+    else:
+        key_error = "That invite key is invalid or has expired."
     return {"invite_key": invite_key, "key_valid": key_valid, "key_error": key_error}
 
 
@@ -59,23 +60,13 @@ def signup_form(request: Request, invite_key: str = "", db: Session = Depends(ge
     if request.session.get("user_id") is not None:
         return RedirectResponse(url="/", status_code=303)
     error = request.query_params.get("oauth_error")
-    # Lets an operator hand someone a pre-filled link (/signup?invite_key=...)
-    # instead of the key itself -- pre-fills and pre-validates the field the
-    # same way blurring it would.
+    # There's no field for this on the page anymore -- the only way to reach
+    # a valid signup is a pre-built link (/signup?invite_key=...) the
+    # developer hands out.
     context = _key_check_context(db, invite_key)
     if error:
         context["error"] = error
     return templates.TemplateResponse(request, "signup.html", context)
-
-
-@router.get("/signup/check-key")
-@limiter.limit("30/minute")
-def check_signup_key(
-    request: Request, invite_key: str = "", db: Session = Depends(get_db)
-) -> Response:
-    return templates.TemplateResponse(
-        request, "partials/signup_key_section.html", _key_check_context(db, invite_key)
-    )
 
 
 @router.post("/logout")
