@@ -55,14 +55,14 @@ def export_payout_periods(
     periods = crud.list_payout_periods(db, current_user.id)
     rows = [
         [
-            p.label,
+            crud.ordinal_label(p.payout_day),
             p.income_amount,
             p.receiving_channel.name if p.receiving_channel else "",
         ]
         for p in periods
     ]
     return _csv_response(
-        rows, ["Label", "Income Amount", "Receiving Channel"], "payout-periods.csv"
+        rows, ["Payout Day", "Income Amount", "Receiving Channel"], "payout-periods.csv"
     )
 
 
@@ -72,7 +72,10 @@ def export_expenses(
     current_user: models.User = Depends(get_current_user),
 ) -> Response:
     expenses = crud.list_expenses(db, current_user.id)
-    rows = [[e.name, e.amount, e.payout_period.label, e.channel.name] for e in expenses]
+    rows = [
+        [e.name, e.amount, crud.ordinal_label(e.payout_period.payout_day), e.channel.name]
+        for e in expenses
+    ]
     return _csv_response(rows, ["Name", "Amount", "Payout Period", "Channel"], "expenses.csv")
 
 
@@ -83,7 +86,13 @@ def export_transfers(
 ) -> Response:
     transfers = crud.list_all_transfers(db, current_user.id)
     rows = [
-        [t.payout_period.label, t.from_channel.name, t.to_channel.name, t.amount] for t in transfers
+        [
+            crud.ordinal_label(t.payout_period.payout_day),
+            t.from_channel.name,
+            t.to_channel.name,
+            t.amount,
+        ]
+        for t in transfers
     ]
     return _csv_response(
         rows, ["Payout Period", "From Channel", "To Channel", "Amount"], "transfers.csv"

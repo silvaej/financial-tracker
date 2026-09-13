@@ -2,7 +2,7 @@
 <div id="payout-cycle-history-page">
   <div class="page-head">
     <div>
-      <div class="page-title">{{ period.label }} &mdash; cycle history</div>
+      <div class="page-title">{{ ordinal_label(period.payout_day) }} &mdash; cycle history</div>
       <div class="page-sub">
         <a href="/expenses" class="text-ink-soft hover:text-ink">&larr; Back to Expenses</a>
       </div>
@@ -87,7 +87,7 @@
       <form hx-post="/payout-periods/{{ period.id }}/cycles"
             hx-target="#payout-cycle-history-page"
             hx-swap="outerHTML"
-            hx-confirm="Close this cycle? This locks today's balances as a dated record for {{ period.label }} — it won't change the live template.">
+            hx-confirm="Close this cycle? This locks today's balances as a dated record for {{ ordinal_label(period.payout_day) }} — it won't change the live template.">
         <button type="submit" class="add-btn mt-3">Close this cycle</button>
       </form>
     {% endif %}

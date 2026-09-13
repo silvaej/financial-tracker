@@ -71,7 +71,7 @@ def test_delete_channel_in_use_by_payout_period_is_rejected(client: TestClient) 
 
     client.post(
         "/payout-periods",
-        data={"label": "15th", "income_amount": "1000", "receiving_channel_id": channel_id},
+        data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
 
     response = client.delete(f"/channels/{channel_id}")
@@ -117,7 +117,7 @@ def test_delete_channel_in_use_by_asset_is_rejected(client: TestClient) -> None:
 def _create_payout_period(client: TestClient, channel_id: str) -> str:
     response = client.post(
         "/payout-periods",
-        data={"label": "15th", "income_amount": "0", "receiving_channel_id": channel_id},
+        data={"income_amount": "0", "receiving_channel_id": channel_id, "payout_day": "15"},
     )
     match = re.search(r"/payout-periods/(\d+)", response.text)
     assert match is not None

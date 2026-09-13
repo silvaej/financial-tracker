@@ -20,17 +20,12 @@ def _parse_channel_id(raw: str) -> int | None:
     return int(raw) if raw else None
 
 
-def _parse_payout_day(raw: str) -> int | None:
-    return int(raw) if raw else None
-
-
 @router.post("")
 def create_payout_period(
     request: Request,
-    label: str = Form(...),
     income_amount: float = Form(0),
     receiving_channel_id: str = Form(""),
-    payout_day: str = Form(""),
+    payout_day: int = Form(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
@@ -38,10 +33,9 @@ def create_payout_period(
         crud.create_payout_period(
             db,
             schemas.PayoutPeriodCreate(
-                label=label,
                 income_amount=income_amount,
                 receiving_channel_id=_parse_channel_id(receiving_channel_id),
-                payout_day=_parse_payout_day(payout_day),
+                payout_day=payout_day,
             ),
             current_user.id,
         )
@@ -56,7 +50,7 @@ def update_payout_period(
     payout_period_id: int,
     income_amount: float = Form(...),
     receiving_channel_id: str = Form(""),
-    payout_day: str = Form(""),
+    payout_day: int = Form(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
@@ -67,7 +61,7 @@ def update_payout_period(
             schemas.PayoutPeriodUpdate(
                 income_amount=income_amount,
                 receiving_channel_id=_parse_channel_id(receiving_channel_id),
-                payout_day=_parse_payout_day(payout_day),
+                payout_day=payout_day,
             ),
             current_user.id,
         )

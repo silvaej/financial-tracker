@@ -24,18 +24,17 @@ class ChannelUpdate(BaseModel):
 
 
 class PayoutPeriodCreate(BaseModel):
-    label: NonEmptyStr
     # 0 is legitimate here -- a brand-new payout period with no income
     # configured yet.
     income_amount: float = Field(default=0, ge=0)
     receiving_channel_id: int | None = None
-    payout_day: int | None = Field(default=None, ge=1, le=31)
+    payout_day: int = Field(ge=1, le=31)
 
 
 class PayoutPeriodUpdate(BaseModel):
     income_amount: float = Field(ge=0)
     receiving_channel_id: int | None = None
-    payout_day: int | None = Field(default=None, ge=1, le=31)
+    payout_day: int = Field(ge=1, le=31)
 
 
 class ExpenseCategoryCreate(BaseModel):

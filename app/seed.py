@@ -76,28 +76,30 @@ def _seed_payout_periods(
     crud.create_payout_period(
         db,
         schemas.PayoutPeriodCreate(
-            label="15th", income_amount=32000, receiving_channel_id=payroll.id
+            payout_day=15, income_amount=32000, receiving_channel_id=payroll.id
         ),
         user_id,
     )
     crud.create_payout_period(
         db,
         schemas.PayoutPeriodCreate(
-            label="30th", income_amount=32000, receiving_channel_id=payroll.id
+            payout_day=30, income_amount=32000, receiving_channel_id=payroll.id
         ),
         user_id,
     )
+    # "Freelance Payout" no longer has a distinct free-text label (see issue
+    # #189) -- day 5 is arbitrary but distinct from the 15th/30th above.
     crud.create_payout_period(
         db,
         schemas.PayoutPeriodCreate(
-            label="Freelance Payout", income_amount=18000, receiving_channel_id=gateway.id
+            payout_day=5, income_amount=18000, receiving_channel_id=gateway.id
         ),
         user_id,
     )
 
 
-def _periods_by_label(db: Session, user_id: int | None) -> dict[str, models.PayoutPeriod]:
-    return {p.label: p for p in crud.list_payout_periods(db, user_id)}
+def _periods_by_day(db: Session, user_id: int | None) -> dict[int, models.PayoutPeriod]:
+    return {p.payout_day: p for p in crud.list_payout_periods(db, user_id)}
 
 
 def _goals_by_name(db: Session, user_id: int | None) -> dict[str, models.Goal]:
@@ -107,7 +109,7 @@ def _goals_by_name(db: Session, user_id: int | None) -> dict[str, models.Goal]:
 def _seed_expenses(
     db: Session,
     channels: dict[str, models.Channel],
-    periods: dict[str, models.PayoutPeriod],
+    periods: dict[int, models.PayoutPeriod],
     user_id: int | None,
 ) -> None:
     payroll, gcash, maya, unionbank, rcbc_cc = (
@@ -117,7 +119,7 @@ def _seed_expenses(
         channels.get("UnionBank UNO"),
         channels.get("RCBC Credit Card"),
     )
-    p15, p30, freelance = periods.get("15th"), periods.get("30th"), periods.get("Freelance Payout")
+    p15, p30, freelance = periods.get(15), periods.get(30), periods.get(5)
     if (
         payroll is None
         or gcash is None
@@ -214,9 +216,11 @@ def _seed_goals(db: Session, channels: dict[str, models.Channel], user_id: int |
 # Multi-hop chains (Payroll -> Savings -> Time Deposit, Gateway -> UnionBank
 # -> Savings/Cash) and funding-source pass-throughs (GCash/Maya -> their
 # credit cards) exercise the canvas's shortest-path routing and the
-# balance/warning rollups the same way real usage would.
-_TRANSFERS_BY_PERIOD: dict[str, list[tuple[str, str, float]]] = {
-    "15th": [
+# balance/warning rollups the same way real usage would. Keyed by
+# payout_day now that periods no longer have a distinct free-text label
+# (see issue #189) -- 5 is the "Freelance Payout" period seeded above.
+_TRANSFERS_BY_PERIOD: dict[int, list[tuple[str, str, float]]] = {
+    15: [
         ("BPI Payroll", "GCash", 5000),
         ("BPI Payroll", "BPI Savings", 3000),
         ("BPI Savings", "CIMB Time Deposit", 1500),
@@ -224,7 +228,7 @@ _TRANSFERS_BY_PERIOD: dict[str, list[tuple[str, str, float]]] = {
         ("BPI Payroll", "Maya", 1000),
         ("Maya", "RCBC Credit Card", 500),
     ],
-    "30th": [
+    30: [
         ("BPI Payroll", "GCash", 9000),
         ("BPI Payroll", "BPI Savings", 3000),
         ("BPI Savings", "CIMB Time Deposit", 1500),
@@ -232,7 +236,7 @@ _TRANSFERS_BY_PERIOD: dict[str, list[tuple[str, str, float]]] = {
         ("BPI Payroll", "Maya", 1200),
         ("Maya", "RCBC Credit Card", 400),
     ],
-    "Freelance Payout": [
+    5: [
         ("PayMongo Payouts", "UnionBank UNO", 12000),
         ("UnionBank UNO", "BPI Savings", 3000),
         ("UnionBank UNO", "Cash Wallet", 1000),
@@ -242,19 +246,19 @@ _TRANSFERS_BY_PERIOD: dict[str, list[tuple[str, str, float]]] = {
 # Per-period goal contributions: (channel name, goal name, amount). Vacation
 # Fund is fed from two different channels in two different periods, and
 # Emergency Fund/Wedding Fund share a channel -- both common real patterns.
-_CONTRIBUTIONS_BY_PERIOD: dict[str, list[tuple[str, str, float]]] = {
-    "15th": [
+_CONTRIBUTIONS_BY_PERIOD: dict[int, list[tuple[str, str, float]]] = {
+    15: [
         ("BPI Savings", "Emergency Fund", 2000),
         ("Maya", "Vacation Fund", 800),
         ("CIMB Time Deposit", "New Laptop", 1000),
     ],
-    "30th": [
+    30: [
         ("BPI Savings", "Emergency Fund", 2000),
         ("BPI Savings", "Wedding Fund", 500),
         ("Maya", "Vacation Fund", 800),
         ("CIMB Time Deposit", "New Laptop", 1000),
     ],
-    "Freelance Payout": [
+    5: [
         ("UnionBank UNO", "Vacation Fund", 1500),
     ],
 }
@@ -263,13 +267,13 @@ _CONTRIBUTIONS_BY_PERIOD: dict[str, list[tuple[str, str, float]]] = {
 def _seed_canvas(
     db: Session,
     channels: dict[str, models.Channel],
-    periods: dict[str, models.PayoutPeriod],
+    periods: dict[int, models.PayoutPeriod],
     goals: dict[str, models.Goal],
     user_id: int | None,
 ) -> None:
-    for label, period in periods.items():
-        transfer_specs = _TRANSFERS_BY_PERIOD.get(label, [])
-        contribution_specs = _CONTRIBUTIONS_BY_PERIOD.get(label, [])
+    for day, period in periods.items():
+        transfer_specs = _TRANSFERS_BY_PERIOD.get(day, [])
+        contribution_specs = _CONTRIBUTIONS_BY_PERIOD.get(day, [])
         if not (transfer_specs or contribution_specs):
             continue
 
@@ -314,7 +318,7 @@ def _seed_canvas(
             user_id,
         )
         if error:
-            raise RuntimeError(f"seed canvas failed for payout period {label!r}: {error}")
+            raise RuntimeError(f"seed canvas failed for payout day {day!r}: {error}")
 
 
 def _seed_credit_lines(
@@ -368,7 +372,7 @@ def seed_if_empty(db: Session, user_id: int | None) -> None:
 
     if _is_empty(db, models.PayoutPeriod, user_id):
         _seed_payout_periods(db, channels, user_id)
-    periods = _periods_by_label(db, user_id)
+    periods = _periods_by_day(db, user_id)
 
     if _is_empty(db, models.Expense, user_id):
         _seed_expenses(db, channels, periods, user_id)

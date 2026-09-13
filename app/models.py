@@ -50,6 +50,12 @@ class User(Base):
     palette: Mapped[str] = mapped_column(
         String(20), nullable=False, default="ledger", server_default="ledger"
     )
+    # How many payout-period "cycles" per month the user has configured (see
+    # issue #189) -- caps how many PayoutPeriod rows crud.create_payout_period
+    # will let them create (issue #191). Defaults to 1 for a brand-new
+    # account; backfilled to each existing user's actual row count in the
+    # migration that introduced this column.
+    cycles_per_month: Mapped[int] = mapped_column(nullable=False, default=1, server_default="1")
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -119,22 +125,21 @@ class Channel(Base):
 
 class PayoutPeriod(Base):
     __tablename__ = "payout_periods"
-    __table_args__ = (UniqueConstraint("user_id", "label"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    label: Mapped[str] = mapped_column(String(50), nullable=False)
-    display_order: Mapped[int] = mapped_column(default=0)
     income_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     receiving_channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id"), nullable=True
     )
-    # Optional day-of-month this period's payday falls on -- same pattern as
-    # Expense.due_day. Purely a hint (crud.overdue_payout_period_ids uses it
-    # to flag periods whose payday has passed with no cycle closed since),
-    # not a real calendar anchor: `label` stays free text, and nothing else
-    # in the app infers dates from it. See issue #134.
-    payout_day: Mapped[int | None] = mapped_column(nullable=True)
+    # Day-of-month this period's payday falls on -- the sole identity/display
+    # anchor now that `label` and `display_order` are gone (see issue #189):
+    # display is auto-derived via crud.ordinal_label(payout_day) rather than
+    # stored as free text, and ordering is by this column rather than a
+    # separately-managed manual order. Still also used as a hint by
+    # crud.overdue_payout_period_ids to flag periods whose payday has passed
+    # with no cycle closed since (issue #134).
+    payout_day: Mapped[int] = mapped_column(nullable=False)
 
     receiving_channel: Mapped[Channel | None] = relationship()
 

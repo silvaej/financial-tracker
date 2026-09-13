@@ -74,7 +74,7 @@ def test_form_fields_have_accessible_names(client: TestClient) -> None:
 
     expenses = client.get("/expenses").text
     assert 'aria-label="Channel name"' in expenses
-    assert 'aria-label="Label"' in expenses
+    assert 'aria-label="Payout day"' in expenses
     assert 'aria-label="Expense name"' in expenses
 
     assert 'aria-label="Asset name"' in client.get("/assets").text
