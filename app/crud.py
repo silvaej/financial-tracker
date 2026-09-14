@@ -1348,7 +1348,10 @@ def list_closed_cycle_balances(
 
 
 def _live_cycle_balances(
-    db: Session, cycle: models.Cycle, user_id: int
+    db: Session,
+    cycle: models.Cycle,
+    user_id: int,
+    net_by_channel_id: dict[int, float] | None = None,
 ) -> list[models.ClosedCycleBalance]:
     """The live template's current per-channel breakdown, in the exact shape
     a ClosedCycle's balances would be -- shared by close_cycle (persisted)
@@ -1358,14 +1361,20 @@ def _live_cycle_balances(
     carry-in from prior cycles (the real running balance, same as
     channel_balances() everywhere else in the app); income/transfers_net/
     expenses_total describe only this cycle's own activity, and generally
-    won't sum to `net` on their own -- see ClosedCycleBalance's docstring."""
+    won't sum to `net` on their own -- see ClosedCycleBalance's docstring.
+
+    `net_by_channel_id` lets a caller that already has an `_all_channel_balances`
+    result (e.g. close_cycle) pass its per-channel net through instead of
+    triggering a second full balance-chain computation -- see that
+    function's docstring for why calling it twice per request is wasteful."""
     channels = list_channels(db, user_id)
     transfers = list_transfers(db, cycle.id, user_id)
     expenses: list[models.Expense | models.OneTimeExpense] = [
         e for e in list_expenses(db, user_id) if e.cycle_id == cycle.id and e.active
     ]
     expenses += [e for e in list_one_time_expenses(db, user_id) if e.cycle_id == cycle.id]
-    net_by_channel_id = {c.id: net for c, net in channel_balances(db, cycle.id, user_id)}
+    if net_by_channel_id is None:
+        net_by_channel_id = {c.id: net for c, net in channel_balances(db, cycle.id, user_id)}
 
     balances = []
     for channel in channels:
@@ -1408,12 +1417,12 @@ def close_cycle(db: Session, cycle_id: int, user_id: int) -> models.ClosedCycle:
     if cycle is None:
         raise OwnershipError("Cycle not found.")
 
-    live_balances = _live_cycle_balances(db, cycle, user_id)
-
     channels = list_channels(db, user_id)
     carry_in_by_cycle, balances_by_cycle = _all_channel_balances(db, user_id)
     carry_in = carry_in_by_cycle.get(cycle_id, {})
     net_by_channel_id = {c.id: net for c, net in balances_by_cycle.get(cycle_id, [])}
+
+    live_balances = _live_cycle_balances(db, cycle, user_id, net_by_channel_id=net_by_channel_id)
 
     closed_cycle = models.ClosedCycle(
         user_id=user_id,
@@ -2076,6 +2085,7 @@ ORPHANABLE_MODELS: tuple[type[Any], ...] = (
     models.Cycle,
     models.Expense,
     models.OneTimeExpense,
+    models.ExpenseCategory,
     models.Transfer,
     models.Goal,
     models.CreditLine,

@@ -135,6 +135,25 @@ def test_assign_orphans_moves_rows_to_target_user(
     assert any(c.name == "Orphan Wallet" for c in channels)
 
 
+def test_assign_orphans_moves_expense_categories(
+    client: TestClient, as_admin: None, db: Session
+) -> None:
+    """Regression test for #215: ExpenseCategory was missing from
+    ORPHANABLE_MODELS despite user_id being nullable like every other
+    orphanable model, so an orphaned category could never be reassigned."""
+    crud.create_expense_category(
+        db, schemas.ExpenseCategoryCreate(name="Orphan Category"), user_id=None
+    )
+    db.commit()
+
+    response = client.post(
+        "/admin/orphans/expense_categories/assign", data={"target_user_id": str(TEST_USER_ID)}
+    )
+    assert response.status_code == 200
+    categories = crud.list_expense_categories(db, TEST_USER_ID)
+    assert any(c.name == "Orphan Category" for c in categories)
+
+
 def test_assign_orphans_unknown_table_404s(client: TestClient, as_admin: None) -> None:
     response = client.post(
         "/admin/orphans/not_a_real_table/assign", data={"target_user_id": str(TEST_USER_ID)}
