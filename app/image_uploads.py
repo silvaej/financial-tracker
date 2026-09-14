@@ -45,3 +45,39 @@ async def read_image_upload(
             status_code=400, detail=f"{label} must be a PNG, JPEG, WEBP, or GIF image."
         )
     return data, mimetype
+
+
+async def read_receipt_upload(
+    file: UploadFile | None, *, max_bytes: int, label: str = "Receipt"
+) -> tuple[bytes, str] | None:
+    """Like read_image_upload, but also accepts a PDF -- real receipts are
+    just as often emailed/downloaded as a PDF as they are a photo. PDF
+    validity is checked via its standard "%PDF-" magic-byte header (not a
+    full parse -- good enough to reject non-PDF junk with a spoofed
+    extension; nothing downstream ever executes this file, it's only ever
+    served back with Content-Type + X-Content-Type-Options: nosniff, same
+    as every other upload in this app).
+    """
+    if file is None or not file.filename:
+        return None
+    data = await file.read()
+    if not data:
+        return None
+    if len(data) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"{label} must be under {max_bytes // 1024}KB.")
+    if data.startswith(b"%PDF-"):
+        return data, "application/pdf"
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image_format = image.format
+            image.verify()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail=f"{label} must be a PNG, JPEG, WEBP, GIF image, or a PDF."
+        ) from exc
+    mimetype = ALLOWED_IMAGE_FORMATS.get(image_format or "")
+    if mimetype is None:
+        raise HTTPException(
+            status_code=400, detail=f"{label} must be a PNG, JPEG, WEBP, GIF image, or a PDF."
+        )
+    return data, mimetype

@@ -7,6 +7,21 @@ from app import crud, models, schemas
 from tests.conftest import TEST_USER_ID, TestingSessionLocal
 
 
+def _png_bytes() -> bytes:
+    # Valid 1x1 transparent PNG.
+    return bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+        "0000000d49444154789c6360606060000000050001a5f6454000000000"
+        "49454e44ae426082"
+    )
+
+
+def _pdf_bytes() -> bytes:
+    # Not a fully-structured PDF -- read_receipt_upload only checks the
+    # standard "%PDF-" magic-byte header, so this is enough to exercise it.
+    return b"%PDF-1.4\n%%EOF"
+
+
 def _create_channel(client: TestClient, name: str) -> str:
     response = client.post("/channels", data={"name": name, "color": "#8a8a8a"})
     match = re.search(rf'value="{re.escape(name)}">.*?/channels/(\d+)"', response.text, re.DOTALL)
@@ -458,3 +473,214 @@ def test_clear_all_button_disabled_when_empty_enabled_once_populated(
     )
     with_item = client.get("/expenses", headers={"HX-Request": "true"})
     assert "disabled" not in _clear_all_button(with_item.text)
+
+
+def test_upload_receipt_on_create_is_served_back(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+
+    create = client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+        files={"receipt": ("receipt.png", _png_bytes(), "image/png")},
+    )
+    assert create.status_code == 200
+    match = re.search(r"/one-time-expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    assert f'/one-time-expenses/{expense_id}/receipt"' in create.text
+
+    receipt = client.get(f"/one-time-expenses/{expense_id}/receipt")
+    assert receipt.status_code == 200
+    assert receipt.headers["content-type"] == "image/png"
+    assert receipt.headers["x-content-type-options"] == "nosniff"
+    assert receipt.content == _png_bytes()
+
+
+def test_upload_pdf_receipt_is_accepted(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+
+    create = client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+        files={"receipt": ("receipt.pdf", _pdf_bytes(), "application/pdf")},
+    )
+    assert create.status_code == 200
+    match = re.search(r"/one-time-expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    receipt = client.get(f"/one-time-expenses/{expense_id}/receipt")
+    assert receipt.status_code == 200
+    assert receipt.headers["content-type"] == "application/pdf"
+    assert receipt.content == _pdf_bytes()
+
+
+def test_create_one_time_expense_without_receipt_has_no_paperclip(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+
+    create = client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+    )
+    assert create.status_code == 200
+    assert "/receipt" not in create.text
+
+
+def test_upload_receipt_rejects_non_image_non_pdf_file(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+
+    response = client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+        files={"receipt": ("evil.txt", b"not a receipt", "text/plain")},
+    )
+    assert response.status_code == 400
+    assert "PDF" in response.json()["detail"]
+
+
+def test_upload_oversized_receipt_is_rejected(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+
+    oversized = b"%PDF-1.4\n" + b"\xff" * (5 * 1024 * 1024 + 1)
+    response = client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+        files={"receipt": ("receipt.pdf", oversized, "application/pdf")},
+    )
+    assert response.status_code == 400
+    assert "under" in response.json()["detail"]
+
+
+def test_remove_receipt(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+
+    create = client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+        files={"receipt": ("receipt.png", _png_bytes(), "image/png")},
+    )
+    match = re.search(r"/one-time-expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    removed = client.delete(f"/one-time-expenses/{expense_id}/receipt")
+    assert removed.status_code == 200
+    assert f'/one-time-expenses/{expense_id}/receipt"' not in removed.text
+
+    missing = client.get(f"/one-time-expenses/{expense_id}/receipt")
+    assert missing.status_code == 404
+
+
+def test_upload_receipt_on_update(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+
+    create = client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+    )
+    match = re.search(r"/one-time-expenses/(\d+)", create.text)
+    assert match is not None
+    expense_id = match.group(1)
+
+    updated = client.patch(
+        f"/one-time-expenses/{expense_id}",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+        files={"receipt": ("receipt.png", _png_bytes(), "image/png")},
+    )
+    assert updated.status_code == 200
+    assert f'/one-time-expenses/{expense_id}/receipt"' in updated.text
+
+
+def test_get_receipt_requires_ownership(client: TestClient) -> None:
+    """The `client` fixture is authenticated as TEST_USER_ID, so fetching a
+    receipt that belongs to a different user must 404 the same way any
+    other cross-user lookup in this app does."""
+    db = TestingSessionLocal()
+    try:
+        other_user_id = TEST_USER_ID + 1
+        db.add(models.User(id=other_user_id, email="other@example.com"))
+        db.commit()
+        other_channel = crud.create_channel(
+            db, schemas.ChannelCreate(name="Someone Else's Wallet"), other_user_id
+        )
+        other_cycle = crud.create_cycle(
+            db,
+            schemas.CycleCreate(
+                payout_day=15, income_amount=1000, receiving_channel_id=other_channel.id
+            ),
+            other_user_id,
+        )
+        other_expense = crud.create_one_time_expense(
+            db,
+            schemas.OneTimeExpenseCreate(
+                name="Someone else's spend",
+                amount=500,
+                cycle_id=other_cycle.id,
+                channel_id=other_channel.id,
+                date=date(2026, 9, 10),
+            ),
+            other_user_id,
+        )
+        crud.set_one_time_expense_receipt(db, other_expense.id, b"data", "image/png", other_user_id)
+        other_expense_id = other_expense.id
+    finally:
+        db.close()
+
+    response = client.get(f"/one-time-expenses/{other_expense_id}/receipt")
+    assert response.status_code == 404

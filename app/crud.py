@@ -831,6 +831,34 @@ def clear_one_time_expenses(db: Session, user_id: int) -> None:
     db.commit()
 
 
+def get_one_time_expense_receipt(
+    db: Session, expense_id: int, user_id: int
+) -> models.OneTimeExpense | None:
+    return _owned(db, models.OneTimeExpense, expense_id, user_id)
+
+
+def set_one_time_expense_receipt(
+    db: Session, expense_id: int, data: bytes, mimetype: str, user_id: int
+) -> models.OneTimeExpense | None:
+    expense = _owned(db, models.OneTimeExpense, expense_id, user_id)
+    if expense is not None:
+        expense.receipt_data = data
+        expense.receipt_mimetype = mimetype
+        db.commit()
+    return expense
+
+
+def clear_one_time_expense_receipt(
+    db: Session, expense_id: int, user_id: int
+) -> models.OneTimeExpense | None:
+    expense = _owned(db, models.OneTimeExpense, expense_id, user_id)
+    if expense is not None:
+        expense.receipt_data = None
+        expense.receipt_mimetype = None
+        db.commit()
+    return expense
+
+
 # --- Transfers ------------------------------------------------------------------
 
 
