@@ -148,3 +148,18 @@ def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -
 
     response = client.get("/credit")
     assert "nudge-banner" not in response.text
+
+
+def test_credit_lines_filter_by_name(client: TestClient) -> None:
+    """Regression test for #219: Credit lines had no name filter."""
+    client.post("/credit", data={"name": "Maya Black", "limit": "1000", "used": "0"})
+    client.post("/credit", data={"name": "BPI Blue Mastercard", "limit": "5000", "used": "0"})
+
+    unfiltered = client.get("/credit", headers={"HX-Request": "true"})
+    assert "Maya Black" in unfiltered.text
+    assert "BPI Blue Mastercard" in unfiltered.text
+
+    filtered = client.get("/credit", params={"q": "maya"}, headers={"HX-Request": "true"})
+    assert "Maya Black" in filtered.text
+    assert "BPI Blue Mastercard" not in filtered.text
+    assert "2 total" in filtered.text

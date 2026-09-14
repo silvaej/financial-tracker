@@ -23,11 +23,14 @@ def _parse_channel_id(raw: str) -> int | None:
 @router.get("")
 def index(
     request: Request,
+    q: str = "",
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     template = "partials/credit_page.html" if request.headers.get("HX-Request") else "credit.html"
-    return templates.TemplateResponse(request, template, crud.credit_page_data(db, current_user.id))
+    return templates.TemplateResponse(
+        request, template, crud.credit_page_data(db, current_user.id, q)
+    )
 
 
 @router.post("")

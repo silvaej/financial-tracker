@@ -106,6 +106,18 @@ def _delete_owned(db: Session, model: type[Any], id_: int, user_id: int | None) 
         db.commit()
 
 
+def _filter_by_name(items: list[Any], q: str | None) -> list[Any]:
+    """In-Python name search for lists that can't be filtered at the query
+    level because the same unfiltered result also feeds <select> dropdowns
+    elsewhere on the same page (see expenses_page_data's channels/
+    expense_categories) -- everywhere else, filtering happens via .ilike()
+    in the list_*() query itself instead (e.g. list_expenses, see #216)."""
+    if not q:
+        return items
+    needle = q.lower()
+    return [item for item in items if needle in item.name.lower()]
+
+
 # --- Users --------------------------------------------------------------------
 
 # (code, label) pairs for the Account page's currency <select>.
@@ -1501,10 +1513,11 @@ def delete_asset(db: Session, asset_id: int, user_id: int) -> None:
     _delete_owned(db, models.Asset, asset_id, user_id)
 
 
-def assets_page_data(db: Session, user_id: int) -> dict:
+def assets_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
     assets = list_assets(db, user_id)
     return {
-        "assets": assets,
+        "assets": _filter_by_name(assets, q),
+        "q": q or "",
         "total_assets": sum(float(a.amount) for a in assets),
         "channels": list_channels(db, user_id),
         "show_nudge": needs_nudge(db, user_id, "assets", is_empty=not assets),
@@ -1614,7 +1627,7 @@ def goal_payout_amount(goal: models.Goal, cycle_count: int) -> float:
     return per_payout
 
 
-def goals_page_data(db: Session, user_id: int) -> dict:
+def goals_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
     cycle_count = len(list_cycles(db, user_id))
     goals = list_goals(db, user_id)
     return {
@@ -1624,8 +1637,10 @@ def goals_page_data(db: Session, user_id: int) -> dict:
                 **goal_progress(g),
                 "per_payout": goal_payout_amount(g, cycle_count),
             }
-            for g in goals
+            for g in _filter_by_name(goals, q)
         ],
+        "goals_total": len(goals),
+        "q": q or "",
         "channels": list_channels(db, user_id),
         "show_nudge": needs_nudge(db, user_id, "goals", is_empty=not goals),
     }
@@ -1679,10 +1694,12 @@ def credit_utilization(credit_line: models.CreditLine) -> dict:
     return {"pct": pct, "level": level}
 
 
-def credit_page_data(db: Session, user_id: int) -> dict:
+def credit_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
     lines = list_credit_lines(db, user_id)
     return {
-        "credit_lines": [{"line": c, **credit_utilization(c)} for c in lines],
+        "credit_lines": [{"line": c, **credit_utilization(c)} for c in _filter_by_name(lines, q)],
+        "credit_lines_total": len(lines),
+        "q": q or "",
         "channels": list_channels(db, user_id),
         "show_nudge": needs_nudge(db, user_id, "credit", is_empty=not lines),
     }
@@ -1851,7 +1868,13 @@ def overdue_cycle_ids(db: Session, user_id: int, cycles: list[models.Cycle]) -> 
     return overdue
 
 
-def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
+def expenses_page_data(
+    db: Session,
+    user_id: int,
+    q: str | None = None,
+    channel_q: str | None = None,
+    category_q: str | None = None,
+) -> dict:
     channels = list_channels(db, user_id)
     cycles = list_cycles(db, user_id)
     user = get_user(db, user_id)
@@ -1872,14 +1895,23 @@ def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
         onboarding_default_expense_channel_id = onboarding_latest_cycle.receiving_channel_id or (
             onboarding_latest_channel.id if onboarding_latest_channel else None
         )
+    expense_categories = list_expense_categories(db, user_id)
     return {
+        # Unfiltered -- these two also populate every channel_id/category_id
+        # <select> on this page (cycles, expenses, transfers, ...), not just
+        # their own table, so a name search can't be applied at this level.
         "channels": channels,
+        "expense_categories": expense_categories,
+        # Filtered, for the Channels/Categories tables' own search boxes only.
+        "channels_filtered": _filter_by_name(channels, channel_q),
+        "channel_q": channel_q or "",
+        "categories_filtered": _filter_by_name(expense_categories, category_q),
+        "category_q": category_q or "",
         "channel_types": CHANNEL_TYPES,
         "channel_preset_groups": channel_presets_by_group(),
         "cycles": cycles,
         "cycles_per_month": user.cycles_per_month if user is not None else 1,
         "overdue_cycle_ids": overdue_cycle_ids(db, user_id, cycles),
-        "expense_categories": list_expense_categories(db, user_id),
         "expenses": list_expenses(db, user_id, q),
         "one_time_expenses": list_one_time_expenses(db, user_id),
         "today_iso": date.today().isoformat(),

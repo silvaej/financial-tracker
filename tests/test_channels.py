@@ -293,3 +293,20 @@ def test_remove_channel_placement_returns_it_to_the_toolbox(client: TestClient) 
     assert removed.status_code == 200
     assert f'data-position-url="/channels/{channel_id}/placement"' not in removed.text
     assert "BPI" in removed.text
+
+
+def test_channels_filter_by_name_keeps_dropdowns_intact(client: TestClient) -> None:
+    """Regression test for #219: search narrows the Channels table itself,
+    but the same channels list also populates channel_id/receiving_channel_id
+    <select> dropdowns all over the Expenses page -- those must stay
+    unfiltered or expense/cycle/transfer forms would silently lose options."""
+    bpi_id = _create_channel(client, "BPI")
+    gcash_id = _create_channel(client, "GCash")
+
+    filtered = client.get("/channels", params={"q": "bpi"}, headers={"HX-Request": "true"})
+    assert filtered.status_code == 200
+    assert f"view-channel-{bpi_id}" in filtered.text
+    assert f"view-channel-{gcash_id}" not in filtered.text
+    # GCash is filtered out of the table but must still appear as a
+    # dropdown option elsewhere on the page.
+    assert f'value="{gcash_id}"' in filtered.text

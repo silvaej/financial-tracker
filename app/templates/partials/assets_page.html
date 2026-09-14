@@ -13,7 +13,22 @@
     <div class="card-value">{{ macros.peso(total_assets) }}</div>
   </div>
   <div class="section">
-    <div class="section-title">Assets<span class="pill">{{ assets|length }} items</span></div>
+    <div class="section-title">
+      <span>Assets<span class="pill">{{ assets|length }} items</span></span>
+      <input id="asset-search"
+             class="field w-full sm:w-48"
+             type="search"
+             name="q"
+             value="{{ q }}"
+             placeholder="Filter by name&hellip;"
+             aria-label="Filter assets by name"
+             autocomplete="off"
+             hx-preserve
+             hx-get="/assets"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#assets-page"
+             hx-swap="outerHTML">
+    </div>
     <form id="add-asset-form"
           autocomplete="off"
           hx-post="/assets"

@@ -91,3 +91,22 @@ def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -
     # dismiss request itself.
     response = client.get("/assets")
     assert "nudge-banner" not in response.text
+
+
+def test_assets_filter_by_name_does_not_affect_total(client: TestClient) -> None:
+    """Regression test for #219: Assets had no name filter. The "Total
+    assets" KPI card must keep summing every asset regardless of the
+    search box -- only the table itself narrows."""
+    client.post("/assets", data={"name": "BPI IMI", "amount": "1000"})
+    client.post("/assets", data={"name": "Maya TD", "amount": "500"})
+
+    unfiltered = client.get("/assets", headers={"HX-Request": "true"})
+    assert "BPI IMI" in unfiltered.text
+    assert "Maya TD" in unfiltered.text
+    assert "1,500.00" in unfiltered.text
+
+    filtered = client.get("/assets", params={"q": "bpi"}, headers={"HX-Request": "true"})
+    assert "BPI IMI" in filtered.text
+    assert "Maya TD" not in filtered.text
+    # Total assets still reflects both rows, not just the filtered one.
+    assert "1,500.00" in filtered.text

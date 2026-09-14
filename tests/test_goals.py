@@ -295,3 +295,20 @@ def test_dismissing_nudge_clears_it_even_while_still_empty(client: TestClient) -
 
     response = client.get("/goals")
     assert "nudge-banner" not in response.text
+
+
+def test_goals_filter_by_name(client: TestClient) -> None:
+    """Regression test for #219: Goals had no name filter, unlike Recurring
+    expenses. The count pill keeps showing the true total, not the filtered
+    count, since the pill's own label says "total"."""
+    client.post("/goals", data={"name": "Emergency Fund", "target": "1000", "months": "1"})
+    client.post("/goals", data={"name": "New Laptop", "target": "2000", "months": "6"})
+
+    unfiltered = client.get("/goals", headers={"HX-Request": "true"})
+    assert "Emergency Fund" in unfiltered.text
+    assert "New Laptop" in unfiltered.text
+
+    filtered = client.get("/goals", params={"q": "emerg"}, headers={"HX-Request": "true"})
+    assert "Emergency Fund" in filtered.text
+    assert "New Laptop" not in filtered.text
+    assert "2 total" in filtered.text
