@@ -82,6 +82,30 @@ def test_delete_user_removes_their_data(client: TestClient, as_admin: None, db: 
     assert db.get(type(channel), channel_id) is None
 
 
+def test_delete_user_who_owns_an_expense_category_does_not_500(
+    client: TestClient, as_admin: None, db: Session
+) -> None:
+    """Regression test: delete_user_and_data's per-model cleanup loop never
+    deleted ExpenseCategory rows before deleting the User, so a user who'd
+    created any category hit an unhandled IntegrityError on Postgres
+    (ExpenseCategory.user_id is a real FK; SQLite, used in tests via
+    create_all, doesn't enforce it the same way, which is why this needs its
+    own explicit assertion rather than relying on a bare "doesn't crash")."""
+    other = crud.create_user(db, "other@example.com")
+    category = crud.create_expense_category(
+        db, schemas.ExpenseCategoryCreate(name="Repairs"), user_id=other.id
+    )
+    db.commit()
+    other_id = other.id
+    category_id = category.id
+
+    response = client.post(f"/admin/users/{other_id}/delete")
+    assert response.status_code == 200
+    db.expire_all()
+    assert crud.get_user_by_email(db, "other@example.com") is None
+    assert db.get(type(category), category_id) is None
+
+
 def test_admin_cannot_delete_own_account(client: TestClient, as_admin: None) -> None:
     response = client.post(f"/admin/users/{TEST_USER_ID}/delete")
     assert response.status_code == 400

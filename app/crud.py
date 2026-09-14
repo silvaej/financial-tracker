@@ -626,6 +626,18 @@ def delete_cycle(db: Session, cycle_id: int, user_id: int) -> None:
     if cycle is None:
         return
 
+    # Checked separately from the "still in use" case below: closing a cycle
+    # is deliberately permanent (see ClosedCycle's docstring) -- there's no
+    # route that deletes a ClosedCycle -- so a cycle with any closed-cycle
+    # history can never become deletable, not just "not yet". Without this
+    # check, deleting one hits an unhandled IntegrityError instead, since
+    # ClosedCycle.cycle_id is a NOT NULL FK with no cascade.
+    if db.query(models.ClosedCycle).filter_by(cycle_id=cycle_id, user_id=user_id).first():
+        raise CycleInUseError(
+            "This cycle has closed-cycle history and can't be deleted -- "
+            "closing a cycle is permanent."
+        )
+
     in_use = (
         db.query(models.Expense).filter_by(cycle_id=cycle_id, user_id=user_id).first()
         or db.query(models.OneTimeExpense).filter_by(cycle_id=cycle_id, user_id=user_id).first()
@@ -2155,6 +2167,10 @@ def delete_user_and_data(db: Session, user_id: int) -> None:
         models.Transfer,
         models.Expense,
         models.OneTimeExpense,
+        # Must come after Expense/OneTimeExpense -- both reference it via
+        # category_id, so deleting it first would hit the same FK RESTRICT
+        # violation this whole child-before-parent ordering exists to avoid.
+        models.ExpenseCategory,
         models.ClosedCycle,
         models.Goal,
         models.CreditLine,
