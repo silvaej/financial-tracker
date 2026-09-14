@@ -43,8 +43,10 @@ def export_channels(
     current_user: models.User = Depends(get_current_user),
 ) -> Response:
     channels = crud.list_channels(db, current_user.id)
-    rows: list[list[object]] = [[c.name, c.color, c.channel_type or ""] for c in channels]
-    return _csv_response(rows, ["Name", "Color", "Type"], "channels.csv")
+    rows: list[list[object]] = [
+        [c.name, c.color, c.channel_type or "", c.current_amount] for c in channels
+    ]
+    return _csv_response(rows, ["Name", "Color", "Type", "Actual Balance"], "channels.csv")
 
 
 @router.get("/cycles.csv")

@@ -32,8 +32,24 @@ def test_export_channels_csv(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
     assert response.headers["content-disposition"] == 'attachment; filename="channels.csv"'
-    assert "Name,Color,Type" in response.text
+    assert "Name,Color,Type,Actual Balance" in response.text
     assert "BPI,#B8122B" in response.text
+
+
+def test_export_channels_csv_includes_current_amount(client: TestClient) -> None:
+    """Regression test for #214: the channel export silently dropped
+    current_amount (the "Actual balance" field) even though it's real
+    user-entered data a "download my data" export should include."""
+    channel_id = _create_channel(client, "GCash", "#0072CE")
+    client.patch(
+        f"/channels/{channel_id}",
+        data={"name": "GCash", "color": "#0072CE", "current_amount": "4250.75"},
+    )
+
+    response = client.get("/export/channels.csv")
+
+    assert response.status_code == 200
+    assert "GCash,#0072CE,,4250.75" in response.text
 
 
 def test_export_cycles_csv(client: TestClient) -> None:
@@ -97,7 +113,7 @@ def test_export_empty_data_returns_header_only(client: TestClient) -> None:
     response = client.get("/export/channels.csv")
 
     assert response.status_code == 200
-    assert response.text.strip() == "Name,Color,Type"
+    assert response.text.strip() == "Name,Color,Type,Actual Balance"
 
 
 def test_export_channels_csv_sanitizes_formula_injection(client: TestClient) -> None:
