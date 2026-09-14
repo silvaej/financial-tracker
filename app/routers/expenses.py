@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app import crud, models, schemas
 from app.auth import get_current_user
 from app.database import get_db
+from app.forms import parse_optional_id
 from app.templating import templates
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -17,10 +18,6 @@ def _render_page(request: Request, db: Session, user_id: int) -> HTMLResponse:
 
 
 def _parse_due_day(raw: str) -> int | None:
-    return int(raw) if raw else None
-
-
-def _parse_category_id(raw: str) -> int | None:
     return int(raw) if raw else None
 
 
@@ -59,7 +56,7 @@ def create_expense(
                 amount=amount,
                 cycle_id=cycle_id,
                 channel_id=channel_id,
-                category_id=_parse_category_id(category_id),
+                category_id=parse_optional_id(category_id),
                 due_day=_parse_due_day(due_day),
             ),
             current_user.id,
@@ -91,7 +88,7 @@ def update_expense(
                 amount=amount,
                 cycle_id=cycle_id,
                 channel_id=channel_id,
-                category_id=_parse_category_id(category_id),
+                category_id=parse_optional_id(category_id),
                 due_day=_parse_due_day(due_day),
             ),
             current_user.id,
