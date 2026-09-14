@@ -22,6 +22,20 @@ def _parse_category_id(raw: str) -> int | None:
     return int(raw) if raw else None
 
 
+@router.get("")
+def index(
+    request: Request,
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "partials/expenses_page.html",
+        crud.expenses_page_data(db, current_user.id, one_time_expense_q=q),
+    )
+
+
 @router.post("")
 def create_one_time_expense(
     request: Request,

@@ -458,3 +458,38 @@ def test_clear_all_button_disabled_when_empty_enabled_once_populated(
     )
     with_item = client.get("/expenses", headers={"HX-Request": "true"})
     assert "disabled" not in _clear_all_button(with_item.text)
+
+
+def test_one_time_expenses_filter_by_name(client: TestClient) -> None:
+    """Regression test for #216: the one-time expenses table had no name
+    filter, unlike the recurring expenses table right above it."""
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, channel_id)
+    client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Vet Visit",
+            "amount": "1500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+    )
+    client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Aircon Repair",
+            "amount": "3500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+    )
+
+    unfiltered = client.get("/one-time-expenses", headers={"HX-Request": "true"})
+    assert "Vet Visit" in unfiltered.text
+    assert "Aircon Repair" in unfiltered.text
+
+    filtered = client.get("/one-time-expenses", params={"q": "vet"}, headers={"HX-Request": "true"})
+    assert "Vet Visit" in filtered.text
+    assert "Aircon Repair" not in filtered.text
