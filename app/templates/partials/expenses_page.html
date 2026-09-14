@@ -869,16 +869,31 @@
   <div class="section{{ ' opacity-50 pointer-events-none' if not channels or not cycles else '' }}">
     <div class="section-title">
       <span>One-time expenses<span class="pill">{{ one_time_expenses|length }} items</span></span>
-      <button type="button"
-              class="btn-secondary gap-1.5 text-rust border-rust/40 hover:bg-rust-soft disabled:opacity-40 disabled:cursor-not-allowed"
-              hx-post="/one-time-expenses/clear"
-              hx-target="#expenses-page"
-              hx-swap="outerHTML"
-              hx-confirm="Delete all {{ one_time_expenses|length }} one-time expense{{ 's' if one_time_expenses|length != 1 else '' }}? This can't be undone."
-              {{ "disabled" if not one_time_expenses else "" }}>
-        {{ macros.icon_delete() }}
-        Clear all
-      </button>
+      <div class="flex items-center gap-2 flex-wrap">
+        <input id="one-time-expense-search"
+               class="field w-full sm:w-48"
+               type="search"
+               name="q"
+               value="{{ one_time_expense_q }}"
+               placeholder="Filter by name&hellip;"
+               aria-label="Filter one-time expenses by name"
+               autocomplete="off"
+               hx-preserve
+               hx-get="/one-time-expenses"
+               hx-trigger="keyup changed delay:300ms, search"
+               hx-target="#expenses-page"
+               hx-swap="outerHTML">
+        <button type="button"
+                class="btn-secondary gap-1.5 text-rust border-rust/40 hover:bg-rust-soft disabled:opacity-40 disabled:cursor-not-allowed"
+                hx-post="/one-time-expenses/clear"
+                hx-target="#expenses-page"
+                hx-swap="outerHTML"
+                hx-confirm="Delete all {{ one_time_expenses|length }} one-time expense{{ 's' if one_time_expenses|length != 1 else '' }}? This can't be undone."
+                {{ "disabled" if not one_time_expenses else "" }}>
+          {{ macros.icon_delete() }}
+          Clear all
+        </button>
+      </div>
     </div>
     <form id="add-one-time-expense-form"
           autocomplete="off"

@@ -1851,7 +1851,9 @@ def overdue_cycle_ids(db: Session, user_id: int, cycles: list[models.Cycle]) -> 
     return overdue
 
 
-def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
+def expenses_page_data(
+    db: Session, user_id: int, q: str | None = None, one_time_expense_q: str | None = None
+) -> dict:
     channels = list_channels(db, user_id)
     cycles = list_cycles(db, user_id)
     user = get_user(db, user_id)
@@ -1881,9 +1883,10 @@ def expenses_page_data(db: Session, user_id: int, q: str | None = None) -> dict:
         "overdue_cycle_ids": overdue_cycle_ids(db, user_id, cycles),
         "expense_categories": list_expense_categories(db, user_id),
         "expenses": list_expenses(db, user_id, q),
-        "one_time_expenses": list_one_time_expenses(db, user_id),
+        "one_time_expenses": list_one_time_expenses(db, user_id, one_time_expense_q),
         "today_iso": date.today().isoformat(),
         "q": q or "",
+        "one_time_expense_q": one_time_expense_q or "",
         "onboarding_step": onboarding_step,
         "onboarding_latest_channel": onboarding_latest_channel,
         "onboarding_latest_cycle": onboarding_latest_cycle,
