@@ -1390,7 +1390,9 @@ def _live_cycle_balances(
     return balances
 
 
-def close_cycle(db: Session, cycle_id: int, user_id: int) -> models.ClosedCycle:
+def close_cycle(
+    db: Session, cycle_id: int, user_id: int, request_id: str | None = None
+) -> models.ClosedCycle:
     """Snapshot the given cycle's current channel balances into a new dated
     ClosedCycle -- explicit, user-triggered only (no auto-snapshot on some
     inferred date, since Cycle has no real calendar anchor). The live
@@ -1403,10 +1405,36 @@ def close_cycle(db: Session, cycle_id: int, user_id: int) -> models.ClosedCycle:
     balance, see issue #162) by this cycle's own delta (net - carry_in), not
     the full carried net -- Cycle is a reused recurring template, not a
     dated one-off, so crediting the full net would double-count a channel's
-    already-counted carry-in on every subsequent close."""
+    already-counted carry-in on every subsequent close.
+
+    `request_id` is an idempotency key, not a business concept -- see issue
+    #211: without one, a double-click or a dropped-response retry re-ran the
+    whole snapshot-and-credit sequence a second time, permanently
+    double-applying that delta to every affected channel's current_amount
+    with no undo. `closed_cycle_history_page_data` mints a fresh one on
+    every page render, so a genuine subsequent close (a real repeat close
+    next month, which this function must still allow -- see above) always
+    carries a different key and is never affected; only a second submission
+    of the exact same still-rendered form is deduped, returning the
+    existing ClosedCycle instead of creating another one. Time-based
+    debouncing was considered and rejected: it can't tell a rapid *repeat*
+    close (a legitimate, supported use of this function) from a duplicate
+    of the same click without an arbitrary window that would eventually
+    block a real one."""
     cycle = _owned(db, models.Cycle, cycle_id, user_id)
     if cycle is None:
         raise OwnershipError("Cycle not found.")
+
+    if request_id:
+        duplicate = db.scalar(
+            select(models.ClosedCycle).where(
+                models.ClosedCycle.cycle_id == cycle_id,
+                models.ClosedCycle.user_id == user_id,
+                models.ClosedCycle.idempotency_key == request_id,
+            )
+        )
+        if duplicate is not None:
+            return duplicate
 
     live_balances = _live_cycle_balances(db, cycle, user_id)
 
@@ -1421,6 +1449,7 @@ def close_cycle(db: Session, cycle_id: int, user_id: int) -> models.ClosedCycle:
         payout_day=cycle.payout_day,
         income_amount=cycle.income_amount,
         receiving_channel_name=(cycle.receiving_channel.name if cycle.receiving_channel else None),
+        idempotency_key=request_id or None,
     )
     db.add(closed_cycle)
     db.flush()  # assigns closed_cycle.id, needed for the balance rows below
@@ -1463,6 +1492,11 @@ def closed_cycle_history_page_data(
         "closed_cycles": closed_cycles,
         "selected_cycle": selected_cycle,
         "balances": balances,
+        # A fresh idempotency key each time this page (or its htmx fragment)
+        # renders -- see crud.close_cycle's docstring (issue #211). Only
+        # meaningful on the live-template view (where the "Close this cycle"
+        # form actually renders), but cheap enough to always include.
+        "close_cycle_request_id": secrets.token_urlsafe(16),
     }
 
 
