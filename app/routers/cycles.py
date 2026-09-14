@@ -43,6 +43,8 @@ def create_cycle(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except crud.CycleCapExceededError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except crud.CycleDuplicatePayoutDayError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _render_page(request, db, current_user.id)
 
 
@@ -80,6 +82,8 @@ def update_cycle(
         )
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except crud.CycleDuplicatePayoutDayError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _render_page(request, db, current_user.id)
 
 

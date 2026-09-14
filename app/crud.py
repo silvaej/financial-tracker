@@ -81,6 +81,13 @@ class CycleCapExceededError(Exception):
     User.cycles_per_month (see issue #191)."""
 
 
+class CycleDuplicatePayoutDayError(Exception):
+    """Raised when creating/editing a cycle would leave two of the user's
+    cycles sharing the same payout_day -- see issue #212. Checked explicitly
+    before the write so this surfaces as a normal validation error instead
+    of the DB's own UniqueConstraint violation (an unhandled 500)."""
+
+
 class OwnershipError(Exception):
     """Raised when a referenced row doesn't belong to the acting user."""
 
@@ -582,10 +589,35 @@ def ordinal_label(day: int) -> str:
     return f"{day}{suffix}"
 
 
+def _require_unique_payout_day(
+    db: Session, user_id: int | None, payout_day: int, exclude_cycle_id: int | None
+) -> None:
+    stmt = select(models.Cycle.id).where(
+        models.Cycle.user_id == user_id, models.Cycle.payout_day == payout_day
+    )
+    if exclude_cycle_id is not None:
+        stmt = stmt.where(models.Cycle.id != exclude_cycle_id)
+    if db.scalar(stmt) is not None:
+        raise CycleDuplicatePayoutDayError(
+            f"You already have a cycle on the {ordinal_label(payout_day)} -- "
+            "each cycle needs its own day."
+        )
+
+
 def create_cycle(db: Session, data: schemas.CycleCreate, user_id: int | None) -> models.Cycle:
     _require_owned(db, models.Channel, data.receiving_channel_id, user_id, "Receiving channel")
+    _require_unique_payout_day(db, user_id, data.payout_day, exclude_cycle_id=None)
     # Orphaned rows (user_id=None, e.g. app/seed.py) aren't capped -- there's
     # no User row to read a limit from, and seeding isn't a real user flow.
+    #
+    # This check-then-insert has a benign TOCTOU race (see issue #212): two
+    # near-simultaneous requests can both read the same pre-insert count and
+    # both pass, landing one cycle over cycles_per_month. Not backed by a DB
+    # constraint (unlike payout_day's uniqueness above) since the cap is a
+    # soft, user-adjustable preference rather than a real invariant -- the
+    # worst case is a harmless one-cycle overshoot the user can immediately
+    # see and fix, not corrupted data, so a full fix (locking read, or a
+    # DB-level check) isn't worth the complexity here.
     if user_id is not None:
         user = get_user(db, user_id)
         cycles_per_month = user.cycles_per_month if user is not None else 1
@@ -613,6 +645,7 @@ def update_cycle(
     _require_owned(db, models.Channel, data.receiving_channel_id, user_id, "Receiving channel")
     cycle = _owned(db, models.Cycle, cycle_id, user_id)
     if cycle is not None:
+        _require_unique_payout_day(db, user_id, data.payout_day, exclude_cycle_id=cycle_id)
         cycle.income_amount = data.income_amount
         cycle.receiving_channel_id = data.receiving_channel_id
         cycle.payout_day = data.payout_day

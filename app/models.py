@@ -134,6 +134,13 @@ class Cycle(Base):
     for the locked, dated snapshot of one occurrence of a Cycle."""
 
     __tablename__ = "cycles"
+    # payout_day is the sole identity/display anchor now that `label` is gone
+    # (see issue #189) -- without this, two cycles could both end up "15th"
+    # with no way to tell them apart anywhere they render (see issue #212).
+    # NULL user_id (orphaned/seed rows) isn't covered: Postgres treats every
+    # NULL as distinct for uniqueness purposes, same as every other
+    # UniqueConstraint("user_id", ...) in this file.
+    __table_args__ = (UniqueConstraint("user_id", "payout_day"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
