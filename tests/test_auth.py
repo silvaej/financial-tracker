@@ -1,3 +1,4 @@
+import re
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from urllib.parse import unquote_plus
@@ -669,6 +670,22 @@ def test_account_page_requires_login(real_client: TestClient) -> None:
     response = real_client.get("/account", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_notify_cash_flow_warnings_checkbox_is_disabled(
+    real_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for #218: the checkbox was fully live/saveable with
+    no visual indication it doesn't do anything yet, since email delivery
+    hasn't shipped."""
+    _create_user("alice@example.com")
+    _oauth_login(real_client, monkeypatch, email="alice@example.com", provider_user_id="g-1")
+
+    page = real_client.get("/account")
+    match = re.search(r'<input[^>]*name="notify_cash_flow_warnings"[^>]*>', page.text)
+    assert match is not None
+    assert "disabled" in match.group()
+    assert "Coming soon" in page.text
 
 
 def _png_bytes() -> bytes:

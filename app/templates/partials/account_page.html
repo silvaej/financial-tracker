@@ -90,13 +90,17 @@
             </select>
           </div>
         </div>
-        <label class="flex items-start gap-2.5 pt-3.5 border-t border-line cursor-pointer">
+        <label class="flex items-start gap-2.5 pt-3.5 border-t border-line cursor-not-allowed">
           <input type="checkbox"
                  name="notify_cash_flow_warnings"
-                 class="mt-0.5"
+                 class="mt-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                 disabled
                  {{ "checked" if current_user.notify_cash_flow_warnings else "" }}>
           <span class="text-sm">
-            <span class="block font-semibold text-ink">Email me when a channel is projected to go negative</span>
+            <span class="flex items-center gap-1.5 font-semibold text-ink-soft">
+              Email me when a channel is projected to go negative
+              <span class="pill">Coming soon</span>
+            </span>
             <span class="flex items-center gap-1.5 text-[11px] text-ink-soft mt-0.5">
               <span class="w-[5px] h-[5px] rounded-full bg-gold shrink-0"></span>
               Not active yet — we'll turn this on once email delivery ships
