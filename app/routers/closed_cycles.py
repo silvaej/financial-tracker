@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
@@ -40,11 +40,12 @@ def index(
 def close_cycle(
     request: Request,
     cycle_id: int,
+    request_id: str = Form(""),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ) -> HTMLResponse:
     try:
-        crud.close_cycle(db, cycle_id, current_user.id)
+        crud.close_cycle(db, cycle_id, current_user.id, request_id or None)
     except crud.OwnershipError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _render_page(request, db, cycle_id, current_user.id, closed_cycle_id=None)

@@ -355,6 +355,10 @@ class ClosedCycle(Base):
     )
     income_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     receiving_channel_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # A client-minted idempotency key, not a business concept -- see issue
+    # #211's docstring on crud.close_cycle. NULL for any row created without
+    # one (older rows, or a direct crud/API call that didn't pass request_id).
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     cycle: Mapped[Cycle] = relationship()
 

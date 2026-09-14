@@ -2,7 +2,7 @@ import re
 
 from fastapi.testclient import TestClient
 
-from app import crud, schemas
+from app import crud, models, schemas
 from tests.conftest import TEST_USER_ID, TestingSessionLocal
 
 
@@ -192,3 +192,45 @@ def test_multiple_closed_cycles_ordered_newest_first(client: TestClient) -> None
     assert second.text.index(f"closed_cycle_id={second_id}") < second.text.index(
         f"closed_cycle_id={first_id.group(1)}"
     )
+
+
+def test_double_submit_close_cycle_with_same_request_id_is_deduped(client: TestClient) -> None:
+    """Regression test for #211: a double-click (or a dropped-response
+    retry) resubmits the exact same rendered form, including its hidden
+    request_id -- that must be deduped into a single close, not double-apply
+    the balance delta to Channel.current_amount a second time."""
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, "1000", channel_id)
+
+    first = client.post(f"/cycles/{cycle_id}/history", data={"request_id": "dup-key-1"})
+    assert "1 closed" in first.text
+
+    second = client.post(f"/cycles/{cycle_id}/history", data={"request_id": "dup-key-1"})
+    assert "1 closed" in second.text
+
+    db = TestingSessionLocal()
+    try:
+        assert len(crud.list_closed_cycles(db, int(cycle_id), TEST_USER_ID)) == 1
+        channel = db.get(models.Channel, int(channel_id))
+        assert channel is not None
+        # Only one 1000 income delta credited, not two.
+        assert float(channel.current_amount) == 1000.0
+    finally:
+        db.close()
+
+
+def test_close_cycle_with_different_request_ids_creates_separate_snapshots(
+    client: TestClient,
+) -> None:
+    """Sanity check alongside the dedup test above: a genuinely fresh close
+    (a different request_id, as a real subsequent page render would send)
+    must still work normally -- this is the supported "close again next
+    month" flow the dedup guard must never block."""
+    channel_id = _create_channel(client, "BPI")
+    cycle_id = _create_cycle(client, 15, "1000", channel_id)
+
+    first = client.post(f"/cycles/{cycle_id}/history", data={"request_id": "key-1"})
+    assert "1 closed" in first.text
+
+    second = client.post(f"/cycles/{cycle_id}/history", data={"request_id": "key-2"})
+    assert "2 closed" in second.text

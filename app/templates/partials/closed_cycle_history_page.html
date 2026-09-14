@@ -88,7 +88,8 @@
             hx-target="#closed-cycle-history-page"
             hx-swap="outerHTML"
             hx-confirm="Close this cycle? This locks today's balances as a dated record for {{ ordinal_label(cycle.payout_day) }} — it won't change the live template.">
-        <button type="submit" class="add-btn mt-3">Close this cycle</button>
+        <input type="hidden" name="request_id" value="{{ close_cycle_request_id }}">
+        <button type="submit" class="add-btn mt-3" hx-disabled-elt="this">Close this cycle</button>
       </form>
     {% endif %}
   </div>
