@@ -882,6 +882,7 @@
     </div>
     <form id="add-one-time-expense-form"
           autocomplete="off"
+          hx-encoding="multipart/form-data"
           hx-post="/one-time-expenses"
           hx-target="#expenses-page"
           hx-swap="outerHTML">
@@ -912,19 +913,43 @@
           {% for expense in one_time_expenses %}
             <tr>
               <td class="led-inline led-inline-2" data-label="Name">
-                <span class="view-one-time-expense-{{ expense.id }}">{{ expense.name }}</span>
+                <span class="view-one-time-expense-{{ expense.id }} inline-flex items-center gap-1.5">
+                  {{ expense.name }}
+                  {% if expense.receipt_data %}
+                    <a href="/one-time-expenses/{{ expense.id }}/receipt"
+                       target="_blank"
+                       rel="noopener"
+                       class="text-ink-soft hover:text-accent"
+                       title="View receipt"
+                       aria-label="View receipt">{{ macros.icon_paperclip() }}</a>
+                  {% endif %}
+                </span>
                 <form id="one-time-expense-edit-form-{{ expense.id }}"
                       hx-patch="/one-time-expenses/{{ expense.id }}"
                       hx-target="#expenses-page"
                       hx-swap="outerHTML"
+                      hx-encoding="multipart/form-data"
                       autocomplete="off"
-                      class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-2">
+                      class="edit-one-time-expense-{{ expense.id }} hidden items-center gap-2 flex-wrap">
                   <input class="field"
                          type="text"
                          name="name"
                          aria-label="Expense name"
                          value="{{ expense.name }}"
                          required>
+                  <input class="field text-xs"
+                         type="file"
+                         name="receipt"
+                         accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
+                         aria-label="Receipt">
+                  {% if expense.receipt_data %}
+                    <button type="button"
+                            class="icon-btn hover:bg-rust-soft hover:text-rust"
+                            hx-delete="/one-time-expenses/{{ expense.id }}/receipt"
+                            hx-target="#expenses-page"
+                            hx-swap="outerHTML"
+                            hx-confirm="Remove this expense's receipt?">Remove receipt</button>
+                  {% endif %}
                 </form>
               </td>
               <td class="led-inline led-inline-2" data-label="Payout">
@@ -1051,13 +1076,21 @@
           </tr>
           <tr id="add-one-time-expense-row" class="hidden">
             <td class="led-inline led-inline-2" data-label="Name">
-              <input class="field"
-                     type="text"
-                     name="name"
-                     form="add-one-time-expense-form"
-                     placeholder="Expense name"
-                     aria-label="Expense name"
-                     required>
+              <div class="flex flex-col gap-1">
+                <input class="field"
+                       type="text"
+                       name="name"
+                       form="add-one-time-expense-form"
+                       placeholder="Expense name"
+                       aria-label="Expense name"
+                       required>
+                <input class="field text-xs"
+                       type="file"
+                       name="receipt"
+                       form="add-one-time-expense-form"
+                       accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
+                       aria-label="Receipt">
+              </div>
             </td>
             <td class="led-inline led-inline-2" data-label="Payout">
               <select class="field"

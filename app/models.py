@@ -217,6 +217,11 @@ class OneTimeExpense(Base):
         ForeignKey("expense_categories.id"), nullable=True
     )
     date: Mapped[PyDate] = mapped_column(nullable=False)
+    # Optional proof of purchase -- see issue #208. Same
+    # data-plus-mimetype-column shape as Channel.logo_data/logo_mimetype and
+    # User.avatar_data/avatar_mimetype.
+    receipt_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    receipt_mimetype: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     cycle: Mapped[Cycle] = relationship()
     channel: Mapped[Channel] = relationship()
