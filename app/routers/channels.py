@@ -23,6 +23,20 @@ async def _read_logo(logo: UploadFile | None) -> tuple[bytes, str] | None:
     return await read_image_upload(logo, max_bytes=MAX_LOGO_BYTES, label="Logo")
 
 
+@router.get("")
+def index(
+    request: Request,
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "partials/expenses_page.html",
+        crud.expenses_page_data(db, current_user.id, channel_q=q),
+    )
+
+
 @router.post("")
 async def create_channel(
     request: Request,

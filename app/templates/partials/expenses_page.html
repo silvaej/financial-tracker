@@ -39,7 +39,22 @@
     </div>
   {% endif %}
   <div class="section{{ ' section-onboarding-active' if onboarding_step == 1 else '' }}">
-    <div class="section-title">Channels<span class="pill">{{ channels|length }} total</span></div>
+    <div class="section-title">
+      <span>Channels<span class="pill">{{ channels|length }} total</span></span>
+      <input id="channel-search"
+             class="field w-full sm:w-48"
+             type="search"
+             name="q"
+             value="{{ channel_q }}"
+             placeholder="Filter by name&hellip;"
+             aria-label="Filter channels by name"
+             autocomplete="off"
+             hx-preserve
+             hx-get="/channels"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#expenses-page"
+             hx-swap="outerHTML">
+    </div>
     <form id="add-channel-form"
           autocomplete="off"
           hx-post="/channels"
@@ -64,7 +79,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for channel in channels %}
+          {% for channel in channels_filtered %}
             <tr>
               <td class="led-inline led-inline-2" data-label="Name">
                 <span class="view-channel-{{ channel.id }} inline-flex items-center gap-1.5">
@@ -465,7 +480,22 @@
     </div>
   </div>
   <div class="section">
-    <div class="section-title">Categories<span class="pill">{{ expense_categories|length }} total</span></div>
+    <div class="section-title">
+      <span>Categories<span class="pill">{{ expense_categories|length }} total</span></span>
+      <input id="category-search"
+             class="field w-full sm:w-48"
+             type="search"
+             name="q"
+             value="{{ category_q }}"
+             placeholder="Filter by name&hellip;"
+             aria-label="Filter categories by name"
+             autocomplete="off"
+             hx-preserve
+             hx-get="/expense-categories"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#expenses-page"
+             hx-swap="outerHTML">
+    </div>
     <form id="add-category-form"
           autocomplete="off"
           hx-post="/expense-categories"
@@ -485,7 +515,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for category in expense_categories %}
+          {% for category in categories_filtered %}
             <tr>
               <td class="led-inline led-inline-2" data-label="Name">
                 <span class="view-category-{{ category.id }} inline-flex items-center gap-1.5">

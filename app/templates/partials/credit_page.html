@@ -8,7 +8,22 @@
   </div>
   {{ macros.nudge_banner(show_nudge, "/credit/nudge/dismiss", "#credit-page", "Keep an eye on utilization", "Add a credit card or line here to see how close it is to its limit at a glance.") }}
   <div class="section">
-    <div class="section-title">Credit lines<span class="pill">{{ credit_lines|length }} total</span></div>
+    <div class="section-title">
+      <span>Credit lines<span class="pill">{{ credit_lines_total }} total</span></span>
+      <input id="credit-line-search"
+             class="field w-full sm:w-48"
+             type="search"
+             name="q"
+             value="{{ q }}"
+             placeholder="Filter by name&hellip;"
+             aria-label="Filter credit lines by name"
+             autocomplete="off"
+             hx-preserve
+             hx-get="/credit"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#credit-page"
+             hx-swap="outerHTML">
+    </div>
     <form id="add-credit-form"
           autocomplete="off"
           hx-post="/credit"

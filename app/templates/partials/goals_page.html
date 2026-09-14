@@ -8,7 +8,22 @@
   </div>
   {{ macros.nudge_banner(show_nudge, "/goals/nudge/dismiss", "#goals-page", "Save toward something specific", "Set a target and fund it a little each payout — Goals track progress separately from your regular channel balances.") }}
   <div class="section">
-    <div class="section-title">Goals<span class="pill">{{ goals|length }} total</span></div>
+    <div class="section-title">
+      <span>Goals<span class="pill">{{ goals_total }} total</span></span>
+      <input id="goal-search"
+             class="field w-full sm:w-48"
+             type="search"
+             name="q"
+             value="{{ q }}"
+             placeholder="Filter by name&hellip;"
+             aria-label="Filter goals by name"
+             autocomplete="off"
+             hx-preserve
+             hx-get="/goals"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#goals-page"
+             hx-swap="outerHTML">
+    </div>
     <form id="add-goal-form"
           autocomplete="off"
           hx-post="/goals"

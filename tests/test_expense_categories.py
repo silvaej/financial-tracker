@@ -171,3 +171,19 @@ def test_category_edit_is_isolated_per_user() -> None:
         assert untouched.name == "Someone Else's Category"
     finally:
         db.close()
+
+
+def test_categories_filter_by_name_keeps_dropdowns_intact(client: TestClient) -> None:
+    """Regression test for #219: search narrows the Categories table itself,
+    but the same categories list also populates every category_id <select>
+    dropdown on the Expenses page -- those must stay unfiltered."""
+    housing_id = _create_category(client, "Housing")
+    repairs_id = _create_category(client, "Repairs")
+
+    filtered = client.get(
+        "/expense-categories", params={"q": "hous"}, headers={"HX-Request": "true"}
+    )
+    assert filtered.status_code == 200
+    assert f"view-category-{housing_id}" in filtered.text
+    assert f"view-category-{repairs_id}" not in filtered.text
+    assert f'value="{repairs_id}"' in filtered.text
