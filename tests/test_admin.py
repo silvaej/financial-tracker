@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,6 +62,39 @@ def test_admin_dashboard_shows_orphan_counts(
     response = client.get("/admin")
     assert response.status_code == 200
     assert "channels" in response.text
+
+
+def test_admin_expense_count_includes_one_time_expenses(
+    client: TestClient, as_admin: None, db: Session
+) -> None:
+    """Regression test for #213: the admin dashboard's per-user "Expenses"
+    count only counted recurring Expense rows, silently undercounting a
+    user's real activity."""
+    channel = crud.create_channel(db, schemas.ChannelCreate(name="Payroll"), TEST_USER_ID)
+    cycle = crud.create_cycle(db, schemas.CycleCreate(payout_day=15), TEST_USER_ID)
+    crud.create_expense(
+        db,
+        schemas.ExpenseCreate(name="Rent", amount=100, cycle_id=cycle.id, channel_id=channel.id),
+        TEST_USER_ID,
+    )
+    crud.create_one_time_expense(
+        db,
+        schemas.OneTimeExpenseCreate(
+            name="Vet Visit",
+            amount=50,
+            cycle_id=cycle.id,
+            channel_id=channel.id,
+            date=date(2026, 9, 10),
+        ),
+        TEST_USER_ID,
+    )
+    db.commit()
+
+    response = client.get("/admin")
+    assert response.status_code == 200
+    rows = crud.list_users_for_admin(db)
+    row = next(r for r in rows if r["user"].id == TEST_USER_ID)
+    assert row["expense_count"] == 2
 
 
 def test_delete_user_removes_their_data(client: TestClient, as_admin: None, db: Session) -> None:

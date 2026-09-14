@@ -70,6 +70,29 @@ def test_export_expenses_csv(client: TestClient) -> None:
     assert "Meralco,1500.00,30th,BDO" in response.text
 
 
+def test_export_one_time_expenses_csv(client: TestClient) -> None:
+    channel_id = _create_channel(client, "BDO", "#003DA5")
+    cycle_id = _create_cycle(client, 30, "2000", channel_id)
+
+    client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Vet Visit",
+            "amount": "1500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+    )
+
+    response = client.get("/export/one-time-expenses.csv")
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="one-time-expenses.csv"'
+    assert "Name,Amount,Date,Cycle,Channel,Category" in response.text
+    assert "Vet Visit,1500.00,2026-09-10,30th,BDO," in response.text
+
+
 def test_export_transfers_csv(client: TestClient) -> None:
     from_id = _create_channel(client, "Maya", "#0FA968")
     to_id = _create_channel(client, "Savings", "#8a8a8a")

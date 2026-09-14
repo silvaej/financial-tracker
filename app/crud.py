@@ -1699,6 +1699,19 @@ def next_cycle(db: Session, user_id: int) -> models.Cycle | None:
     return cycles[0] if cycles else None
 
 
+class UpcomingExpenseEntry(NamedTuple):
+    """A normalized row for Overview's "Upcoming" widget -- see issue #213.
+    Built from both a recurring Expense (due_day as-is) and a OneTimeExpense
+    tagged to the same cycle (its calendar date's day-of-month standing in
+    for due_day), so the template renders one shape regardless of which
+    kind of expense a row came from."""
+
+    name: str
+    channel: models.Channel
+    due_day: int | None
+    amount: float
+
+
 class ExpenseCategoryBreakdownEntry(NamedTuple):
     name: str
     color: str
@@ -1771,18 +1784,23 @@ def overview_page_data(db: Session, user_id: int) -> dict:
     total_assets = sum(float(a.amount) for a in assets)
     total_liabilities = sum(float(c.used) for c in credit_lines)
     cycle = next_cycle(db, user_id)
-    upcoming_expenses = (
-        sorted(
-            (
-                e
-                for e in list_expenses(db, user_id)
-                if e.cycle_id == cycle.id and e.active and not e.paid
-            ),
-            key=lambda e: (e.due_day is None, e.due_day),
-        )
-        if cycle is not None
-        else []
-    )
+    upcoming_expenses: list[UpcomingExpenseEntry] = []
+    if cycle is not None:
+        upcoming_expenses = [
+            UpcomingExpenseEntry(e.name, e.channel, e.due_day, float(e.amount))
+            for e in list_expenses(db, user_id)
+            if e.cycle_id == cycle.id and e.active and not e.paid
+        ]
+        # OneTimeExpense has no due_day/paid/active concept (see its own
+        # docstring) -- every one tagged to this cycle counts as "coming up"
+        # until it's deleted, and its calendar date's day-of-month fills the
+        # same "Due" column a recurring expense's due_day would.
+        upcoming_expenses += [
+            UpcomingExpenseEntry(e.name, e.channel, e.date.day, float(e.amount))
+            for e in list_one_time_expenses(db, user_id)
+            if e.cycle_id == cycle.id
+        ]
+        upcoming_expenses.sort(key=lambda e: (e.due_day is None, e.due_day))
     return {
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
@@ -2121,6 +2139,13 @@ def list_users_for_admin(db: Session) -> list[dict[str, Any]]:
                 select(func.count())
                 .select_from(models.Expense)
                 .where(models.Expense.user_id == user.id)
+            )
+            or 0
+        ) + (
+            db.scalar(
+                select(func.count())
+                .select_from(models.OneTimeExpense)
+                .where(models.OneTimeExpense.user_id == user.id)
             )
             or 0
         )

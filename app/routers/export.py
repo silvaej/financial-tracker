@@ -76,6 +76,30 @@ def export_expenses(
     return _csv_response(rows, ["Name", "Amount", "Cycle", "Channel"], "expenses.csv")
 
 
+@router.get("/one-time-expenses.csv")
+def export_one_time_expenses(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+) -> Response:
+    expenses = crud.list_one_time_expenses(db, current_user.id)
+    rows: list[list[object]] = [
+        [
+            e.name,
+            e.amount,
+            e.date.isoformat(),
+            crud.ordinal_label(e.cycle.payout_day),
+            e.channel.name,
+            e.category.name if e.category else "",
+        ]
+        for e in expenses
+    ]
+    return _csv_response(
+        rows,
+        ["Name", "Amount", "Date", "Cycle", "Channel", "Category"],
+        "one-time-expenses.csv",
+    )
+
+
 @router.get("/transfers.csv")
 def export_transfers(
     db: Session = Depends(get_db),

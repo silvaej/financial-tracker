@@ -486,6 +486,74 @@ def test_expense_category_breakdown_combines_recurring_and_one_time_expenses() -
         db.close()
 
 
+def test_overview_upcoming_includes_one_time_expenses(client: TestClient) -> None:
+    """Regression test for #213: a one-time expense tagged to the next cycle
+    already reduces that channel's balance and shows up in "Expense
+    breakdown", but was invisible in "Upcoming" -- the two numbers looked
+    like they should reconcile and didn't."""
+    channel_id = _create_channel(client, "Payroll")
+    cycle_id = _create_cycle(client, 15, "32000", channel_id)
+
+    client.post(
+        "/expenses",
+        data={
+            "name": "Recurring bill",
+            "amount": "100",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "due_day": "20",
+        },
+    )
+    client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Vet Visit",
+            "amount": "1500",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-10",
+        },
+    )
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    assert "Vet Visit" in response.text
+    assert "1,500.00" in response.text
+    # Total combines both the recurring and one-time expense.
+    assert "1,600.00" in response.text
+
+
+def test_overview_upcoming_sorts_one_time_expenses_by_date_day(client: TestClient) -> None:
+    channel_id = _create_channel(client, "Payroll")
+    cycle_id = _create_cycle(client, 15, "32000", channel_id)
+
+    client.post(
+        "/expenses",
+        data={
+            "name": "Due later",
+            "amount": "200",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "due_day": "20",
+        },
+    )
+    client.post(
+        "/one-time-expenses",
+        data={
+            "name": "Due soonest",
+            "amount": "300",
+            "cycle_id": cycle_id,
+            "channel_id": channel_id,
+            "date": "2026-09-05",
+        },
+    )
+
+    response = client.get("/overview")
+    assert response.status_code == 200
+    text = response.text
+    assert text.index("Due soonest") < text.index("Due later")
+
+
 def test_summary_cards_explain_what_they_mean(client: TestClient) -> None:
     """Regression test for #136: the stat cards had no explanation of what
     feeds them (e.g. "Total liabilities" only counts CreditLine.used, not
