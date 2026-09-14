@@ -40,6 +40,69 @@ def test_create_cycle_with_no_channel(client: TestClient) -> None:
     assert "30th" in response.text
 
 
+def test_create_cycle_rejects_duplicate_payout_day(client: TestClient) -> None:
+    """Regression test for #212: two cycles sharing a payout_day used to be
+    allowed and were indistinguishable everywhere they render (both "15th")."""
+    client.patch("/cycles/count", data={"cycles_per_month": "2"})
+    first = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": "", "payout_day": "15"},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/cycles",
+        data={"income_amount": "500", "receiving_channel_id": "", "payout_day": "15"},
+    )
+    assert second.status_code == 409
+    assert "already have a cycle on the 15th" in second.json()["detail"]
+
+
+def test_update_cycle_rejects_duplicate_payout_day(client: TestClient) -> None:
+    client.patch("/cycles/count", data={"cycles_per_month": "2"})
+    channel_id = _create_channel(client, "BPI")
+    client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
+    )
+    other = client.post(
+        "/cycles",
+        data={"income_amount": "500", "receiving_channel_id": channel_id, "payout_day": "30"},
+    )
+    # Cycles render ordered by payout_day, so the 30th-of-month cycle just
+    # created is the *last* "/cycles/{id}" match, not the first.
+    matches = re.findall(r"/cycles/(\d+)", other.text)
+    assert matches
+    other_cycle_id = matches[-1]
+
+    response = client.patch(
+        f"/cycles/{other_cycle_id}",
+        data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
+    )
+    assert response.status_code == 409
+    assert "already have a cycle on the 15th" in response.json()["detail"]
+
+
+def test_update_cycle_keeping_its_own_payout_day_is_not_a_duplicate(client: TestClient) -> None:
+    """Editing a cycle without changing its payout_day must not trip the
+    uniqueness check against itself."""
+    channel_id = _create_channel(client, "BPI")
+    create = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
+    )
+    match = re.search(r"/cycles/(\d+)", create.text)
+    assert match is not None
+    cycle_id = match.group(1)
+
+    response = client.patch(
+        f"/cycles/{cycle_id}",
+        data={"income_amount": "2000", "receiving_channel_id": channel_id, "payout_day": "15"},
+    )
+    assert response.status_code == 200
+    assert "2000" in response.text
+
+
 def test_create_cycle_rejects_missing_payout_day(client: TestClient) -> None:
     response = client.post(
         "/cycles",
