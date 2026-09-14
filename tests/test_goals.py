@@ -3,6 +3,7 @@ import re
 from fastapi.testclient import TestClient
 
 from app import crud, models
+from tests.conftest import TEST_USER_ID, TestingSessionLocal
 
 
 def _create_channel(client: TestClient, name: str) -> str:
@@ -74,6 +75,46 @@ def test_create_goal_rejects_zero_or_negative_months(client: TestClient) -> None
 
 def test_create_goal_rejects_whitespace_only_name(client: TestClient) -> None:
     response = client.post("/goals", data={"name": "   ", "target": "1000", "months": "1"})
+    assert response.status_code == 422
+
+
+def test_create_goal_with_starting_allocated(client: TestClient) -> None:
+    """Regression test for #207: the add-goal row's "Allocated" input used to
+    submit a value that GoalCreate silently dropped, always creating the
+    goal with allocated=0 no matter what was typed."""
+    response = client.post(
+        "/goals",
+        data={"name": "Emergency Fund", "target": "50000", "allocated": "15000", "months": "6"},
+    )
+    assert response.status_code == 200
+    assert "Emergency Fund" in response.text
+    assert "15,000.00" in response.text
+
+    db = TestingSessionLocal()
+    try:
+        goal = crud.list_goals(db, TEST_USER_ID)[0]
+        assert float(goal.allocated) == 15000.0
+    finally:
+        db.close()
+
+
+def test_create_goal_without_allocated_defaults_to_zero(client: TestClient) -> None:
+    response = client.post("/goals", data={"name": "CAR DP", "target": "100000", "months": "6"})
+    assert response.status_code == 200
+
+    db = TestingSessionLocal()
+    try:
+        goal = crud.list_goals(db, TEST_USER_ID)[0]
+        assert float(goal.allocated) == 0.0
+    finally:
+        db.close()
+
+
+def test_create_goal_rejects_negative_allocated(client: TestClient) -> None:
+    response = client.post(
+        "/goals",
+        data={"name": "CAR DP", "target": "100000", "allocated": "-1", "months": "6"},
+    )
     assert response.status_code == 422
 
 

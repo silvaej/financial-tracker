@@ -35,6 +35,7 @@ def create_goal(
     request: Request,
     name: str = Form(...),
     target: float = Form(...),
+    allocated: float = Form(0),
     months: int = Form(1),
     channel_id: str = Form(""),
     round_up_to_hundred: bool = Form(False),
@@ -47,6 +48,7 @@ def create_goal(
             schemas.GoalCreate(
                 name=name,
                 target=target,
+                allocated=allocated,
                 months=months,
                 channel_id=_parse_channel_id(channel_id),
                 round_up_to_hundred=round_up_to_hundred,

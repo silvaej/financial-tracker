@@ -93,7 +93,7 @@
               </td>
               <td class="num led-inline led-inline-3"
                   data-label="Allocated"
-                  title="Allocated is funded via Cash Flow goal contributions, not editable here">
+                  title="Allocated is set once when a goal is created, then funded via Cash Flow goal contributions -- not editable here afterward">
                 {{ macros.peso(goal.allocated) }}
               </td>
               <td class="num led-inline led-inline-3" data-label="Months">
@@ -201,7 +201,9 @@
                        required>
               </div>
             </td>
-            <td class="num led-inline led-inline-3" data-label="Allocated">
+            <td class="num led-inline led-inline-3"
+                data-label="Allocated"
+                title="A starting balance if you already had savings toward this goal -- set once here, then funded going forward via Cash Flow goal contributions">
               <div class="flex items-center justify-end gap-1">
                 <span class="text-ink-soft text-sm">{{ currency_symbol }}</span>
                 <input class="field field-mono w-24"
@@ -210,7 +212,7 @@
                        name="allocated"
                        form="add-goal-form"
                        placeholder="0"
-                       aria-label="Allocated">
+                       aria-label="Starting allocated">
               </div>
             </td>
             <td class="num led-inline led-inline-3" data-label="Months">
