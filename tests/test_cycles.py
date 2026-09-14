@@ -175,6 +175,29 @@ def test_delete_cycle_in_use_by_expense_is_rejected(client: TestClient) -> None:
     assert "still used" in response.json()["detail"]
 
 
+def test_delete_cycle_with_closed_cycle_history_is_rejected(client: TestClient) -> None:
+    """Regression test: closing a cycle is permanent (no route ever deletes a
+    ClosedCycle), so a cycle that's been closed at least once must stay
+    undeletable even after everything else referencing it is removed --
+    otherwise db.delete(cycle) hits an unhandled IntegrityError, since
+    ClosedCycle.cycle_id is a NOT NULL FK with no cascade."""
+    channel_id = _create_channel(client, "BPI")
+    create = client.post(
+        "/cycles",
+        data={"income_amount": "1000", "receiving_channel_id": channel_id, "payout_day": "15"},
+    )
+    match = re.search(r"/cycles/(\d+)", create.text)
+    assert match is not None
+    cycle_id = match.group(1)
+
+    closed = client.post(f"/cycles/{cycle_id}/history")
+    assert closed.status_code == 200
+
+    response = client.delete(f"/cycles/{cycle_id}")
+    assert response.status_code == 409
+    assert "permanent" in response.json()["detail"]
+
+
 # --- Overdue-hint (payout_day) -----------------------------------------------
 # Regression coverage for #134. `_most_recent_monthly_occurrence` is tested
 # directly (pure function, no monkeypatching needed) for the calendar edge
