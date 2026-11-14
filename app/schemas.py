@@ -109,6 +109,13 @@ class AssetUpdate(BaseModel):
 class GoalCreate(BaseModel):
     name: NonEmptyStr
     target: float = Field(gt=0)
+    # A starting balance for a goal that already had real-world progress
+    # before being tracked here -- set once at creation only (see issue
+    # #207). Goal.allocated is otherwise a derived total of GoalContribution
+    # rows (crud._recompute_goal_allocated), so this is deliberately not on
+    # GoalUpdate -- editing it after creation would let it drift from that
+    # running total instead of seeding it.
+    allocated: float = Field(default=0, ge=0)
     months: int = Field(default=1, gt=0)
     channel_id: int | None = None
     round_up_to_hundred: bool = False
